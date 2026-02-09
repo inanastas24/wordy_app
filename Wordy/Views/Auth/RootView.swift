@@ -1,4 +1,3 @@
-//1
 //  RootView.swift
 //  Wordy
 //
@@ -10,27 +9,37 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
-    @EnvironmentObject var appState: AppState
-    
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
-    @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
     
     var body: some View {
         Group {
             if authViewModel.isCheckingAuth {
                 LoadingScreen()
-            } else if !hasSelectedLanguage {
-                // Крок 1: Вибір мови додатка
+            } else if !authViewModel.isAuthenticated {
+                // Тільки авторизація - немає гостьового режиму
+                LoginView()
+            } else {
+                // Користувач авторизований - показуємо онбординг або додаток
+                AuthenticatedRootView()
+            }
+        }
+    }
+}
+
+struct AuthenticatedRootView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var localizationManager: LocalizationManager
+    @EnvironmentObject var appState: AppState
+    
+    @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
+    @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
+    
+    var body: some View {
+        Group {
+            if !hasSelectedLanguage {
                 LanguageSelectionView()
             } else if !hasSelectedLearningLanguage {
-                // Крок 2: Вибір мови вивчення
                 LearningLanguageSelectionView()
-            } else if !hasCompletedOnboarding {
-                // Крок 3: Логін/Реєстрація
-                LoginPromptView()
             } else {
-                // Основний додаток
                 MainTabView()
             }
         }
@@ -40,17 +49,13 @@ struct RootView: View {
 struct LoadingScreen: View {
     var body: some View {
         ZStack {
-            Color(hex: "#1C1C1E")
+            Color(hex: "#FFFDF5")
                 .ignoresSafeArea()
             
             VStack(spacing: 20) {
                 ProgressView()
                     .scaleEffect(1.5)
                     .tint(Color(hex: "#4ECDC4"))
-                
-                Text("Завантаження...")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
             }
         }
     }

@@ -1,27 +1,22 @@
-//1
+//  ProfileView.swift
+//  Wordy
+//
 
 import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    @AppStorage("userName") private var userName = ""
-    @AppStorage("userAvatar") private var userAvatarData: Data?
     @AppStorage("learningLanguage") private var learningLanguage: LearningLanguage = .english
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
     
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
-    @StateObject private var profileVM = UserProfileViewModel.shared
     
     @State private var showMenu = false
     @State private var selectedTab: Int = 2
     @State private var showSettings = false
-    @State private var showRegistration = false
     @State private var showLanguageSelection = false
-    
-    @State private var showImagePicker = false
-    @State private var selectedImage: UIImage?
     
     private var totalWords: Int { dictionaryVM.totalWords }
     private var learnedWords: Int { dictionaryVM.learnedCount }
@@ -36,15 +31,12 @@ struct ProfileView: View {
                 
                 ScrollView {
                     VStack(spacing: 25) {
-                        headerWithAvatar
+                        header
+                        
+                        // Профіль користувача (тільки перегляд)
+                        userProfileSection
                         
                         changeLanguageButton
-                        
-                        if !userName.isEmpty {
-                            greetingText
-                        }
-                        
-                        accountStatusSection
                         
                         Text(localizationManager.string(.yourProgress))
                             .font(.system(size: 20))
@@ -70,60 +62,25 @@ struct ProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
-                    .environmentObject(authViewModel)
-            }
-            .sheet(isPresented: $showRegistration) {
-                RegistrationPromptView(
-                    onComplete: { showRegistration = false },
-                    onSkip: { showRegistration = false }
-                )
-                .environmentObject(authViewModel)
             }
             .navigationDestination(isPresented: $showLanguageSelection) {
                 LearningLanguageSelectionView(
                     isChangeMode: true,
-                    onLanguageChanged: {
-                        Task {
-                            await profileVM.updateLearningLanguage(learningLanguage.rawValue)
-                        }
-                    }
+                    onLanguageChanged: {}
                 )
                 .navigationBarBackButtonHidden(true)
             }
             .onAppear {
                 dictionaryVM.fetchSavedWords()
-                
-                Task {
-                    await authViewModel.loadUserData()
-                    
-                    // Форсуємо оновлення UI
-                    await MainActor.run {
-                        // Перечитуємо значення з UserDefaults
-                        if let name = UserDefaults.standard.string(forKey: "userName") {
-                            userName = name
-                        }
-                        if let avatar = UserDefaults.standard.data(forKey: "userAvatar") {
-                            userAvatarData = avatar
-                        }
-                    }
-                }
             }
-                
-            .onChange(of: selectedImage) { newImage in
-                            if let image = newImage {
-                                saveAvatar(image: image)
-                            }
-                        }
         }
     }
     
     private func calculateStreak() -> Int {
-        // Спробуємо отримати з Firestore пізніше
-        // Поки що повертаємо мінімальне значення для демонстрації
         return min(totalWords, 7)
     }
     
-    private var headerWithAvatar: some View {
+    private var header: some View {
         HStack {
             Button(action: { showMenu = true }) {
                 Image(systemName: "line.horizontal.3")
@@ -139,46 +96,59 @@ struct ProfileView: View {
             
             Spacer()
             
-            avatarView
+            Button(action: { showSettings = true }) {
+                Image(systemName: "gear")
+                    .font(.system(size: 24))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
     }
     
-    private var avatarView: some View {
-        Group {
-            if let avatarData = userAvatarData,
-               let uiImage = UIImage(data: avatarData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40, height: 40)
+    // MARK: - Профіль користувача (тільки перегляд)
+    private var userProfileSection: some View {
+        VStack(spacing: 12) {
+            // Аватар з Apple
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
+                    .frame(width: 80, height: 80)
+                
+                if let photoURL = authViewModel.user?.photoURL {
+                    AsyncImage(url: photoURL) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color(hex: "#4ECDC4"))
+                    }
+                    .frame(width: 80, height: 80)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(Color(hex: "#4ECDC4"), lineWidth: 2))
-            } else {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 36))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+            }
+            
+            // Ім'я з Apple (не редагується)
+            VStack(spacing: 4) {
+                Text(authViewModel.appleDisplayName.isEmpty ? "Користувач" : authViewModel.appleDisplayName)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                
+                if !authViewModel.appleEmail.isEmpty {
+                    Text(authViewModel.appleEmail)
+                        .font(.system(size: 14))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                }
             }
         }
-        .onTapGesture {
-            // Відкриваємо налаштування
-            showSettings = true
-        }
+        .padding(.vertical, 10)
     }
-
-    // Додай цей метод для вибору фото
-    private func saveAvatar(image: UIImage) {
-            guard let imageData = image.jpegData(compressionQuality: 0.7) else { return }
-            
-            // Зберігаємо локально
-            userAvatarData = imageData
-            
-            // Зберігаємо в Firestore
-            Task {
-                await authViewModel.uploadAvatar(imageData)
-            }
-        }
     
     private var changeLanguageButton: some View {
         Button {
@@ -210,104 +180,6 @@ struct ProfileView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 20)
-    }
-    
-    private var greetingText: some View {
-        Text("\(greeting), \(userName)! 👋")
-            .font(.system(size: 24, weight: .bold))
-            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-    }
-    
-    private var greeting: String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Привіт"
-        case .polish: return "Cześć"
-        case .english: return "Hello"
-        }
-    }
-    
-    @ViewBuilder
-    private var accountStatusSection: some View {
-        if authViewModel.isAnonymous {
-            Button {
-                showRegistration = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.badge.plus")
-                        .font(.system(size: 24))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(localizationManager.string(.signIn))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        
-                        Text(localizationManager.string(.tapToSave))
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.orange.opacity(0.3), lineWidth: 2)
-                )
-                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-                .padding(.horizontal, 20)
-            }
-            .buttonStyle(PlainButtonStyle())
-        } else {
-            // ВИПРАВЛЕНО: Кнопка ВИХОДУ замість статичного тексту
-            Button {
-                do {
-                    try authViewModel.signOut()
-                } catch {
-                    print("❌ Помилка виходу: \(error)")
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.left.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.red)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(localizationManager.string(.logOut)) // Або просто "Вийти"
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        
-                        Text(authViewModel.user?.email ?? "User")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.red.opacity(0.5))
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.red.opacity(0.3), lineWidth: 2)
-                )
-                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
-                .padding(.horizontal, 20)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
     }
     
     private var statsGrid: some View {
@@ -411,48 +283,7 @@ struct ProfileView: View {
     }
 }
 
-struct FirestoreActivityRow: View {
-    let word: SavedWordModel
-    let isDarkMode: Bool
-    
-    var body: some View {
-        HStack(spacing: 15) {
-            Image(systemName: word.isLearned ? "checkmark.circle.fill" : "clock.fill")
-                .font(.system(size: 24))
-                .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : Color(hex: "#A8D8EA"))
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(word.original)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(isDarkMode ? .white : .primary)
-                
-                Text(word.isLearned ? "Вивчено" : "Додано")
-                    .font(.system(size: 14))
-                    .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-            }
-            
-            Spacer()
-            
-            Text(formattedDate(word.createdAt))
-                .font(.caption)
-                .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-        .padding(.horizontal, 20)
-    }
-    
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-}
-// MARK: - Supporting Views (додай в кінець ProfileView.swift)
-
+// MARK: - Supporting Views
 struct StatCard: View {
     let icon: String
     let value: String
@@ -508,5 +339,46 @@ struct AchievementCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(isUnlocked ? Color(hex: color) : Color.clear, lineWidth: 2)
         )
+    }
+}
+
+struct FirestoreActivityRow: View {
+    let word: SavedWordModel
+    let isDarkMode: Bool
+    
+    var body: some View {
+        HStack(spacing: 15) {
+            Image(systemName: word.isLearned ? "checkmark.circle.fill" : "clock.fill")
+                .font(.system(size: 24))
+                .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : Color(hex: "#A8D8EA"))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(word.original)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(isDarkMode ? .white : .primary)
+                
+                Text(word.isLearned ? "Вивчено" : "Додано")
+                    .font(.system(size: 14))
+                    .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+            }
+            
+            Spacer()
+            
+            Text(formattedDate(word.createdAt))
+                .font(.caption)
+                .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .padding(.horizontal, 20)
+    }
+    
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
