@@ -1,0 +1,11 @@
+# Конфігурація з секретами
+Config.plist
+
+# Xcode
+.DS_Store
+xcuserdata/
+*.xcuserstate
+
+# Sensitive config
+Config.plist
+*/Config.plist
