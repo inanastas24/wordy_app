@@ -1,19 +1,15 @@
-//1
 //  SavedWordsView.swift
 //  Wordy
 //
 //  Created by Anastasiia Inzer on 29.01.2026.
 //
 
-
 import SwiftUI
 
 struct SavedWordsView: View {
     @StateObject private var viewModel = DictionaryViewModel.shared
-    @EnvironmentObject private var authViewModel: AuthViewModel
     @State private var showSignOutError = false
     @State private var signOutErrorMessage = ""
-    @State private var showRegistration = false
     
     var body: some View {
         NavigationView {
@@ -46,22 +42,15 @@ struct SavedWordsView: View {
             }
             .navigationTitle("Мої слова (\(viewModel.savedWords.count))")
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if authViewModel.isAnonymous {
-                        Button {
-                            showRegistration = true
-                        } label: {
-                            Image(systemName: "icloud.and.arrow.up")
-                                .foregroundColor(Color(hex: "#4ECDC4"))
-                        }
-                    }
-                }
+                // ПРИБРАНО: кнопку реєстрації для анонімних
+                // ПРИБРАНО: кнопку виходу
                 
+                // Можна додати кнопку оновлення якщо потрібно
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
-                        signOut()
+                        viewModel.fetchSavedWords()
                     }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Image(systemName: "arrow.clockwise")
                     }
                 }
             }
@@ -86,17 +75,6 @@ struct SavedWordsView: View {
             } message: {
                 Text(signOutErrorMessage)
             }
-            .sheet(isPresented: $showRegistration) {
-                RegistrationPromptView(
-                    onComplete: {
-                        showRegistration = false
-                    },
-                    onSkip: {
-                        showRegistration = false
-                    }
-                )
-                .environmentObject(authViewModel)
-            }
         }
     }
     
@@ -104,16 +82,7 @@ struct SavedWordsView: View {
         for index in offsets {
             guard index < viewModel.savedWords.count else { continue }
             let word = viewModel.savedWords[index]
-                viewModel.deleteWord(word.id ?? "")
-        }
-    }
-    
-    private func signOut() {
-        do {
-            try authViewModel.signOut()
-        } catch {
-            signOutErrorMessage = error.localizedDescription
-            showSignOutError = true
+            viewModel.deleteWord(word.id ?? "")
         }
     }
 }
