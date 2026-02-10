@@ -139,7 +139,7 @@ struct RegistrationPromptView: View {
             }
             
             // Skip
-            Button {
+           /* Button {
                 onSkip()
             } label: {
                 VStack(spacing: 4) {
@@ -151,7 +151,7 @@ struct RegistrationPromptView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.orange)
                 }
-            }
+            }*/
             .padding(.top, 20)
         }
         .padding(.horizontal, 30)

@@ -333,12 +333,17 @@ struct SettingsView: View {
             
             Task {
                 do {
-                    let count = try DictionaryExportService.importWords(from: url, context: modelContext)
-                    importedCount = count
-                    showImportSuccess = true
+                    let count = try await DictionaryExportService.importWords(from: url)
+                    
+                    await MainActor.run {
+                        importedCount = count
+                        showImportSuccess = true
+                    }
                 } catch {
-                    errorMessage = error.localizedDescription
-                    showError = true
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
                 }
             }
             

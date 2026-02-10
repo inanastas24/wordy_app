@@ -1,5 +1,6 @@
 //
 //  ExportImport.swift
+//  Wordy
 //
 
 import Foundation
@@ -93,7 +94,7 @@ class DictionaryExportService {
         }
     }
     
-    static func importWords(from url: URL, context: ModelContext) throws -> Int {
+    static func importWords(from url: URL) async throws -> Int {
         guard url.startAccessingSecurityScopedResource() else {
             throw ExportImportError.importFailed
         }
@@ -107,54 +108,54 @@ class DictionaryExportService {
                 throw ExportImportError.invalidFileFormat
             }
             
-            var importedCount = 0
+            print("📥 Імпорт: знайдено \(json.count) записів у файлі")
             
-            let descriptor = FetchDescriptor<SavedWord>()
-            let existingWords = try context.fetch(descriptor)
+            var importedWords: [SavedWordModel] = []
+            
+            let existingWords = DictionaryViewModel.shared.savedWords
             let existingOriginals = Set(existingWords.map { $0.original.lowercased() })
             
             for item in json {
                 guard let original = item["original"] as? String,
                       let translation = item["translation"] as? String,
-                      !original.isEmpty else { continue }
+                      !original.isEmpty else {
+                    print("⚠️ Пропущено запис: відсутні original або translation")
+                    continue
+                }
                 
                 if existingOriginals.contains(original.lowercased()) {
+                    print("⚠️ Пропущено дублікат: \(original)")
                     continue
                 }
                 
                 let languagePair = item["languagePair"] as? String ?? "en-uk"
+                let isLearned = item["isLearned"] as? Bool ?? false
+                let reviewCount = item["reviewCount"] as? Int ?? 0
                 
-                let word = SavedWord(
+                // ВИПРАВЛЕНО: Правильний порядок аргументів згідно з структурою SavedWordModel
+                var word = SavedWordModel(
+                    id: UUID().uuidString,
                     original: original,
                     translation: translation,
-                    transcription: item["transcription"] as? String ?? "",
-                    exampleSentence: item["exampleSentence"] as? String ?? "",
-                    languagePair: languagePair  
+                    transcription: item["transcription"] as? String,
+                    exampleSentence: item["exampleSentence"] as? String,
+                    languagePair: languagePair,
+                    isLearned: isLearned,
+                    reviewCount: reviewCount,
+                    srsInterval: item["srsInterval"] as? Double ?? 0,
+                    srsRepetition: item["srsRepetition"] as? Int ?? 0,
+                    srsEasinessFactor: item["srsEasinessFactor"] as? Double ?? 2.5,
+                    nextReviewDate: nil,
+                    lastReviewDate: nil,
+                    averageQuality: item["averageQuality"] as? Double ?? 0,
+                    createdAt: Date(),
+                    userId: nil
                 )
                 
-                // Відновлюємо SRS дані
-                if let isLearned = item["isLearned"] as? Bool {
-                    word.isLearned = isLearned
-                }
-                if let reviewCount = item["reviewCount"] as? Int {
-                    word.reviewCount = reviewCount
-                }
-                if let srsInterval = item["srsInterval"] as? Double {
-                    word.srsInterval = srsInterval
-                }
-                if let srsRepetition = item["srsRepetition"] as? Int {
-                    word.srsRepetition = srsRepetition
-                }
-                if let srsEasinessFactor = item["srsEasinessFactor"] as? Double {
-                    word.srsEasinessFactor = srsEasinessFactor
-                }
-                if let averageQuality = item["averageQuality"] as? Double {
-                    word.averageQuality = averageQuality
-                }
-                
+                // Відновлюємо дати
                 if let dateString = item["dateAdded"] as? String,
                    let date = ISO8601DateFormatter().date(from: dateString) {
-                    word.dateAdded = date
+                    word.createdAt = date
                 }
                 
                 if let lastReviewString = item["lastReviewDate"] as? String,
@@ -167,21 +168,24 @@ class DictionaryExportService {
                     word.nextReviewDate = nextReview
                 }
                 
-                context.insert(word)
-                importedCount += 1
+                importedWords.append(word)
             }
             
-            try context.save()
-            
-            guard importedCount > 0 else {
+            guard !importedWords.isEmpty else {
                 throw ExportImportError.noWordsImported
             }
             
-            return importedCount
+            await MainActor.run {
+                DictionaryViewModel.shared.saveWords(importedWords)
+            }
+            
+            print("✅ Імпорт завершено: \(importedWords.count) слів")
+            return importedWords.count
             
         } catch let error as ExportImportError {
             throw error
         } catch {
+            print("❌ Помилка імпорту: \(error)")
             throw ExportImportError.importFailed
         }
     }
