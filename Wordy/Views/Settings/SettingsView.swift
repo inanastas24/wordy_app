@@ -153,28 +153,28 @@ struct SettingsView: View {
     }
     
     private var languageSection: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(localizationManager.string(.appLanguage))
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                .padding(.horizontal, 20)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(Language.allCases) { language in
-                        LanguageChip(
-                            language: language,
-                            isSelected: appLanguage == language,
-                            isDarkMode: localizationManager.isDarkMode
-                        ) {
-                            selectLanguage(language)
+            VStack(alignment: .leading, spacing: 15) {
+                Text(localizationManager.string(.appLanguage))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    .padding(.horizontal, 20)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Language.allCases) { language in
+                            LanguageChip(
+                                language: language,
+                                isSelected: appLanguage == language,
+                                isDarkMode: localizationManager.isDarkMode
+                            ) {
+                                selectLanguage(language)
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
             }
         }
-    }
     
     private func selectLanguage(_ language: Language) {
         withAnimation(.spring(response: 0.35)) {
@@ -412,10 +412,6 @@ struct LanguageChip: View {
             HStack(spacing: 8) {
                 Text(language.flag)
                     .font(.system(size: 24))
-                
-                Text(language.displayName)
-                    .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? .white : (isDarkMode ? .white : Color(hex: "#2C3E50")))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

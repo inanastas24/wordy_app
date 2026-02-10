@@ -37,12 +37,7 @@ struct ProfileView: View {
                         userEmailSection
                         
                         // Кнопка зміни мови (тільки прапор)
-                        changeLanguageButton
-                        
-                        Text(localizationManager.string(.yourProgress))
-                            .font(.system(size: 20))
-                            .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                            .padding(.bottom, 10)
+                        // changeLanguageButton
                         
                         statsGrid
                         achievementsSection
@@ -147,39 +142,36 @@ struct ProfileView: View {
     
     // MARK: - Кнопка зміни мови (тільки прапор, без тексту)
     private var changeLanguageButton: some View {
-        Button {
-            showLanguageSelection = true
-        } label: {
-            HStack(spacing: 16) {
-                // Прапор поточної мови
-                Text(learningLanguage.flag)
-                    .font(.system(size: 40))
-                
-                // Інші прапори (невеликі)
-                HStack(spacing: -8) {
-                    ForEach(LearningLanguage.allCases.filter { $0 != learningLanguage }) { lang in
-                        Text(lang.flag)
-                            .font(.system(size: 24))
-                            .opacity(0.5)
-                    }
+            Button {
+                showLanguageSelection = true
+            } label: {
+                HStack(spacing: 10) {
+                    Text(learningLanguage.flag)
+                        .font(.system(size: 24))
+                    
+                    Text(learningLanguage.displayName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                    
+                    Spacer()
                 }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                )
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
-            )
+            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 20)
         }
-        .buttonStyle(PlainButtonStyle())
-        .padding(.horizontal, 20)
-    }
     
     private var statsGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
