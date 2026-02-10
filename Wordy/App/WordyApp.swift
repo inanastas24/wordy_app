@@ -6,6 +6,7 @@
 
 import SwiftUI
 import FirebaseCore
+import SwiftData
 
 @main
 struct WordyApp: App {
@@ -14,6 +15,10 @@ struct WordyApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var profileViewModel = UserProfileViewModel.shared
     @StateObject private var permissionManager = PermissionManager.shared
+    
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("learningLanguage") private var learningLanguage: String = "en"
+    @State private var showSplash = true
     
     init() {
         FirebaseApp.configure()
@@ -33,18 +38,37 @@ struct WordyApp: App {
         // Запитуємо всі пермішени при першому запуску
         // Tracking запитується з затримкою 2 секунди, щоб не налякати користувача відразу
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            PermissionManager.shared.requestTrackingPermission()
+       //     PermissionManager.shared.requestTrackingPermission()
+       //     PermissionManager.shared.requestCameraPermission()
+       //     PermissionManager.shared.requestMicrophonePermission()
+       //     PermissionManager.shared.requestSpeechPermission()
         }
     }
     
     var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environmentObject(authViewModel)
-                .environmentObject(localizationManager)
-                .environmentObject(appState)
-                .environmentObject(profileViewModel)
-                .environmentObject(permissionManager)
+            WindowGroup {
+                ZStack {
+                    // Головний контент
+                    if hasSeenOnboarding {
+                        ContentView()
+                            .environmentObject(localizationManager)
+                            .environmentObject(authViewModel)
+                            .environmentObject(appState)
+                            .modelContainer(for: SavedWord.self)
+                    }
+                    
+                    // Splash Screen поверх усього
+                    if showSplash {
+                        SplashScreenView(isActive: $showSplash)
+                            .environmentObject(localizationManager)
+                            .transition(.opacity)
+                            .zIndex(100)
+                    }
+                }
+                .onAppear {
+                    // Затримка перед показом splash (опціонально)
+                    // або можна прибрати, щоб показувати одразу
+                }
+            }
         }
     }
-}

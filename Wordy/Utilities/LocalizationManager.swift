@@ -103,6 +103,7 @@ enum LocalizableKey: String {
     case noAccountCreate
     case enterYourEmail
     case sendResetLink
+    case learnWordsEasily
 }
 
 public class LocalizationManager: ObservableObject {
@@ -613,6 +614,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Скидання пароля",
             .english: "Reset password",
             .polish: "Resetowanie hasła"
+        ],
+        .learnWordsEasily: [
+            .ukrainian: "Вивчайте слова легко",
+            .english: "Learn words easily",
+            .polish: "Ucz się słów łatwo"
         ]
     ]
 }
