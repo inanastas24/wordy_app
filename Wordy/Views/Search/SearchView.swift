@@ -1,4 +1,4 @@
-//1
+//
 //  SearchView.swift
 //  Wordy
 //
@@ -91,6 +91,8 @@ struct SearchView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
     
+    @AppStorage("learningLanguage") private var learningLanguage: LearningLanguage = .english
+    
     @State private var searchText = ""
     @State private var showMenu = false
     @State private var translationResult: TranslationResult?
@@ -103,6 +105,7 @@ struct SearchView: View {
     @State private var errorTitle = ""
     @State private var showSettings = false
     @State private var showTranslationCard = false
+    @State private var showLanguagePicker = false
     
     @FocusState private var isSearchFocused: Bool
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -125,6 +128,9 @@ struct SearchView: View {
                     
                     ScrollView {
                         VStack(spacing: 25) {
+                            // Вибір мови вивчення (перенесено з Profile)
+                            languageSelector
+                            
                             SearchBar(text: $searchText, onSubmit: performSearch)
                                 .focused($isSearchFocused)
                             
@@ -208,6 +214,11 @@ struct SearchView: View {
                             isSearchFocused = false
                         }
                 }
+                
+                // Language picker overlay
+                if showLanguagePicker {
+                    languagePickerOverlay
+                }
             }
             .sheet(isPresented: $showScanner) {
                 LiveTextScanner(scannedText: $scannedText)
@@ -234,6 +245,113 @@ struct SearchView: View {
             .onChange(of: selectedTab) { _, _ in
                 isSearchFocused = false
             }
+        }
+    }
+    
+    // MARK: - Language Selector (перенесено з Profile)
+    private var languageSelector: some View {
+        Button {
+            withAnimation(.spring(response: 0.35)) {
+                showLanguagePicker = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Text(learningLanguage.flag)
+                    .font(.system(size: 32))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(localizationManager.string(.selectLearningLanguage))
+                        .font(.system(size: 12))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                    
+                    Text(learningLanguage.displayName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+            )
+            .padding(.horizontal, 20)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    // MARK: - Language Picker Overlay
+    private var languagePickerOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.35)) {
+                        showLanguagePicker = false
+                    }
+                }
+            
+            VStack(spacing: 20) {
+                Text(localizationManager.string(.selectLearningLanguage))
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    ForEach(LearningLanguage.allCases) { language in
+                        Button {
+                            withAnimation(.spring(response: 0.35)) {
+                                learningLanguage = language
+                                appState.learningLanguage = language.rawValue
+                                showLanguagePicker = false
+                            }
+                        } label: {
+                            VStack(spacing: 8) {
+                                Text(language.flag)
+                                    .font(.system(size: 40))
+                                
+                                Text(language.displayName)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(learningLanguage == language ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 80)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(learningLanguage == language ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(learningLanguage == language ? Color.clear : Color(hex: "#E0E0E0"), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                
+                Button {
+                    withAnimation(.spring(response: 0.35)) {
+                        showLanguagePicker = false
+                    }
+                } label: {
+                    Text(localizationManager.currentLanguage == .ukrainian ? "Скасувати" :
+                         localizationManager.currentLanguage == .polish ? "Anuluj" : "Cancel")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#7F8C8D"))
+                        .padding(.vertical, 12)
+                }
+            }
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
+                    .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
+            )
+            .padding(.horizontal, 40)
         }
     }
     

@@ -8,17 +8,25 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
-    @EnvironmentObject var localizationManager: LocalizationManager
     
     var body: some View {
         Group {
             if authViewModel.isCheckingAuth {
                 LoadingScreen()
             } else if !authViewModel.isAuthenticated {
-                // Тільки авторизація - немає гостьового режиму
-                LoginView()
+                RegistrationPromptView(
+                    onComplete: {
+                        print("✅ onComplete called - user authenticated")
+                        // Нічого не треба робити, isAuthenticated вже true
+                    },
+                    onSkip: {
+                            // Користувач пропустив - робимо anonymous login
+                            UserDefaults.standard.set(true, forKey: "skippedRegistration")
+                            Task {
+                                await authViewModel.signInAnonymouslyForTesting()
+                            }
+                        }                )
             } else {
-                // Користувач авторизований - показуємо онбординг або додаток
                 AuthenticatedRootView()
             }
         }
@@ -32,6 +40,7 @@ struct AuthenticatedRootView: View {
     
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
+    @AppStorage("skippedRegistration") private var skippedRegistration = false
     
     var body: some View {
         Group {

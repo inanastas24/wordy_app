@@ -39,8 +39,8 @@ struct SettingsView: View {
                     VStack(spacing: 30) {
                         header
                         
-                        // Профіль (тільки перегляд)
-                        profileInfoSection
+                        // Email користувача (компактно)
+                        userEmailSection
                         
                         languageSection
                         dataManagementSection
@@ -72,20 +72,20 @@ struct SettingsView: View {
             } message: {
                 Text(importCompletedMessage(count: importedCount))
             }
-            .alert("Error", isPresented: $showError) {
+            .alert(localizationManager.string(.error), isPresented: $showError) {
                 Button("OK") { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
             }
             .confirmationDialog(
-                "Вийти з акаунту?",
+                logoutConfirmationTitle(),
                 isPresented: $showLogoutConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Вийти", role: .destructive) { performLogout() }
-                Button("Скасувати", role: .cancel) { }
+                Button(logoutButtonTitle(), role: .destructive) { performLogout() }
+                Button(cancelButtonTitle(), role: .cancel) { }
             } message: {
-                Text("Ви впевнені, що хочете вийти?")
+                Text(logoutConfirmationMessage())
             }
         }
     }
@@ -114,48 +114,42 @@ struct SettingsView: View {
         .padding(.top, 10)
     }
     
-    // MARK: - Інформація про профіль (тільки перегляд)
-    private var profileInfoSection: some View {
-        VStack(spacing: 16) {
-            // Аватар
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                    .frame(width: 100, height: 100)
-                
-                if let photoURL = authViewModel.user?.photoURL {
-                    AsyncImage(url: photoURL) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } placeholder: {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 44))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
-                    }
-                    .frame(width: 100, height: 100)
-                    .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 44))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-            }
+    // MARK: - Email користувача (компактний блок)
+    private var userEmailSection: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.circle.fill")
+                .font(.system(size: 44))
+                .foregroundColor(Color(hex: "#4ECDC4"))
             
-            // Ім'я та email (не редагуються)
-            VStack(spacing: 4) {
-                Text(authViewModel.appleDisplayName.isEmpty ? "Користувач" : authViewModel.appleDisplayName)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                
+            VStack(alignment: .leading, spacing: 4) {
                 if !authViewModel.appleEmail.isEmpty {
                     Text(authViewModel.appleEmail)
-                        .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else if let email = authViewModel.user?.email {
+                    Text(email)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else {
+                    Text(localizationManager.string(.user))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                 }
+                
+                Text(localizationManager.string(.settings))
+                    .font(.system(size: 12))
+                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             }
+            
+            Spacer()
         }
-        .padding(.vertical, 10)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        )
+        .padding(.horizontal, 20)
     }
     
     private var languageSection: some View {
@@ -280,7 +274,7 @@ struct SettingsView: View {
                         .foregroundColor(Color(hex: "#F38BA8"))
                 }
                 
-                Text("Вийти з акаунту")
+                Text(localizationManager.string(.logOut))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(Color(hex: "#F38BA8"))
                 
@@ -354,7 +348,7 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - Helpers
+    // MARK: - Localization Helpers
     
     private func importCompletedTitle() -> String {
         switch localizationManager.currentLanguage {
@@ -369,6 +363,38 @@ struct SettingsView: View {
         case .ukrainian: return "Імпортовано \(count) слів"
         case .polish: return "Zaimportowano \(count) słów"
         case .english: return "Imported \(count) words"
+        }
+    }
+    
+    private func logoutConfirmationTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вийти з акаунту?"
+        case .polish: return "Wylogować się?"
+        case .english: return "Sign out?"
+        }
+    }
+    
+    private func logoutConfirmationMessage() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Ви впевнені, що хочете вийти?"
+        case .polish: return "Czy na pewno chcesz się wylogować?"
+        case .english: return "Are you sure you want to sign out?"
+        }
+    }
+    
+    private func logoutButtonTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вийти"
+        case .polish: return "Wyloguj"
+        case .english: return "Sign out"
+        }
+    }
+    
+    private func cancelButtonTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Скасувати"
+        case .polish: return "Anuluj"
+        case .english: return "Cancel"
         }
     }
 }

@@ -33,9 +33,10 @@ struct ProfileView: View {
                     VStack(spacing: 25) {
                         header
                         
-                        // Профіль користувача (тільки перегляд)
-                        userProfileSection
+                        // Email користувача (компактно)
+                        userEmailSection
                         
+                        // Кнопка зміни мови (тільки прапор)
                         changeLanguageButton
                         
                         Text(localizationManager.string(.yourProgress))
@@ -106,76 +107,74 @@ struct ProfileView: View {
         .padding(.top, 10)
     }
     
-    // MARK: - Профіль користувача (тільки перегляд)
-    private var userProfileSection: some View {
-        VStack(spacing: 12) {
-            // Аватар з Apple
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                    .frame(width: 80, height: 80)
-                
-                if let photoURL = authViewModel.user?.photoURL {
-                    AsyncImage(url: photoURL) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } placeholder: {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 36))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
-                    }
-                    .frame(width: 80, height: 80)
-                    .clipShape(Circle())
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 36))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-            }
+    // MARK: - Email користувача (компактний блок)
+    private var userEmailSection: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.circle.fill")
+                .font(.system(size: 40))
+                .foregroundColor(Color(hex: "#4ECDC4"))
             
-            // Ім'я з Apple (не редагується)
-            VStack(spacing: 4) {
-                Text(authViewModel.appleDisplayName.isEmpty ? "Користувач" : authViewModel.appleDisplayName)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                
+            VStack(alignment: .leading, spacing: 4) {
                 if !authViewModel.appleEmail.isEmpty {
                     Text(authViewModel.appleEmail)
-                        .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else if let email = authViewModel.user?.email {
+                    Text(email)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else {
+                    Text(localizationManager.string(.user))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                 }
+                
+                Text(localizationManager.string(.profile))
+                    .font(.system(size: 12))
+                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             }
+            
+            Spacer()
         }
-        .padding(.vertical, 10)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        )
+        .padding(.horizontal, 20)
     }
     
+    // MARK: - Кнопка зміни мови (тільки прапор, без тексту)
     private var changeLanguageButton: some View {
         Button {
             showLanguageSelection = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: 16) {
+                // Прапор поточної мови
                 Text(learningLanguage.flag)
-                    .font(.system(size: 24))
+                    .font(.system(size: 40))
                 
-                Text(learningLanguage.displayName)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
+                // Інші прапори (невеликі)
+                HStack(spacing: -8) {
+                    ForEach(LearningLanguage.allCases.filter { $0 != learningLanguage }) { lang in
+                        Text(lang.flag)
+                            .font(.system(size: 24))
+                            .opacity(0.5)
+                    }
+                }
                 
                 Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
             }
             .padding()
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -269,7 +268,8 @@ struct ProfileView: View {
         Group {
             if !dictionaryVM.savedWords.isEmpty {
                 VStack(alignment: .leading, spacing: 15) {
-                    Text("Остання активність")
+                    Text(localizationManager.currentLanguage == .ukrainian ? "Остання активність" :
+                         localizationManager.currentLanguage == .polish ? "Ostatnia aktywność" : "Recent activity")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
                         .padding(.horizontal, 20)
@@ -357,7 +357,11 @@ struct FirestoreActivityRow: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(isDarkMode ? .white : .primary)
                 
-                Text(word.isLearned ? "Вивчено" : "Додано")
+                Text(word.isLearned ?
+                     (LocalizationManager.shared.currentLanguage == .ukrainian ? "Вивчено" :
+                      LocalizationManager.shared.currentLanguage == .polish ? "Nauczone" : "Learned") :
+                     (LocalizationManager.shared.currentLanguage == .ukrainian ? "Додано" :
+                      LocalizationManager.shared.currentLanguage == .polish ? "Dodane" : "Added"))
                     .font(.system(size: 14))
                     .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             }

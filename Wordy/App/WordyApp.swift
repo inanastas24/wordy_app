@@ -1,4 +1,3 @@
-//1
 //  WordyApp.swift
 //  Wordy
 //
@@ -18,6 +17,17 @@ struct WordyApp: App {
     
     init() {
         FirebaseApp.configure()
+        
+        // Дебаг: перевіряємо конфігурацію Firebase
+        if let options = FirebaseApp.app()?.options {
+            print("✅ Firebase configured:")
+            print("   - Project ID: \(options.projectID ?? "nil")")
+            print("   - API Key: \(options.apiKey?.prefix(10) ?? "nil")...")
+            print("   - Bundle ID: \(options.bundleID ?? "nil")")
+        } else {
+            print("❌ Firebase not configured properly!")
+        }
+        
         _authViewModel = StateObject(wrappedValue: AuthViewModel())
         
         // Запитуємо всі пермішени при першому запуску

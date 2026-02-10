@@ -1,5 +1,5 @@
-//1
-//  ExportImport.swift (ВИПРАВЛЕНИЙ)
+//
+//  ExportImport.swift
 //
 
 import Foundation
@@ -45,6 +45,7 @@ class DictionaryExportService {
                 "translation": word.translation,
                 "transcription": word.transcription,
                 "exampleSentence": word.exampleSentence,
+                "languagePair": word.languagePair,
                 "dateAdded": ISO8601DateFormatter().string(from: word.dateAdded),
                 "isLearned": word.isLearned,
                 "reviewCount": word.reviewCount,
@@ -121,13 +122,14 @@ class DictionaryExportService {
                     continue
                 }
                 
-                // ВИПРАВЛЕНО: Прибрано exampleTranslation
+                let languagePair = item["languagePair"] as? String ?? "en-uk"
+                
                 let word = SavedWord(
                     original: original,
                     translation: translation,
                     transcription: item["transcription"] as? String ?? "",
                     exampleSentence: item["exampleSentence"] as? String ?? "",
-                    languagePair: item["languagePair"] as? String ?? ""
+                    languagePair: languagePair  
                 )
                 
                 // Відновлюємо SRS дані

@@ -91,6 +91,18 @@ enum LocalizableKey: String {
     // Permissions
     case cameraPermission, microphonePermission, speechPermission, trackingPermission
     case permissionRequired, permissionMessage, openSettings
+    case recentActivity, cancel
+    
+    // New keys
+    case saveProgressDescription
+    case emailPassword
+    case continueWithoutRegistration
+    case wordsMayBeLost
+    case enterDetailsForRegistration
+    case enterEmailAndPassword
+    case noAccountCreate
+    case enterYourEmail
+    case sendResetLink
 }
 
 public class LocalizationManager: ObservableObject {
@@ -541,6 +553,66 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Відкрити налаштування",
             .english: "Open Settings",
             .polish: "Otwórz ustawienia"
+        ],
+        .recentActivity: [
+            .ukrainian: "Остання активність",
+            .english: "Recent activity",
+            .polish: "Ostatnia aktywność"
+        ],
+        .cancel: [
+            .ukrainian: "Скасувати",
+            .english: "Cancel",
+            .polish: "Anuluj"
+        ],
+        .saveProgressDescription: [
+            .ukrainian: "Увійдіть або зареєструйтесь, щоб зберегти ваші слова в хмарі",
+            .english: "Sign in or register to save your words to the cloud",
+            .polish: "Zaloguj się lub zarejestruj, aby zapisać słowa w chmurze"
+        ],
+        .emailPassword: [
+            .ukrainian: "Email та пароль",
+            .english: "Email & Password",
+            .polish: "Email i hasło"
+        ],
+        .continueWithoutRegistration: [
+            .ukrainian: "Продовжити без реєстрації",
+            .english: "Continue without registration",
+            .polish: "Kontynuuj bez rejestracji"
+        ],
+        .wordsMayBeLost: [
+            .ukrainian: "Ваші слова можуть загубитися",
+            .english: "Your words may be lost",
+            .polish: "Twoje słowa mogą zginąć"
+        ],
+        .enterDetailsForRegistration: [
+            .ukrainian: "Введіть дані для реєстрації",
+            .english: "Enter details for registration",
+            .polish: "Wprowadź dane do rejestracji"
+        ],
+        .enterEmailAndPassword: [
+            .ukrainian: "Введіть email та пароль",
+            .english: "Enter email and password",
+            .polish: "Wprowadź email i hasło"
+        ],
+        .noAccountCreate: [
+            .ukrainian: "Ще не зареєстровані? Створіть акаунт",
+            .english: "Not registered yet? Create account",
+            .polish: "Nie masz konta? Utwórz je"
+        ],
+        .enterYourEmail: [
+            .ukrainian: "Введіть ваш email",
+            .english: "Enter your email",
+            .polish: "Wprowadź swój email"
+        ],
+        .sendResetLink: [
+            .ukrainian: "Надіслати посилання",
+            .english: "Send link",
+            .polish: "Wyślij link"
+        ],
+        .resetPassword: [
+            .ukrainian: "Скидання пароля",
+            .english: "Reset password",
+            .polish: "Resetowanie hasła"
         ]
     ]
 }
