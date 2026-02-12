@@ -239,6 +239,7 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
     }
     
     // НОВИЙ МЕТОД: Масове збереження слів (для імпорту)
@@ -277,6 +278,7 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
     }
     
     // MARK: - Update Word (НОВИЙ МЕТОД)
@@ -320,6 +322,7 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
     }
     
     // MARK: - Word Status Updates
