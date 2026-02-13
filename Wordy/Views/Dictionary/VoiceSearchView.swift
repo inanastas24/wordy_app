@@ -17,6 +17,9 @@ struct VoiceSearchView: View {
     @State private var translationResult: TranslationResult?
     @State private var isLoading = false
     
+    // Жовтий/золотий колір для голосового пошуку
+    private let voiceColor = Color(hex: "#FFD93D")  // Теплий жовтий
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -35,13 +38,13 @@ struct VoiceSearchView: View {
                         // Анімація запису
                         ZStack {
                             Circle()
-                                .fill(Color(hex: "#F38BA8").opacity(0.2))
+                                .fill(voiceColor.opacity(0.2))
                                 .frame(width: 200, height: 200)
                                 .scaleEffect(speechService.isRecording ? 1.2 : 1.0)
                                 .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: speechService.isRecording)
                             
                             Circle()
-                                .fill(Color(hex: "#F38BA8"))
+                                .fill(voiceColor)
                                 .frame(width: 120, height: 120)
                             
                             Image(systemName: speechService.isRecording ? "waveform" : "mic.fill")
@@ -69,7 +72,8 @@ struct VoiceSearchView: View {
                                 if !speechService.recognizedText.isEmpty {
                                     performSearch(speechService.recognizedText)
                                 }
-                            }
+                            },
+                            buttonColor: voiceColor
                         )
                         
                         Spacer()
@@ -131,15 +135,16 @@ struct LongPressButton: View {
     @Binding var isRecording: Bool
     let onPressBegan: () -> Void
     let onPressEnded: () -> Void
+    let buttonColor: Color
     
     var body: some View {
         Circle()
-            .stroke(Color(hex: "#F38BA8"), lineWidth: 3)
+            .stroke(buttonColor, lineWidth: 3)
             .frame(width: 80, height: 80)
             .overlay(
                 Text(isRecording ? "..." : "Тримайте")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#F38BA8"))
+                    .foregroundColor(buttonColor)
             )
             .gesture(
                 DragGesture(minimumDistance: 0)

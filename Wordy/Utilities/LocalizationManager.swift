@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import WidgetKit
 
 enum Language: String, CaseIterable, Identifiable {
     case ukrainian = "uk"
@@ -141,11 +142,17 @@ public class LocalizationManager: ObservableObject {
         UserDefaults.standard.set(language.rawValue, forKey: "appLanguage")
         NotificationCenter.default.post(name: .languageChanged, object: nil)
     }
-    
+   
+    // Метод toggleDarkMode:
+
     func toggleDarkMode(_ value: Bool) {
         isDarkMode = value
         UserDefaults.standard.set(value, forKey: "isDarkMode")
         applyAppearance()
+        
+        // Оновлюємо віджет при зміні теми
+        WidgetCenter.shared.reloadAllTimelines()
+        print("🎨 Theme changed to \(value ? "dark" : "light"), widget reloaded")
     }
     
     private func applyAppearance() {

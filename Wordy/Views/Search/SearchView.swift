@@ -10,10 +10,12 @@ import VisionKit
 import Vision
 import AVFoundation
 
+// MARK: - Permission Type
 enum PermissionType {
     case camera, microphone, speech
 }
 
+// MARK: - Live Text Scanner
 struct LiveTextScanner: UIViewControllerRepresentable {
     @Binding var scannedText: String
     @Environment(\.dismiss) var dismiss
@@ -86,8 +88,11 @@ extension LiveTextScanner.Coordinator: UIImagePickerControllerDelegate, UINaviga
     }
 }
 
+// MARK: - Search View
 struct SearchView: View {
     @Binding var selectedTab: Int
+    @Binding var deepLinkAction: DeepLinkAction?
+    
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
     
@@ -111,6 +116,7 @@ struct SearchView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     
     private let translationService = TranslationService()
+    private let voiceColor = Color(hex: "#FFD93D")
     
     var body: some View {
         NavigationStack {
@@ -118,7 +124,6 @@ struct SearchView: View {
                 Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                     .ignoresSafeArea()
                     .onTapGesture {
-                        // Dismiss keyboard when tapping background
                         isSearchFocused = false
                     }
                 
@@ -128,28 +133,13 @@ struct SearchView: View {
                     
                     ScrollView {
                         VStack(spacing: 25) {
-                            // Вибір мови вивчення (перенесено з Profile)
                             languageSelector
                             
                             SearchBar(text: $searchText, onSubmit: performSearch)
                                 .focused($isSearchFocused)
                             
                             if speechService.isRecording {
-                                HStack {
-                                    Spacer()
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "waveform")
-                                            .font(.system(size: 32))
-                                            .foregroundColor(Color(hex: "#4ECDC4"))
-                                        
-                                        Text("🎙️ \(speechService.recognizedText)")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(Color(hex: "#4ECDC4"))
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.top, 10)
+                                recordingIndicator
                             }
                             
                             if isLoading {
@@ -170,19 +160,7 @@ struct SearchView: View {
                                     checkCameraPermission()
                                 }
                                 
-                                VoiceActionButton(
-                                    speechService: speechService,
-                                    title: localizationManager.string(.voice),
-                                    subtitle: localizationManager.string(.holdToSpeak),
-                                    color: Color(hex: "#F38BA8"),
-                                    isDarkMode: localizationManager.isDarkMode,
-                                    language: appState.learningLanguage
-                                ) { text in
-                                    if !text.isEmpty {
-                                        searchText = text
-                                        performSearch()
-                                    }
-                                }
+                                voiceSearchButton
                             }
                             .padding(.horizontal, 20)
                             
@@ -209,13 +187,11 @@ struct SearchView: View {
                     MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
                         .transition(.move(edge: .leading))
                         .zIndex(100)
-                    // Dismiss keyboard when menu opens
                         .onAppear {
                             isSearchFocused = false
                         }
                 }
                 
-                // Language picker overlay
                 if showLanguagePicker {
                     languagePickerOverlay
                 }
@@ -231,6 +207,12 @@ struct SearchView: View {
                     scannedText = ""
                 }
             }
+            .onChange(of: deepLinkAction) { _, newAction in
+                handleDeepLinkAction(newAction)
+            }
+            .onAppear {
+                handleDeepLinkAction(deepLinkAction)
+            }
             .alert(errorTitle, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -241,14 +223,90 @@ struct SearchView: View {
                     .environmentObject(localizationManager)
                     .environmentObject(appState)
             }
-            // Close keyboard when tab changes
             .onChange(of: selectedTab) { _, _ in
                 isSearchFocused = false
             }
         }
     }
     
-    // MARK: - Language Selector (перенесено з Profile)
+    // MARK: - Deep Link Handling
+    private func handleDeepLinkAction(_ action: DeepLinkAction?) {
+        guard let action = action else { return }
+        
+        switch action {
+        case .camera:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.checkCameraPermission()
+                self.deepLinkAction = nil
+            }
+            
+        case .voice(let autoStart):
+            if autoStart {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.startVoiceSearch()
+                    self.deepLinkAction = nil
+                }
+            }
+        }
+    }
+    
+    // MARK: - Voice Search
+    private func startVoiceSearch() {
+        guard !speechService.isRecording else { return }
+        
+        speechService.startRecording(language: appState.learningLanguage) { text in
+            if let text = text, !text.isEmpty {
+                self.searchText = text
+                self.performSearch()
+            }
+        }
+    }
+    
+    private var voiceSearchButton: some View {
+        Button {
+            startVoiceSearch()
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: speechService.isRecording ? "waveform" : "mic.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white)
+                
+                Text(localizationManager.string(.voice))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Text(localizationManager.string(.holdToSpeak))
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 100)
+            .background(speechService.isRecording ? voiceColor.opacity(0.8) : voiceColor)
+            .cornerRadius(20)
+            .shadow(color: voiceColor.opacity(0.3), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var recordingIndicator: some View {
+        HStack {
+            Spacer()
+            VStack(spacing: 8) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 32))
+                    .foregroundColor(voiceColor)
+                
+                Text("🎙️ \(speechService.recognizedText)")
+                    .font(.system(size: 16))
+                    .foregroundColor(voiceColor)
+                    .multilineTextAlignment(.center)
+            }
+            Spacer()
+        }
+        .padding(.top, 10)
+    }
+    
+    // MARK: - Language Selector
     private var languageSelector: some View {
         Button {
             withAnimation(.spring(response: 0.35)) {
@@ -403,7 +461,6 @@ struct SearchView: View {
     }
     
     // MARK: - Permission Handling
-    
     private func checkCameraPermission() {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {

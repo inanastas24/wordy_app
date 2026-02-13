@@ -35,6 +35,12 @@ enum AppColors {
     
     /// Тінь - для тіней карток (чорний з прозорістю)
     static let shadow = Color.black.opacity(0.1)
+    
+    /// Жовтий/золотий - для голосового пошуку
+    static let voiceYellow = Color(hex: "#FFD93D")
+
+    /// Темніший жовтий - для активного стану запису
+    static let voiceYellowDark = Color(hex: "#F4C430")
 }
 
 // MARK: - Gradient-и (опціонально, якщо використовуєте)
