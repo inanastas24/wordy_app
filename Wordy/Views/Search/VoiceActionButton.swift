@@ -1,4 +1,4 @@
-//1
+//
 //  VoiceActionButton.swift
 //  Wordy
 //
@@ -12,12 +12,15 @@ struct VoiceActionButton: View {
     @ObservedObject var speechService: SpeechRecognitionService
     let title: String
     let subtitle: String
-    let color: Color
     let isDarkMode: Bool
     let language: String
     let onResult: (String) -> Void
     
     @State private var isPressed = false
+    
+    // Жовтий/золотий колір для голосового пошуку
+    private let voiceColor = Color(hex: "#FFD93D")  // Теплий жовтий
+    private let voiceColorDark = Color(hex: "#F4C430")  // Темніший жовтий для запису
     
     var body: some View {
         Button(action: {}) {
@@ -36,9 +39,9 @@ struct VoiceActionButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 100)
-            .background(speechService.isRecording ? Color(hex: "#4ECDC4") : color)
+            .background(speechService.isRecording ? voiceColorDark : voiceColor)
             .cornerRadius(20)
-            .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)
+            .shadow(color: voiceColor.opacity(0.3), radius: 8, x: 0, y: 4)
             .scaleEffect(isPressed ? 0.95 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: isPressed)
         }

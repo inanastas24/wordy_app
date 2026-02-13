@@ -89,13 +89,18 @@ struct ContentView: View {
 // ВИДАЛЕНО: SearchView - він вже є в окремому файлі SearchView.swift
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
+    @Binding var selectedTab: Int
+    @Binding var deepLinkAction: DeepLinkAction?
+    
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            SearchView(selectedTab: $selectedTab)
+            SearchView(
+                selectedTab: $selectedTab,
+                deepLinkAction: $deepLinkAction
+            )
                 .environmentObject(appState)
                 .environmentObject(localizationManager)
                 .tabItem {

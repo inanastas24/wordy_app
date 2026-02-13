@@ -1,12 +1,11 @@
-//1
 //  SettingsView.swift
 //  Wordy
 //
 
 import SwiftUI
 import FirebaseAuth
-import PhotosUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -14,35 +13,17 @@ struct SettingsView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var authViewModel: AuthViewModel
     
-    @StateObject private var profileVM = UserProfileViewModel.shared
-    
-    @AppStorage("userName") private var userName = ""
-    @AppStorage("userAvatar") private var userAvatarData: Data?
     @AppStorage("appLanguage") private var appLanguageString: String = "en"
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
-    @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = true
-    @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = true
-    
-    @State private var showLogoutConfirmation = false
-    @State private var showDeleteAccountConfirmation = false
-    @State private var showReauthAlert = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-    @State private var tempName: String = ""
-    @State private var isEditingName = false
-    @FocusState private var isNameFocused: Bool
-    
-    @State private var showImagePicker = false
-    @State private var selectedItem: PhotosPickerItem?
-    @State private var selectedImageData: Data?
     
     @State private var showExportSheet = false
     @State private var showImportPicker = false
     @State private var exportURL: URL?
     @State private var showImportSuccess = false
     @State private var importedCount = 0
+    @State private var errorMessage: String?
+    @State private var showError = false
+    @State private var showLogoutConfirmation = false
     
-    // MARK: - Computed Properties
     private var appLanguage: Language {
         get { Language(rawValue: appLanguageString) ?? .english }
         set { appLanguageString = newValue.rawValue }
@@ -57,14 +38,16 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 30) {
                         header
-                        profileSection
+                        
+                        // Email користувача (компактно)
+                        userEmailSection
+                        
                         languageSection
                         dataManagementSection
                         appearanceSection
                         
-                        if !authViewModel.isAnonymous {
-                            accountManagementSection
-                        }
+                        // Logout
+                        logoutSection
                         
                         Spacer(minLength: 50)
                     }
@@ -72,83 +55,6 @@ struct SettingsView: View {
                 }
             }
             .navigationBarHidden(true)
-            .onAppear {
-                // Спочатку перевіряємо UserDefaults, потім ViewModel
-                if !userName.isEmpty {
-                    tempName = userName
-                } else {
-                    tempName = profileVM.displayName
-                }
-                
-                selectedImageData = userAvatarData
-                
-                // Якщо дані відсутні, завантажуємо з Firebase
-                if profileVM.displayName.isEmpty && userName.isEmpty {
-                    Task {
-                        await profileVM.fetchProfile()
-                        await MainActor.run {
-                            if !profileVM.displayName.isEmpty {
-                                tempName = profileVM.displayName
-                                userName = profileVM.displayName
-                            }
-                        }
-                    }
-                }
-            }
-            .onChange(of: authViewModel.isAnonymous) { oldValue, newValue in
-                        if newValue {
-                            // Користувач став анонімним - очищаємо UI
-                            tempName = ""
-                            selectedImageData = nil
-                        } else {
-                            // Користувач залогінився - завантажуємо дані
-                            Task {
-                                await profileVM.fetchProfile()
-                                await MainActor.run {
-                                    tempName = profileVM.displayName
-                                    selectedImageData = profileVM.avatarImage?.jpegData(compressionQuality: 1.0)
-                                }
-                            }
-                        }
-                    }
-            .confirmationDialog(
-                localizationManager.string(.login) + "?",
-                isPresented: $showLogoutConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button(localizationManager.string(.login), role: .destructive) { performLogout() }
-                Button(cancelText(), role: .cancel) { }
-            } message: {
-                Text(logoutConfirmationText())
-            }
-            .alert(deleteAccountTitle(), isPresented: $showDeleteAccountConfirmation) {
-                Button(cancelText(), role: .cancel) { }
-                Button(deleteText(), role: .destructive) { performDeleteAccount() }
-            } message: {
-                Text(deleteAccountMessage())
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK") { }
-            } message: {
-                Text(errorMessage ?? "Unknown error")
-            }
-            .photosPicker(
-                isPresented: $showImagePicker,
-                selection: $selectedItem,
-                matching: .images
-            )
-            .onChange(of: selectedItem) { _, newItem in
-                Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                        selectedImageData = data
-                        userAvatarData = data
-                        
-                        if let image = UIImage(data: data) {
-                            await profileVM.uploadAvatar(image)
-                        }
-                    }
-                }
-            }
             .sheet(isPresented: $showExportSheet) {
                 if let url = exportURL {
                     ShareSheet(activityItems: [url])
@@ -166,83 +72,26 @@ struct SettingsView: View {
             } message: {
                 Text(importCompletedMessage(count: importedCount))
             }
-        }
-    }
-    
-    // MARK: - Helper Methods
-    private func cancelText() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Скасувати"
-        case .polish: return "Anuluj"
-        case .english: return "Cancel"
-        }
-    }
-    
-    private func logoutConfirmationText() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Ви впевнені, що хочете вийти?"
-        case .polish: return "Czy na pewno chcesz się wylogować?"
-        case .english: return "Are you sure you want to log out?"
-        }
-    }
-    
-    private func deleteAccountTitle() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Видалити акаунт?"
-        case .polish: return "Usunąć konto?"
-        case .english: return "Delete account?"
-        }
-    }
-    
-    private func deleteText() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Видалити"
-        case .polish: return "Usuń"
-        case .english: return "Delete"
-        }
-    }
-    
-    private func deleteAccountMessage() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Цю дію неможливо скасувати. Всі ваші дані будуть назавжди видалені."
-        case .polish: return "Tej operacji nie można cofnąć. Wszystkie Twoje dane zostaną trwale usunięte."
-        case .english: return "This action cannot be undone. All your data will be permanently deleted."
-        }
-    }
-    
-    private func importCompletedTitle() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Імпорт завершено"
-        case .polish: return "Import zakończony"
-        case .english: return "Import completed"
-        }
-    }
-    
-    private func importCompletedMessage(count: Int) -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Імпортовано \(count) слів"
-        case .polish: return "Zaimportowano \(count) słów"
-        case .english: return "Imported \(count) words"
-        }
-    }
-    
-    private func accountManagementTitle() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Управління акаунтом"
-        case .polish: return "Zarządzanie kontem"
-        case .english: return "Account Management"
-        }
-    }
-    
-    private func deleteAccountButtonTitle() -> String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Видалити акаунт"
-        case .polish: return "Usuń konto"
-        case .english: return "Delete Account"
+            .alert(localizationManager.string(.error), isPresented: $showError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage ?? "Unknown error")
+            }
+            .confirmationDialog(
+                logoutConfirmationTitle(),
+                isPresented: $showLogoutConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(logoutButtonTitle(), role: .destructive) { performLogout() }
+                Button(cancelButtonTitle(), role: .cancel) { }
+            } message: {
+                Text(logoutConfirmationMessage())
+            }
         }
     }
     
     // MARK: - UI Sections
+    
     private var header: some View {
         HStack {
             Button { dismiss() } label: {
@@ -265,140 +114,72 @@ struct SettingsView: View {
         .padding(.top, 10)
     }
     
-    private var profileSection: some View {
-        VStack(spacing: 25) {
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(Color(hex: "#4ECDC4").opacity(0.2))
-                    .frame(width: 120, height: 120)
-                    .overlay(
-                        Group {
-                            if let imageData = selectedImageData, let uiImage = UIImage(data: imageData) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipShape(Circle())
-                            } else if let profileImage = profileVM.avatarImage {
-                                Image(uiImage: profileImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipShape(Circle())
-                            } else {
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(Color(hex: "#4ECDC4"))
-                            }
-                        }
-                    )
+    // MARK: - Email користувача (компактний блок)
+    private var userEmailSection: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.circle.fill")
+                .font(.system(size: 44))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                if !authViewModel.appleEmail.isEmpty {
+                    Text(authViewModel.appleEmail)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else if let email = authViewModel.user?.email {
+                    Text(email)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                } else {
+                    Text(localizationManager.string(.user))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                }
                 
-                Circle()
-                    .fill(Color(hex: "#4ECDC4"))
-                    .frame(width: 36, height: 36)
-                    .overlay(
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(.white)
-                    )
-                    .offset(x: 5, y: 5)
-            }
-            .onTapGesture {
-                showImagePicker = true
+                Text(localizationManager.string(.settings))
+                    .font(.system(size: 12))
+                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             }
             
-            VStack(alignment: .leading, spacing: 10) {
-                Text(localizationManager.string(.yourName))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                    .padding(.horizontal, 4)
-                
-                HStack(spacing: 12) {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                    
-                    TextField(localizationManager.string(.yourName), text: $tempName)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        .focused($isNameFocused)
-                        .onTapGesture {
-                            if !isEditingName {
-                                isEditingName = true
-                                isNameFocused = true
-                            }
-                        }
-                    
-                    Spacer()
-                    
-                    Button {
-                        if isEditingName {
-                            // Save
-                            isNameFocused = false
-                            Task {
-                                await profileVM.updateDisplayName(tempName)
-                                await MainActor.run {
-                                    userName = tempName  // Оновлюємо AppStorage
-                                }
-                            }
-                        } else {
-                            isNameFocused = true
-                        }
-                        isEditingName.toggle()
-                    } label: {
-                        Image(systemName: isEditingName ? "checkmark.circle.fill" : "pencil.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(isEditingName ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4"))
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(isEditingName ? Color(hex: "#4ECDC4") : Color.clear, lineWidth: 2)
-                )
-                .animation(.spring(response: 0.3), value: isEditingName)
-            }
-            .padding(.horizontal, 20)
+            Spacer()
         }
-        .padding(.vertical, 20)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+        )
+        .padding(.horizontal, 20)
     }
     
-    // ОДИН languageSection - виправлений
     private var languageSection: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(localizationManager.string(.appLanguage))
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                .padding(.horizontal, 20)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(Language.allCases) { language in
-                        LanguageChip(
-                            language: language,
-                            isSelected: appLanguage == language,
-                            isDarkMode: localizationManager.isDarkMode
-                        ) {
-                            selectLanguage(language)
+            VStack(alignment: .leading, spacing: 15) {
+                Text(localizationManager.string(.appLanguage))
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    .padding(.horizontal, 20)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Language.allCases) { language in
+                            LanguageChip(
+                                language: language,
+                                isSelected: appLanguage == language,
+                                isDarkMode: localizationManager.isDarkMode
+                            ) {
+                                selectLanguage(language)
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
             }
         }
-    }
     
     private func selectLanguage(_ language: Language) {
-        // Змінюємо напряму appLanguageString замість appLanguage
         withAnimation(.spring(response: 0.35)) {
             appLanguageString = language.rawValue
             localizationManager.setLanguage(language)
-        }
-        Task {
-            await profileVM.updateAppLanguage(language.rawValue)
         }
     }
     
@@ -478,43 +259,50 @@ struct SettingsView: View {
         }
     }
     
-    private var accountManagementSection: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(accountManagementTitle())
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                .padding(.horizontal, 20)
-            
-            VStack(spacing: 12) {
-                Button {
-                    showLogoutConfirmation = true
-                } label: {
-                    SettingsRow(
-                        icon: "arrow.right.square.fill",
-                        title: localizationManager.string(.login),
-                        color: "#FFA07A",
-                        isDarkMode: localizationManager.isDarkMode
-                    )
+    private var logoutSection: some View {
+        Button {
+            showLogoutConfirmation = true
+        } label: {
+            HStack(spacing: 15) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "#F38BA8").opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: "arrow.right.square.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color(hex: "#F38BA8"))
                 }
-                .buttonStyle(PlainButtonStyle())
                 
-                Button {
-                    showDeleteAccountConfirmation = true
-                } label: {
-                    SettingsRow(
-                        icon: "trash.fill",
-                        title: deleteAccountButtonTitle(),
-                        color: "#F38BA8",
-                        isDarkMode: localizationManager.isDarkMode
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
+                Text(localizationManager.string(.logOut))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hex: "#F38BA8"))
+                
+                Spacer()
             }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+            )
             .padding(.horizontal, 20)
         }
+        .buttonStyle(PlainButtonStyle())
     }
     
     // MARK: - Actions
+    
+    private func performLogout() {
+        do {
+            try authViewModel.signOut()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+    
     private func performExport() {
         Task {
             do {
@@ -545,12 +333,17 @@ struct SettingsView: View {
             
             Task {
                 do {
-                    let count = try DictionaryExportService.importWords(from: url, context: modelContext)
-                    importedCount = count
-                    showImportSuccess = true
+                    let count = try await DictionaryExportService.importWords(from: url)
+                    
+                    await MainActor.run {
+                        importedCount = count
+                        showImportSuccess = true
+                    }
                 } catch {
-                    errorMessage = error.localizedDescription
-                    showError = true
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                    }
                 }
             }
             
@@ -560,50 +353,59 @@ struct SettingsView: View {
         }
     }
     
-    private func performLogout() {
-        do {
-            try Auth.auth().signOut()
-            clearLocalUserData()
-            authViewModel.user = nil
-            authViewModel.isAnonymous = true
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
+    // MARK: - Localization Helpers
+    
+    private func importCompletedTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Імпорт завершено"
+        case .polish: return "Import zakończony"
+        case .english: return "Import completed"
         }
     }
     
-    private func performDeleteAccount() {
-        guard let user = Auth.auth().currentUser else { return }
-        
-        user.delete { error in
-            if let error = error {
-                let nsError = error as NSError
-                if nsError.code == AuthErrorCode.requiresRecentLogin.rawValue {
-                    showReauthAlert = true
-                } else {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                }
-            } else {
-                clearLocalUserData()
-                authViewModel.user = nil
-                authViewModel.isAnonymous = true
-                hasCompletedOnboarding = false
-                hasSelectedLanguage = false
-                hasSelectedLearningLanguage = false
-                dismiss()
-            }
+    private func importCompletedMessage(count: Int) -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Імпортовано \(count) слів"
+        case .polish: return "Zaimportowano \(count) słów"
+        case .english: return "Imported \(count) words"
         }
     }
     
-    private func clearLocalUserData() {
-        userName = ""
-        userAvatarData = nil
+    private func logoutConfirmationTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вийти з акаунту?"
+        case .polish: return "Wylogować się?"
+        case .english: return "Sign out?"
+        }
+    }
+    
+    private func logoutConfirmationMessage() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Ви впевнені, що хочете вийти?"
+        case .polish: return "Czy na pewno chcesz się wylogować?"
+        case .english: return "Are you sure you want to sign out?"
+        }
+    }
+    
+    private func logoutButtonTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вийти"
+        case .polish: return "Wyloguj"
+        case .english: return "Sign out"
+        }
+    }
+    
+    private func cancelButtonTitle() -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Скасувати"
+        case .polish: return "Anuluj"
+        case .english: return "Cancel"
+        }
     }
 }
 
 // MARK: - Supporting Views
+
 struct LanguageChip: View {
     let language: Language
     let isSelected: Bool
@@ -615,10 +417,6 @@ struct LanguageChip: View {
             HStack(spacing: 8) {
                 Text(language.flag)
                     .font(.system(size: 24))
-                
-                Text(language.displayName)
-                    .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? .white : (isDarkMode ? .white : Color(hex: "#2C3E50")))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

@@ -2,32 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Camera -->
-        <key>NSCameraUsageDescription</key>
-        <string>Додаток потребує доступу до камери для сканування тексту</string>
-        
-        <!-- Microphone -->
-        <key>NSMicrophoneUsageDescription</key>
-        <string>Додаток потребує доступу до мікрофона для голосового вводу</string>
-        
-        <!-- Speech Recognition -->
-        <key>NSSpeechRecognitionUsageDescription</key>
-        <string>Додаток потребує доступу до розпізнавання мови для голосового пошуку</string>
-        
-        <!-- App Tracking Transparency (ATT) - тільки один раз -->
-        <key>NSUserTrackingUsageDescription</key>
-        <string>Цей дозвіл допомагає нам покращувати додаток та пропонувати персоналізований контент. Ваші дані не передаються третім особам.</string>
-        <key>CFBundleURLTypes</key>
-        <array>
-            <dict>
-                <key>CFBundleTypeRole</key>
-                <string>Editor</string>
-                <key>CFBundleURLSchemes</key>
-                <array>
-                    <string>com.googleusercontent.apps.638594992852-5t0d7rmusn9aib8gcjegbckjoggl7odt</string>
-                </array>
-            </dict>
-        </array>
-        
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.638594992852-5t0d7rmusn9aib8gcjegbckjoggl7odt</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

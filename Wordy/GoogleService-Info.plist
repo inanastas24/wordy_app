@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>638594992852-5t0d7rmusn9aib8gcjegbckjoggl7odt.apps.googleusercontent.com</string>
+	<string>638594992852-80c2fg047558jce272b55aqn9oetnjnp.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.638594992852-5t0d7rmusn9aib8gcjegbckjoggl7odt</string>
+	<string>com.googleusercontent.apps.638594992852-80c2fg047558jce272b55aqn9oetnjnp</string>
 	<key>API_KEY</key>
-	<string>AIzaSyDh4Wu9S1fcTtR9eNdoB6Mr-rTqjWe9Iw0</string>
+	<string>AIzaSyALKNUo_X0xfndIOeGEkjl057WX6oTG_gU</string>
 	<key>GCM_SENDER_ID</key>
 	<string>638594992852</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>Wordy</string>
+	<string>com.inzercreator.wordy</string>
 	<key>PROJECT_ID</key>
 	<string>wordy-864b2</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:638594992852:ios:4a0b7c3675ee2a61c98941</string>
+	<string>1:638594992852:ios:9ea086eefe160e69c98941</string>
 </dict>
 </plist>

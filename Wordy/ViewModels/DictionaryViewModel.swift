@@ -92,9 +92,23 @@ class DictionaryViewModel: ObservableObject {
             name: .wordSaved,
             object: nil
         )
+        
+        // НОВЕ: Підписка на імпорт слів
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWordsImported),
+            name: .wordsImported,
+            object: nil
+        )
     }
     
     @objc private func handleWordSaved() {
+        fetchSavedWords()
+    }
+    
+    // НОВИЙ МЕТОД: Обробка імпорту слів
+    @objc private func handleWordsImported() {
+        print("📥 DictionaryViewModel: Отримано сповіщення про імпорт слів")
         fetchSavedWords()
     }
     
@@ -134,7 +148,7 @@ class DictionaryViewModel: ObservableObject {
         await loadWordsFromFirestore(userId: userId)
     }
     
-    /// Завантажує слова з Firestore та оновлює локальне сховище
+    /// Завантажує слова з Firestore та оновлюєє локальне сховище
     private func loadWordsFromFirestore(userId: String) async {
         do {
             let firestoreWords = try await FirestoreService.shared.fetchWords()
@@ -225,6 +239,46 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
+    }
+    
+    // НОВИЙ МЕТОД: Масове збереження слів (для імпорту)
+    func saveWords(_ words: [SavedWordModel]) {
+        print("💾 Масове збереження \(words.count) слів")
+        
+        for var word in words {
+            // Генеруємо id якщо потрібно
+            if word.id == nil || word.id?.isEmpty == true {
+                word.id = UUID().uuidString
+            }
+            
+            // Зберігаємо локально
+            LocalStorageService.shared.saveWordLocally(word)
+            
+            // Додаємо в масив якщо немає
+            if !savedWords.contains(where: { $0.id == word.id }) {
+                savedWords.append(word)
+            }
+        }
+        
+        print("✅ Масово додано \(words.count) слів, тепер їх \(savedWords.count)")
+        NotificationCenter.default.post(name: .wordSaved, object: nil)
+        
+        // Синхронізація з Firestore для залогінених користувачів
+        if let userId = Auth.auth().currentUser?.uid, Auth.auth().currentUser?.isAnonymous == false {
+            Task {
+                for var word in words {
+                    do {
+                        word.userId = userId
+                        try await FirestoreService.shared.saveWord(word)
+                        LocalStorageService.shared.markWordsAsSynced(ids: [word.id!])
+                    } catch {
+                        print("❌ Помилка синхронізації слова \(word.original): \(error)")
+                    }
+                }
+            }
+        }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
     }
     
     // MARK: - Update Word (НОВИЙ МЕТОД)
@@ -268,6 +322,7 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
+        WidgetDataService.shared.updateWidgetWords(words: savedWords)
     }
     
     // MARK: - Word Status Updates
@@ -395,4 +450,9 @@ class DictionaryViewModel: ObservableObject {
         listenerRegistration?.remove()
         NotificationCenter.default.removeObserver(self)
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let wordsImported = Notification.Name("wordsImported") // НОВЕ
 }
