@@ -45,33 +45,32 @@ class ConfigService {
     /// Отримує токен бота з декодуванням Base64
     var telegramBotToken: String? {
         guard let encoded = get("TelegramBotToken"),
+              !encoded.isEmpty,
               let data = Data(base64Encoded: encoded),
-              let decoded = String(data: data, encoding: .utf8) else { return nil }
+              let decoded = String(data: data, encoding: .utf8),
+              !decoded.isEmpty else {
+            print("⚠️ Не вдалося декодувати TelegramBotToken")
+            return nil
+        }
         return decoded
     }
     
     /// Отримує Chat ID з декодуванням Base64
     var telegramChatID: String? {
         guard let encoded = get("TelegramChatID"),
+              !encoded.isEmpty,
               let data = Data(base64Encoded: encoded),
-              let decoded = String(data: data, encoding: .utf8) else { return nil }
+              let decoded = String(data: data, encoding: .utf8),
+              !decoded.isEmpty else {
+            print("⚠️ Не вдалося декодувати TelegramChatID")
+            return nil
+        }
         return decoded
     }
     
     /// Перевіряє чи налаштований Telegram
     var isTelegramConfigured: Bool {
         telegramBotToken != nil && telegramChatID != nil
-    }
-    
-    // MARK: - Base64 Decoding
-    
-    private func decodeBase64(_ string: String) -> String? {
-        guard let data = Data(base64Encoded: string),
-              let decoded = String(data: data, encoding: .utf8) else {
-            print("⚠️ Помилка декодування Base64 для ключа")
-            return nil
-        }
-        return decoded
     }
     
     // MARK: - Helper для розробки (кодування)

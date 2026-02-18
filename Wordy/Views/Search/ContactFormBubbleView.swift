@@ -159,34 +159,46 @@ struct ContactFormBubbleView: View {
     private func sendMessage() async {
         isLoading = true
         
+        // Перевірка авторизації
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ Користувач НЕ авторизований!")
+            await handleError("Будь ласка, увійдіть в акаунт")
+            isLoading = false
+            return
+        }
+        
+        print("✅ Користувач авторизований: \(currentUser.uid)")
+        print("✅ Email: \(currentUser.email ?? "немає")")
+        
         do {
-            // Перевіряємо авторизацію
-            guard let currentUser = Auth.auth().currentUser else {
-                throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Користувач не авторизований"])
-            }
-            
-            // Валідація перед відправкою (відповідно до rules)
-            guard messageText.count > 0 && messageText.count < 5000 else {
-                throw NSError(domain: "Validation", code: 400, userInfo: [NSLocalizedDescriptionKey: "Повідомлення має бути від 1 до 5000 символів"])
+            // Валідація
+            guard messageText.count >= 10 && messageText.count < 5000 else {
+                throw NSError(domain: "Validation", code: 400, userInfo: [NSLocalizedDescriptionKey: "Повідомлення має бути від 10 до 5000 символів"])
             }
             
             let deviceInfo = await getDeviceInfo()
             let formattedMessage = formatMessage(messageText, deviceInfo: deviceInfo)
             
-            // Відправляємо в Telegram та зберігаємо в Firestore паралельно
-            async let telegramTask: () = sendToTelegram(message: formattedMessage)
-            async let firestoreTask: () = saveToFirestore(
-                message: messageText,
-                userId: currentUser.uid
-            )
+            print("🚀 Відправляємо повідомлення...")
             
-            // Чекаємо завершення обох операцій
-            try await telegramTask
-            try await firestoreTask
+            // Відправляємо в Telegram (не чекаємо успіху, щоб не блокувати)
+            Task {
+                do {
+                    try await sendToTelegram(message: formattedMessage)
+                    print("✅ Telegram OK")
+                } catch {
+                    print("❌ Telegram помилка (не критично): \(error)")
+                }
+            }
+            
+            // Зберігаємо в Firestore (головне)
+            try await saveToFirestore(message: messageText, userId: currentUser.uid)
+            print("✅ Firestore OK")
             
             await handleSuccess()
             
         } catch {
+            print("❌ Помилка: \(error)")
             await handleError("Помилка відправки: \(error.localizedDescription)")
         }
         
@@ -195,29 +207,44 @@ struct ContactFormBubbleView: View {
     
     // MARK: - Firestore Saving (відповідно до rules)
     private func saveToFirestore(message: String, userId: String) async throws {
-        // Створюємо документ з ОБОВ'ЯЗКОВИМИ полями згідно rules:
-        // message, timestamp, userId
+        print("📝 Зберігаємо в Firestore...")
+        print("   Колекція: telegram_messages")
+        print("   userId: \(userId)")
+        print("   message: \(message.prefix(50))...")
+        
+        // Перевірка що userId не порожній
+        guard !userId.isEmpty else {
+            throw NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Порожній userId"])
+        }
         
         let messageData: [String: Any] = [
             "message": message,
             "timestamp": Timestamp(date: Date()),
             "userId": userId
-            // Додаткові поля (deviceInfo, status, platform) прибрано,
-            // бо rules не дозволяють extra fields без hasOnly()
         ]
         
-        try await db.collection("telegram_messages").addDocument(data: messageData)
-        print("✅ Повідомлення збережено в Firestore")
+        print("   Дані для збереження: \(messageData)")
+        
+        do {
+            let docRef = try await db.collection("telegram_messages").addDocument(data: messageData)
+            print("✅ Збережено успішно! ID документа: \(docRef.documentID)")
+        } catch let error as NSError {
+            print("❌ Помилка Firestore:")
+            print("   Код: \(error.code)")
+            print("   Домен: \(error.domain)")
+            print("   Опис: \(error.localizedDescription)")
+            print("   Деталі: \(error.userInfo)")
+            throw error
+        }
     }
     
     // MARK: - Telegram API
     private func sendToTelegram(message: String) async throws {
-        guard let path = Bundle.main.path(forResource: "Config", ofType: "plist"),
-              let config = NSDictionary(contentsOfFile: path) as? [String: Any],
-              let botToken = config["TelegramBotToken"] as? String,
-              let chatId = config["TelegramChatID"] as? String,
-              !botToken.isEmpty, !chatId.isEmpty else {
-            throw NSError(domain: "Config", code: 500, userInfo: [NSLocalizedDescriptionKey: "Telegram not configured"])
+        // ✅ Використовуємо ConfigService для автоматичного декодування Base64
+        guard ConfigService.shared.isTelegramConfigured,
+              let botToken = ConfigService.shared.telegramBotToken,
+              let chatId = ConfigService.shared.telegramChatID else {
+            throw NSError(domain: "Config", code: 500, userInfo: [NSLocalizedDescriptionKey: "Telegram not configured - check Config.plist"])
         }
         
         let urlString = "https://api.telegram.org/bot\(botToken)/sendMessage"
@@ -238,15 +265,18 @@ struct ContactFormBubbleView: View {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (responseData, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 500
+            if let str = String(data: responseData, encoding: .utf8) {
+                print("❌ Telegram API error: \(str)")
+            }
             throw NSError(domain: "HTTP", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP Error: \(statusCode)"])
         }
         
-        if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        if let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
             if let ok = json["ok"] as? Bool, !ok {
                 let errorDescription = (json["description"] as? String) ?? "Unknown Telegram error"
                 throw NSError(domain: "Telegram", code: 500, userInfo: [NSLocalizedDescriptionKey: errorDescription])

@@ -172,6 +172,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
                 }
             }
         }
