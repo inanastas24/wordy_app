@@ -45,6 +45,16 @@ struct SearchView: View {
     private let translationService = TranslationService()
     private let voiceColor = Color(hex: "#FFD93D")
     
+    // ДОДАНО: Обчислювана властивість для мови з перевіркою
+    private var currentLearningLanguage: String {
+        // Синхронізуємо appState з @AppStorage
+        let lang = learningLanguage.rawValue
+        if appState.learningLanguage != lang {
+            appState.learningLanguage = lang
+        }
+        return lang
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -92,7 +102,7 @@ struct SearchView: View {
                                     title: localizationManager.string(.voice),
                                     subtitle: localizationManager.string(.holdToSpeak),
                                     isDarkMode: localizationManager.isDarkMode,
-                                    language: appState.learningLanguage,
+                                    language: currentLearningLanguage,  // ВИПРАВЛЕНО: використовуємо властивість
                                     onResult: { text in
                                         self.searchText = text
                                         self.performSearch()
@@ -139,7 +149,6 @@ struct SearchView: View {
                     isRecognizing: $isRecognizing,
                     onTextRecognized: { text in
                         // Текст вже записаний в scannedText через binding
-                        // Тут можна додати додаткову логіку якщо потрібно
                     }
                 )
             }
@@ -159,6 +168,8 @@ struct SearchView: View {
                 handleDeepLinkAction(newAction)
             }
             .onAppear {
+                // ДОДАНО: Синхронізація при появі
+                syncLanguageSettings()
                 handleDeepLinkAction(deepLinkAction)
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
@@ -175,6 +186,13 @@ struct SearchView: View {
                 isSearchFocused = false
             }
         }
+    }
+    
+    // ДОДАНО: Метод синхронізації мов
+    private func syncLanguageSettings() {
+        let lang = learningLanguage.rawValue
+        appState.learningLanguage = lang
+        print("🔍 DEBUG: Synced learningLanguage to '\(lang)'")
     }
     
     // MARK: - Deep Link Handling
@@ -275,7 +293,7 @@ struct SearchView: View {
                         Button {
                             withAnimation(.spring(response: 0.35)) {
                                 learningLanguage = language
-                                appState.learningLanguage = language.rawValue
+                                appState.learningLanguage = language.rawValue  // Синхронізація
                                 showLanguagePicker = false
                             }
                         } label: {
@@ -412,10 +430,28 @@ struct SearchView: View {
         showErrorAlert = true
     }
     
+    // MARK: - Search
     func performSearch() {
         guard !searchText.isEmpty else { return }
         isSearchFocused = false
         isLoading = true
+        
+        // ДОДАНО: Перевірка та синхронізація перед пошуком
+        let learningLang = currentLearningLanguage
+        let appLang = appState.appLanguage
+        
+        print("🔍 DEBUG: performSearch called")
+        print("🔍 DEBUG: appLanguage = '\(appLang)'")
+        print("🔍 DEBUG: learningLanguage = '\(learningLang)'")
+        
+        guard !learningLang.isEmpty else {
+            print("❌ ERROR: learningLanguage is empty!")
+            isLoading = false
+            errorTitle = "Помилка"
+            errorMessage = "Оберіть мову для вивчення в налаштуваннях"
+            showErrorAlert = true
+            return
+        }
         
         Task {
             do {
@@ -427,8 +463,8 @@ struct SearchView: View {
         
         translationService.translate(
             word: searchText,
-            appLanguage: appState.appLanguage,
-            learningLanguage: appState.learningLanguage
+            appLanguage: appLang,
+            learningLanguage: learningLang
         ) { result in
             isLoading = false
             

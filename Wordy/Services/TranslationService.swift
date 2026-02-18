@@ -1,8 +1,5 @@
-//1
 //  TranslationService.swift
 //  Wordy
-//
-//  Created by Anastasiia Inzer on 01.02.2026.
 //
 
 import SwiftUI
@@ -12,15 +9,13 @@ import StoreKit
 import NaturalLanguage
 import AVFoundation
 
-// MARK: - Дані з Dictionary API
 struct EnrichedWordData {
     let ipa: String?
-    let examples: [String]
+    let examples: [(original: String, translation: String)]
     let synonyms: [String]
     let partOfSpeech: String?
 }
 
-// MARK: - СЕРВІС ПЕРЕКЛАДУ
 class TranslationService {
     private let deepLKey: String
     
@@ -28,15 +23,22 @@ class TranslationService {
         self.deepLKey = ConfigService.shared.get("DEEPL_API_KEY") ?? ""
     }
     
-    // MARK: - Головний метод перекладу
     func translate(word: String, appLanguage: String, learningLanguage: String, completion: @escaping (Result<TranslationResult, TranslationError>) -> Void) {
         guard !word.isEmpty else {
             completion(.failure(.noData))
             return
         }
         
+        // Перевірка та конвертація мов
         let appLangCode = languageNameToCode(appLanguage)
         let learningLangCode = languageNameToCode(learningLanguage)
+        
+        // Захист від порожніх значень
+        guard !appLangCode.isEmpty, !learningLangCode.isEmpty else {
+            print("❌ Помилка: порожній код мови. app: '\(appLanguage)'->'\(appLangCode)', learning: '\(learningLanguage)'->'\(learningLangCode)'")
+            completion(.failure(.invalidResponse))
+            return
+        }
         
         print("🔍 === АНАЛІЗ ВВЕДЕННЯ ===")
         print("   Слово: '\(word)'")
@@ -64,148 +66,276 @@ class TranslationService {
                 print("⚠️ Третя мова (\(detected)) → переклад на \(appLangCode)")
             }
         } else {
-            if isLikelyEnglish(word) {
-                sourceLang = "en"
-                targetLang = appLangCode
-                print("✅ Слово латиницею (ймовірно EN) → переклад на \(appLangCode)")
-            } else {
-                sourceLang = appLangCode
-                targetLang = learningLangCode
-                print("⚠️ Не латиниця, припускаємо \(appLangCode) → \(learningLangCode)")
-            }
+            sourceLang = appLangCode
+            targetLang = learningLangCode
+            print("⚠️ Не визначено, припускаємо \(appLangCode) → \(learningLangCode)")
         }
         
-        // Для англійських слів отримуємо IPA, приклади, синоніми
-        if sourceLang == "en" || (detectedLang == nil && isLikelyEnglish(word)) {
-            fetchEnrichedData(word: word) { [weak self] enrichedData in
-                self?.performDeepLTranslation(
-                    word: word,
-                    sourceLang: sourceLang,
-                    targetLang: targetLang,
-                    enrichedData: enrichedData,
-                    completion: completion
-                )
-            }
-        } else {
-            performDeepLTranslation(
+        fetchEnrichedData(word: word, sourceLang: sourceLang, targetLang: targetLang) { [weak self] enrichedData in
+            self?.performDeepLTranslation(
                 word: word,
                 sourceLang: sourceLang,
                 targetLang: targetLang,
-                enrichedData: nil,
+                enrichedData: enrichedData,
                 completion: completion
             )
         }
     }
     
-    private func isLikelyEnglish(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        
-        let cyrillicChars = CharacterSet(charactersIn: "а-яА-ЯґєіїҐЄІЇ")
-        if trimmed.rangeOfCharacter(from: cyrillicChars) != nil {
-            return false
-        }
-        
-        let latinChars = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'")
-        
-        for char in trimmed {
-            let charSet = CharacterSet(charactersIn: String(char))
-            if !latinChars.isSuperset(of: charSet) {
-                if !CharacterSet.whitespacesAndNewlines.isSuperset(of: charSet) {
-                    return false
-                }
-            }
-        }
-        
-        return true
-    }
-    
-    // MARK: - DeepL Translation
     private func performDeepLTranslation(word: String, sourceLang: String, targetLang: String, enrichedData: EnrichedWordData?, completion: @escaping (Result<TranslationResult, TranslationError>) -> Void) {
         
         let deeplSource = deeplLanguageCode(sourceLang)
         let deeplTarget = deeplLanguageCode(targetLang)
-        let urlString = "https://api-free.deepl.com/v2/translate"
         
-        guard let url = URL(string: urlString) else {
-            completion(.failure(.invalidURL))
+        // Перевіряємо, чи підтримує цільова мова formality
+        let supportsFormality = ["DE", "FR", "IT", "ES", "NL", "PL", "PT", "RU", "JA"].contains(deeplTarget)
+        
+        // Якщо не підтримує formality - робимо простий запит без цього параметра
+        guard supportsFormality else {
+            fetchTranslation(word: word, source: deeplSource, target: deeplTarget, formality: nil) { [weak self] result in
+                guard let self = self else { return }
+                
+                let mainTranslation = result ?? word
+                
+                self.translateExamples(enrichedData?.examples ?? [], source: deeplSource, target: deeplTarget) { translatedExamples in
+                    
+                    self.fetchSynonymsForLanguage(word: mainTranslation, language: targetLang) { synonyms in
+                        
+                        let result = TranslationResult(
+                            original: word,
+                            translation: mainTranslation,
+                            informalTranslation: nil, // Не підтримується для цієї мови
+                            transcription: "",
+                            ipaTranscription: enrichedData?.ipa,
+                            exampleSentence: translatedExamples.first?.original ?? "",
+                            exampleTranslation: translatedExamples.first?.translation ?? "",
+                            exampleSentence2: translatedExamples.count > 1 ? translatedExamples[1].original : nil,
+                            exampleTranslation2: translatedExamples.count > 1 ? translatedExamples[1].translation : nil,
+                            synonyms: synonyms.isEmpty ? (enrichedData?.synonyms ?? []) : synonyms,
+                            languagePair: "\(sourceLang)-\(targetLang)",
+                            fromLanguage: sourceLang,
+                            toLanguage: targetLang
+                        )
+                        
+                        print("✅ DeepL: \(word) → \(mainTranslation) (formality не підтримується для \(deeplTarget))")
+                        DispatchQueue.main.async { completion(.success(result)) }
+                    }
+                }
+            }
             return
         }
         
-        let realExamples = enrichedData?.examples ?? []
+        // Якщо підтримує formality - робимо два запити (formal + informal)
+        fetchTranslation(word: word, source: deeplSource, target: deeplTarget, formality: "more") { [weak self] formalResult in
+            guard let self = self else { return }
+            
+            let mainTranslation = formalResult ?? word
+            
+            self.fetchInformalIfSupported(word: word, source: deeplSource, target: deeplTarget) { informalResult in
+                
+                let informalTranslation = (informalResult != mainTranslation) ? informalResult : nil
+                
+                self.translateExamples(enrichedData?.examples ?? [], source: deeplSource, target: deeplTarget) { translatedExamples in
+                    
+                    self.fetchSynonymsForLanguage(word: mainTranslation, language: targetLang) { synonyms in
+                        
+                        let result = TranslationResult(
+                            original: word,
+                            translation: mainTranslation,
+                            informalTranslation: informalTranslation,
+                            transcription: "",
+                            ipaTranscription: enrichedData?.ipa,
+                            exampleSentence: translatedExamples.first?.original ?? "",
+                            exampleTranslation: translatedExamples.first?.translation ?? "",
+                            exampleSentence2: translatedExamples.count > 1 ? translatedExamples[1].original : nil,
+                            exampleTranslation2: translatedExamples.count > 1 ? translatedExamples[1].translation : nil,
+                            synonyms: synonyms.isEmpty ? (enrichedData?.synonyms ?? []) : synonyms,
+                            languagePair: "\(sourceLang)-\(targetLang)",
+                            fromLanguage: sourceLang,
+                            toLanguage: targetLang
+                        )
+                        
+                        print("✅ DeepL: \(word) → \(mainTranslation) (informal: \(informalTranslation ?? "немає"))")
+                        DispatchQueue.main.async { completion(.success(result)) }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Не всі мови підтримують formality в DeepL
+    private func fetchInformalIfSupported(word: String, source: String, target: String, completion: @escaping (String?) -> Void) {
+        // DeepL підтримує formality для: DE, FR, IT, ES, NL, PL, PT, RU, JA
+        let supportsFormality = ["DE", "FR", "IT", "ES", "NL", "PL", "PT", "RU", "JA"]
+        
+        guard supportsFormality.contains(target) else {
+            completion(nil)
+            return
+        }
+        
+        fetchTranslation(word: word, source: source, target: target, formality: "less") { result in
+            completion(result)
+        }
+    }
+    
+    private func fetchTranslation(word: String, source: String, target: String, formality: String?, completion: @escaping (String?) -> Void) {
+        let urlString = "https://api-free.deepl.com/v2/translate"
+        
+        guard let url = URL(string: urlString) else {
+            completion(nil)
+            return
+        }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("DeepL-Auth-Key \(deepLKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        var params: [(key: String, value: String)] = [
-            ("source_lang", deeplSource),
-            ("target_lang", deeplTarget),
-            ("text", word)
-        ]
-        
-        for example in realExamples.prefix(2) {
-            params.append(("text", example))
+        var body = "source_lang=\(source)&target_lang=\(target)&text=\(encode(word))"
+        if let formality = formality {
+            body += "&formality=\(formality)"
         }
         
-        let bodyString = params.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }.joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        request.httpBody = body.data(using: .utf8)
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("❌ DeepL error: \(error)")
-                DispatchQueue.main.async { completion(.failure(.apiError(error.localizedDescription))) }
+                print("❌ DeepL request error: \(error)")
+                completion(nil)
                 return
             }
             
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let data = data else {
-                DispatchQueue.main.async { completion(.failure(.noData)) }
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ No HTTP response")
+                completion(nil)
                 return
             }
             
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let translations = json["translations"] as? [[String: Any]] {
-                    
-                    let wordTranslation = translations.first?["text"] as? String ?? word
-                    
-                    var exampleTranslations: [String] = []
-                    for i in 1..<translations.count {
-                        if let text = translations[i]["text"] as? String {
-                            exampleTranslations.append(text)
-                        }
-                    }
-                    
-                    let result = TranslationResult(
-                        original: word,
-                        translation: wordTranslation,
-                        transcription: "",
-                        ipaTranscription: enrichedData?.ipa,
-                        exampleSentence: realExamples.first ?? "",
-                        exampleTranslation: exampleTranslations.first ?? "",
-                        exampleSentence2: realExamples.count > 1 ? realExamples[1] : nil,
-                        exampleTranslation2: exampleTranslations.count > 1 ? exampleTranslations[1] : nil,
-                        synonyms: enrichedData?.synonyms ?? [],
-                        languagePair: "\(sourceLang)-\(targetLang)"
-                    )
-                    
-                    print("✅ DeepL: \(word) → \(wordTranslation)")
-                    DispatchQueue.main.async { completion(.success(result)) }
-                    
-                } else {
-                    DispatchQueue.main.async { completion(.failure(.decodingError)) }
+            print("📡 DeepL status: \(httpResponse.statusCode)")
+            
+            guard (200...299).contains(httpResponse.statusCode),
+                  let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let translations = json["translations"] as? [[String: Any]],
+                  let text = translations.first?["text"] as? String else {
+                
+                if let data = data, let str = String(data: data, encoding: .utf8) {
+                    print("❌ DeepL response: \(str)")
                 }
-            } catch {
-                DispatchQueue.main.async { completion(.failure(.decodingError)) }
+                completion(nil)
+                return
             }
+            
+            completion(text)
         }.resume()
     }
     
-    // MARK: - Dictionary API (IPA, приклади, синоніми)
-    private func fetchEnrichedData(word: String, completion: @escaping (EnrichedWordData?) -> Void) {
+    private func translateExamples(_ examples: [(original: String, translation: String)], source: String, target: String, completion: @escaping ([(original: String, translation: String)]) -> Void) {
+        guard !examples.isEmpty else {
+            completion([])
+            return
+        }
+        
+        let texts = examples.map { $0.original }
+        let urlString = "https://api-free.deepl.com/v2/translate"
+        
+        guard let url = URL(string: urlString) else {
+            completion(examples)
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("DeepL-Auth-Key \(deepLKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        var body = "source_lang=\(source)&target_lang=\(target)"
+        for text in texts {
+            body += "&text=\(encode(text))"
+        }
+        
+        request.httpBody = body.data(using: .utf8)
+        
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let translations = json["translations"] as? [[String: Any]] else {
+                completion(examples)
+                return
+            }
+            
+            var result: [(original: String, translation: String)] = []
+            for (i, trans) in translations.enumerated() {
+                if i < examples.count, let text = trans["text"] as? String {
+                    result.append((original: examples[i].original, translation: text))
+                }
+            }
+            completion(result.isEmpty ? examples : result)
+        }.resume()
+    }
+    
+    private func fetchSynonymsForLanguage(word: String, language: String, completion: @escaping ([String]) -> Void) {
+        if language == "en" {
+            fetchEnglishSynonyms(word: word, completion: completion)
+            return
+        }
+        completion([])
+    }
+    
+    private func fetchEnglishSynonyms(word: String, completion: @escaping ([String]) -> Void) {
+        let encodedWord = word.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? word
+        let urlString = "https://api.dictionaryapi.dev/api/v2/entries/en/\(encodedWord.lowercased())"
+        
+        guard let url = URL(string: urlString) else {
+            completion([])
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data = data else {
+                completion([])
+                return
+            }
+            
+            var allSynonyms: [String] = []
+            
+            do {
+                if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    for entry in jsonArray {
+                        if let meanings = entry["meanings"] as? [[String: Any]] {
+                            for meaning in meanings {
+                                if let synonyms = meaning["synonyms"] as? [String] {
+                                    allSynonyms.append(contentsOf: synonyms)
+                                }
+                                if let definitions = meaning["definitions"] as? [[String: Any]] {
+                                    for def in definitions {
+                                        if let syn = def["synonyms"] as? [String] {
+                                            allSynonyms.append(contentsOf: syn)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("Помилка парсингу синонімів: \(error)")
+            }
+            
+            let uniqueSynonyms = Array(Set(allSynonyms)).prefix(10).map { $0 }
+            completion(self.filterSynonyms(uniqueSynonyms))
+        }.resume()
+    }
+    
+    private func fetchEnrichedData(word: String, sourceLang: String, targetLang: String, completion: @escaping (EnrichedWordData?) -> Void) {
+        if sourceLang == "en" {
+            fetchEnglishEnrichedData(word: word, completion: completion)
+        } else {
+            completion(EnrichedWordData(ipa: nil, examples: [], synonyms: [], partOfSpeech: nil))
+        }
+    }
+    
+    private func fetchEnglishEnrichedData(word: String, completion: @escaping (EnrichedWordData?) -> Void) {
         let encodedWord = word.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? word
         let urlString = "https://api.dictionaryapi.dev/api/v2/entries/en/\(encodedWord.lowercased())"
         
@@ -220,13 +350,12 @@ class TranslationService {
                 return
             }
             
+            var ipa: String?
+            var examples: [(String, String)] = []
+            var synonyms: [String] = []
+            
             do {
                 if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                    var ipa: String?
-                    var allExamples: [String] = []
-                    var allSynonyms: [String] = []
-                    var firstPartOfSpeech: String?
-                    
                     for entry in jsonArray {
                         if let phonetics = entry["phonetics"] as? [[String: Any]] {
                             for phonetic in phonetics {
@@ -237,94 +366,50 @@ class TranslationService {
                             }
                         }
                         
-                        if let meanings = entry["meanings"] as? [[String: Any]], !meanings.isEmpty {
-                            let firstMeaning = meanings[0]
-                            
-                            if firstPartOfSpeech == nil {
-                                firstPartOfSpeech = firstMeaning["partOfSpeech"] as? String
-                            }
-                            
-                            if let synonyms = firstMeaning["synonyms"] as? [String] {
-                                allSynonyms.append(contentsOf: synonyms)
-                            }
-                            
-                            if let definitions = firstMeaning["definitions"] as? [[String: Any]] {
-                                for def in definitions.prefix(2) {
-                                    if let example = def["example"] as? String {
-                                        allExamples.append(example)
+                        if let meanings = entry["meanings"] as? [[String: Any]] {
+                            for meaning in meanings.prefix(2) {
+                                if let defs = meaning["definitions"] as? [[String: Any]] {
+                                    for def in defs.prefix(2) {
+                                        if let example = def["example"] as? String {
+                                            examples.append((example, ""))
+                                        }
+                                        if let syn = def["synonyms"] as? [String] {
+                                            synonyms.append(contentsOf: syn)
+                                        }
                                     }
-                                    if let syn = def["synonyms"] as? [String] {
-                                        allSynonyms.append(contentsOf: syn)
-                                    }
+                                }
+                                if let syn = meaning["synonyms"] as? [String] {
+                                    synonyms.append(contentsOf: syn)
                                 }
                             }
                         }
                     }
-                    
-                    let filteredSynonyms = self.filterSynonyms(allSynonyms)
-                    
-                    let uniqueExamples = Array(Set(allExamples)).prefix(2).map { $0 }
-                    let uniqueSynonyms = Array(Set(filteredSynonyms)).prefix(10).map { $0 }
-                    
-                    print("📚 DictionaryAPI: IPA=\(ipa ?? "немає"), прикладів=\(uniqueExamples.count), синонімів=\(uniqueSynonyms.count)")
-                    
-                    completion(EnrichedWordData(
-                        ipa: ipa,
-                        examples: uniqueExamples,
-                        synonyms: uniqueSynonyms,
-                        partOfSpeech: firstPartOfSpeech
-                    ))
-                } else {
-                    completion(nil)
                 }
             } catch {
-                completion(nil)
+                print("Помилка: \(error)")
             }
+            
+            completion(EnrichedWordData(
+                ipa: ipa,
+                examples: examples,
+                synonyms: Array(Set(synonyms)).prefix(10).map { $0 },
+                partOfSpeech: nil
+            ))
         }.resume()
     }
     
-    private func filterSynonyms(_ synonyms: [String]) -> [String] {
-        let blockedWords = ["motherfucker", "fuck", "shit", "damn", "ass", "bitch", "bastard", "crap", "hell", "piss", "dick", "cock", "pussy", "whore", "slut"]
-        let blockedPatterns = ["fuck", "shit", "damn", "ass", "bitch", "bastard", "hell", "crap"]
-        
-        return synonyms.filter { synonym in
-            let lowercased = synonym.lowercased()
-            
-            if blockedWords.contains(lowercased) {
-                return false
-            }
-            
-            for pattern in blockedPatterns {
-                if lowercased.contains(pattern) {
-                    return false
-                }
-            }
-            
-            if synonym.contains("-") && synonym.count > 15 {
-                return false
-            }
-            
-            return true
-        }
-    }
-    
-    // MARK: - Переклад синонімів через DeepL
     func translateSynonyms(synonyms: [String], sourceLang: String, targetLang: String, completion: @escaping ([SynonymDetail]) -> Void) {
         guard !synonyms.isEmpty else {
             completion([])
             return
         }
         
-        print("🌐 Переклад синонімів через DeepL: \(synonyms.count) шт. \(sourceLang) → \(targetLang)")
-        
         let deeplSource = deeplLanguageCode(sourceLang)
         let deeplTarget = deeplLanguageCode(targetLang)
         let urlString = "https://api-free.deepl.com/v2/translate"
         
         guard let url = URL(string: urlString) else {
-            // Якщо URL не валідний, повертаємо оригінали
-            let details = synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) }
-            completion(details)
+            completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
             return
         }
         
@@ -333,23 +418,16 @@ class TranslationService {
         request.setValue("DeepL-Auth-Key \(deepLKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        var params: [(key: String, value: String)] = [
-            ("source_lang", deeplSource),
-            ("target_lang", deeplTarget)
-        ]
-        
+        var body = "source_lang=\(deeplSource)&target_lang=\(deeplTarget)"
         for synonym in synonyms {
-            params.append(("text", synonym))
+            body += "&text=\(encode(synonym))"
         }
         
-        let bodyString = params.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }.joined(separator: "&")
-        request.httpBody = bodyString.data(using: .utf8)
+        request.httpBody = body.data(using: .utf8)
         
         URLSession.shared.dataTask(with: request) { data, _, _ in
             guard let data = data else {
-                // Якщо немає даних, повертаємо оригінали
-                let details = synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) }
-                DispatchQueue.main.async { completion(details) }
+                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
                 return
             }
             
@@ -358,58 +436,79 @@ class TranslationService {
                    let translations = json["translations"] as? [[String: Any]] {
                     
                     var details: [SynonymDetail] = []
-                    
-                    for (index, translation) in translations.enumerated() {
-                        guard index < synonyms.count else { break }
-                        let originalWord = synonyms[index]
-                        let translatedText = translation["text"] as? String ?? originalWord
-                        details.append(SynonymDetail(word: originalWord, ipaTranscription: nil, translation: translatedText))
+                    for (i, trans) in translations.enumerated() {
+                        guard i < synonyms.count else { break }
+                        let original = synonyms[i]
+                        let translated = trans["text"] as? String ?? original
+                        details.append(SynonymDetail(word: original, ipaTranscription: nil, translation: translated))
                     }
-                    
-                    print("✅ DeepL синоніми: \(details.count)")
-                    DispatchQueue.main.async { completion(details) }
+                    completion(details)
                 } else {
-                    let details = synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) }
-                    DispatchQueue.main.async { completion(details) }
+                    completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
                 }
             } catch {
-                let details = synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) }
-                DispatchQueue.main.async { completion(details) }
+                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
             }
         }.resume()
     }
     
-    // MARK: - Допоміжні методи
+    private func encode(_ string: String) -> String {
+        return string.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? string
+    }
+    
+    private func filterSynonyms(_ synonyms: [String]) -> [String] {
+        let blocked = ["motherfucker", "fuck", "shit", "damn", "ass", "bitch", "bastard", "crap", "hell"]
+        return synonyms.filter { syn in
+            let lower = syn.lowercased()
+            return !blocked.contains(lower) && !blocked.contains { lower.contains($0) }
+        }
+    }
+    
     private func detectLanguage(_ text: String) -> String? {
-        let ukrainianChars = CharacterSet(charactersIn: "ґєіїҐЄІЇ")
-        let polishChars = CharacterSet(charactersIn: "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
-        let germanChars = CharacterSet(charactersIn: "äöüßÄÖÜẞ")
-        let frenchChars = CharacterSet(charactersIn: "àâäæçéèêëïîôœùûüÿÀÂÄÆÇÉÈÊËÏÎÔŒÙÛÜŸ")
-        let spanishChars = CharacterSet(charactersIn: "áéíóúüñÁÉÍÓÚÜÑ¿¡")
-        let italianChars = CharacterSet(charactersIn: "àèéìòùÀÈÉÌÒÙ")
+        let specificChars: [(CharacterSet, String)] = [
+            (CharacterSet(charactersIn: "ґєіїҐЄІЇ"), "uk"),
+            (CharacterSet(charactersIn: "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"), "pl"),
+            (CharacterSet(charactersIn: "äöüßÄÖÜẞ"), "de"),
+            (CharacterSet(charactersIn: "àâæçéèêëïîôœùûüÿÀÂÆÇÉÈÊËÏÎÔŒÙÛÜŸ"), "fr"),
+            (CharacterSet(charactersIn: "áéíóúüñÁÉÍÓÚÜÑ¿¡"), "es"),
+            (CharacterSet(charactersIn: "àèéìòùÀÈÉÌÒÙ"), "it"),
+            (CharacterSet(charactersIn: "ãõçÃÕÇ"), "pt"),
+        ]
         
-        if text.rangeOfCharacter(from: ukrainianChars) != nil { return "uk" }
-        if text.rangeOfCharacter(from: polishChars) != nil { return "pl" }
-        if text.rangeOfCharacter(from: germanChars) != nil { return "de" }
-        if text.rangeOfCharacter(from: frenchChars) != nil { return "fr" }
-        if text.rangeOfCharacter(from: spanishChars) != nil { return "es" }
-        if text.rangeOfCharacter(from: italianChars) != nil { return "it" }
+        for (charset, code) in specificChars {
+            if text.rangeOfCharacter(from: charset) != nil {
+                return code
+            }
+        }
         
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
-        guard let dominantLanguage = recognizer.dominantLanguage else { return nil }
         
-        let detectedCode = dominantLanguage.rawValue
-        let supportedLanguages = ["uk", "en", "es", "de", "fr", "it", "pl"]
-        return supportedLanguages.contains(detectedCode) ? detectedCode : nil
+        if let dominant = recognizer.dominantLanguage {
+            let code = dominant.rawValue
+            let supported = ["uk", "en", "es", "de", "fr", "it", "pl", "pt"]
+            if supported.contains(code) {
+                return code
+            }
+        }
+        
+        let latinOnly = text.allSatisfy { char in
+            String(char).rangeOfCharacter(from: .letters) == nil ||
+            String(char).rangeOfCharacter(from: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-' ")) != nil
+        }
+        
+        return latinOnly ? "en" : nil
     }
     
     private func deeplLanguageCode(_ code: String) -> String {
-        let mapping = ["uk": "UK", "en": "EN", "es": "ES", "de": "DE", "fr": "FR", "it": "IT", "pl": "PL"]
+        let mapping = ["uk": "UK", "en": "EN", "es": "ES", "de": "DE", "fr": "FR", "it": "IT", "pl": "PL", "pt": "PT"]
         return mapping[code] ?? "EN"
     }
     
     private func languageNameToCode(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        
         let mapping = [
             "uk": "uk", "українська": "uk", "ukrainian": "uk",
             "en": "en", "english": "en", "англійська": "en",
@@ -417,9 +516,15 @@ class TranslationService {
             "pl": "pl", "polski": "pl", "польська": "pl", "polish": "pl",
             "es": "es", "español": "es", "іспанська": "es", "spanish": "es",
             "fr": "fr", "français": "fr", "французька": "fr", "french": "fr",
-            "it": "it", "italiano": "it", "італійська": "it", "italian": "it"
+            "it": "it", "italiano": "it", "італійська": "it", "italian": "it",
+            "pt": "pt", "português": "pt", "португальська": "pt", "portuguese": "pt"
         ]
-        let lowercased = name.lowercased()
-        return mapping[lowercased] ?? lowercased
+        
+        let lowercased = trimmed.lowercased()
+        let result = mapping[lowercased] ?? lowercased
+        
+        // Додаткова перевірка - якщо результат не в списку підтримуваних, повертаємо порожній
+        let supported = ["uk", "en", "es", "de", "fr", "it", "pl", "pt"]
+        return supported.contains(result) ? result : ""
     }
 }

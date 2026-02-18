@@ -8,7 +8,7 @@
 import SwiftUI
 import AVFoundation
 import FirebaseAuth
-import Combine 
+import Combine
 
 struct TranslationBubbleOverlay: View {
     let result: TranslationResult
@@ -36,23 +36,25 @@ struct TranslationBubbleOverlay: View {
         case idle, loading, success, error(String)
     }
     
-    private var originalLanguage: String {
-        if result.ipaTranscription != nil {
-            return "en"
-        }
-        if isUkrainian(result.original) {
-            return "uk"
-        }
-        return appState.learningLanguage
-    }
+    private var originalLanguage: String { result.fromLanguage }
+    private var translationLanguage: String { result.toLanguage }
     
-    private var translationLanguage: String {
-        return appState.appLanguage
-    }
-    
-    private func isUkrainian(_ text: String) -> Bool {
-        let ukrainianChars = CharacterSet(charactersIn: "а-яА-ЯїЇєЄіІґҐ")
-        return text.rangeOfCharacter(from: ukrainianChars) != nil
+    private var allSynonyms: [String] {
+        var syns = result.synonyms
+        if let informal = result.informalTranslation, !informal.isEmpty, informal != result.translation {
+            syns.insert(informal, at: 0)
+        }
+        // Видаляємо дублікати зберігаючи порядок, замість Set
+        var seen = Set<String>()
+        var unique: [String] = []
+        for syn in syns {
+            let lower = syn.lowercased()
+            if !seen.contains(lower), syn != result.translation {
+                seen.insert(lower)
+                unique.append(syn)
+            }
+        }
+        return unique
     }
     
     var body: some View {
@@ -84,54 +86,43 @@ struct TranslationBubbleOverlay: View {
                                 }
                             }
                             
-                            // Оригінальне слово з переносом
-                            VStack(spacing: 8) {
-                                HStack(spacing: 12) {
-                                    Text(result.original)
-                                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                                        .lineLimit(nil) // Без обмеження рядків
-                                        .fixedSize(horizontal: false, vertical: true) // Перенос на новий рядок
-                                        .multilineTextAlignment(.center)
-                                    
-                                    Button(action: { speak(text: result.original, language: originalLanguage) }) {
-                                        Image(systemName: "speaker.wave.2.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(Color(hex: "#4ECDC4"))
-                                            .frame(width: 36, height: 36)
-                                            .background(Color(hex: "#4ECDC4").opacity(0.15))
-                                            .clipShape(Circle())
-                                    }
-                                }
-                                
-                                if let ipa = result.ipaTranscription {
-                                    Text(ipa)
-                                        .font(.system(size: 16, design: .serif))
-                                        .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-                                }
+                            wordSection(
+                                text: result.original,
+                                language: originalLanguage,
+                                isPrimary: true
+                            )
+                            
+                            if let ipa = result.ipaTranscription {
+                                Text(ipa)
+                                    .font(.system(size: 16, design: .serif))
+                                    .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
                             }
                             
                             Divider().opacity(0.5)
                             
-                            // Переклад з переносом
-                            VStack(spacing: 8) {
-                                HStack(spacing: 12) {
-                                    Text(result.translation)
-                                        .font(.system(size: 24, weight: .semibold))
-                                        .foregroundColor(Color(hex: "#4ECDC4"))
-                                        .lineLimit(nil) // Без обмеження рядків
-                                        .fixedSize(horizontal: false, vertical: true) // Перенос на новий рядок
-                                        .multilineTextAlignment(.center)
+                            wordSection(
+                                text: result.translation,
+                                language: translationLanguage,
+                                isPrimary: false
+                            )
+                            
+                            if let informal = result.informalTranslation, !informal.isEmpty {
+                                HStack(spacing: 8) {
+                                    Text("розмовне:")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                    Text(informal)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                                        .italic()
                                     
-                                    Button(action: { speak(text: result.translation, language: translationLanguage) }) {
-                                        Image(systemName: "speaker.wave.2.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(.white)
-                                            .frame(width: 36, height: 36)
-                                            .background(Color(hex: "#4ECDC4"))
-                                            .clipShape(Circle())
+                                    Button(action: { speak(text: informal, language: translationLanguage) }) {
+                                        Image(systemName: "speaker.wave.2")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "#4ECDC4"))
                                     }
                                 }
+                                .padding(.top, -10)
                             }
                             
                             examplesSection
@@ -178,28 +169,18 @@ struct TranslationBubbleOverlay: View {
     }
     
     private var filteredSynonyms: [String] {
-        let blockedWords = ["motherfucker", "fuck", "shit", "damn", "ass", "bitch", "bastard", "crap", "hell"]
-        let blockedPatterns = ["fuck", "shit", "damn", "ass", "bitch", "bastard", "hell", "crap"]
-        
-        return result.synonyms.filter { synonym in
-            let lowercased = synonym.lowercased()
-            if blockedWords.contains(lowercased) {
-                return false
-            }
-            for pattern in blockedPatterns {
-                if lowercased.contains(pattern) {
-                    return false
-                }
-            }
-            return true
+        let blocked = ["motherfucker", "fuck", "shit", "damn", "ass", "bitch", "bastard", "crap", "hell"]
+        return allSynonyms.filter { syn in
+            let lower = syn.lowercased()
+            return !blocked.contains(lower)
         }
     }
     
     private func loadSynonymTranslations() {
         guard !filteredSynonyms.isEmpty else { return }
         
-        let sourceLang = "en"
-        let targetLang = appState.appLanguage
+        let sourceLang = result.toLanguage
+        let targetLang = result.fromLanguage
         
         isLoadingSynonyms = true
         
@@ -217,6 +198,147 @@ struct TranslationBubbleOverlay: View {
             DispatchQueue.main.async {
                 self.synonymTranslations = translations
                 self.isLoadingSynonyms = false
+            }
+        }
+    }
+    
+    private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Text(text)
+                    .font(.system(size: isPrimary ? 28 : 24, weight: isPrimary ? .bold : .semibold, design: .rounded))
+                    .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")) : Color(hex: "#4ECDC4"))
+                    .lineLimit(nil)
+                    .multilineTextAlignment(.center)
+                
+                Button(action: { speak(text: text, language: language) }) {
+                    Image(systemName: ttsManager.isPlaying && ttsManager.currentLanguage == language ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        .font(.system(size: 16))
+                        .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
+                        .frame(width: 36, height: 36)
+                        .background(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
+                        .clipShape(Circle())
+                }
+            }
+        }
+    }
+    
+    private var examplesSection: some View {
+        VStack(spacing: 16) {
+            if !result.exampleSentence.isEmpty {
+                exampleCard(
+                    original: result.exampleSentence,
+                    translation: result.exampleTranslation,
+                    originalLang: originalLanguage,
+                    transLang: translationLanguage
+                )
+            }
+            
+            if let ex2 = result.exampleSentence2, !ex2.isEmpty {
+                Divider()
+                exampleCard(
+                    original: ex2,
+                    translation: result.exampleTranslation2 ?? "",
+                    originalLang: originalLanguage,
+                    transLang: translationLanguage
+                )
+            }
+        }
+    }
+    
+    private func exampleCard(original: String, translation: String, originalLang: String, transLang: String) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(original)
+                    .font(.system(size: 16))
+                    .italic()
+                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                Spacer()
+                Button(action: { speak(text: original, language: originalLang) }) {
+                    Image(systemName: "speaker.wave.1")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+            }
+            
+            if !translation.isEmpty && translation != original {
+                HStack {
+                    Text(translation)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                    Spacer()
+                    Button(action: { speak(text: translation, language: transLang) }) {
+                        Image(systemName: "speaker.wave.1")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(hex: "#4ECDC4").opacity(0.7))
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.5)))
+    }
+    
+    private var synonymsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Варіанти перекладу")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                
+                Spacer()
+                
+                if isLoadingSynonyms {
+                    ProgressView().scaleEffect(0.8)
+                } else {
+                    Text("\(filteredSynonyms.count)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "#4ECDC4"))
+                        .cornerRadius(10)
+                }
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(filteredSynonyms, id: \.self) { synonym in
+                        Button(action: {
+                            withAnimation(.spring(response: 0.2)) {
+                                selectedSynonym = synonym
+                            }
+                            openSynonymDetail(synonym)
+                        }) {
+                            VStack(spacing: 4) {
+                                Text(synonym)
+                                    .font(.system(size: 14, weight: .medium))
+                                
+                                if let translation = synonymTranslations[synonym], !translation.isEmpty, translation.lowercased() != synonym.lowercased() {
+                                    Text(translation)
+                                        .font(.system(size: 11))
+                                        .lineLimit(1)
+                                        .opacity(0.9)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                LinearGradient(
+                                    colors: [synonymColor(for: synonym).opacity(0.9), synonymColor(for: synonym)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .cornerRadius(20)
+                            .shadow(color: synonymColor(for: synonym).opacity(0.3), radius: 4, x: 0, y: 2)
+                        }
+                        .scaleEffect(selectedSynonym == synonym ? 0.92 : 1.0)
+                        .animation(.spring(response: 0.2), value: selectedSynonym)
+                    }
+                }
+                .padding(.vertical, 4)
             }
         }
     }
@@ -251,7 +373,7 @@ struct TranslationBubbleOverlay: View {
                                 .multilineTextAlignment(.center)
                             
                             Button(action: {
-                                speak(text: detail.word, language: "en")
+                                speak(text: detail.word, language: originalLanguage)
                             }) {
                                 Image(systemName: "speaker.wave.2.fill")
                                     .font(.system(size: 20))
@@ -402,8 +524,8 @@ struct TranslationBubbleOverlay: View {
         let translationService = TranslationService()
         translationService.translateSynonyms(
             synonyms: [detail.word],
-            sourceLang: "en",
-            targetLang: appState.appLanguage
+            sourceLang: originalLanguage,      // ✅ ВИПРАВЛЕНО
+            targetLang: translationLanguage    // ✅ ВИПРАВЛЕНО
         ) { details in
             guard let newDetail = details.first else { return }
             
@@ -429,7 +551,7 @@ struct TranslationBubbleOverlay: View {
                 translation: detail.translation,
                 transcription: detail.ipaTranscription,
                 exampleSentence: nil,
-                languagePair: "en-\(appState.appLanguage)",
+                languagePair: "\(result.toLanguage)-\(result.fromLanguage)",
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -441,7 +563,6 @@ struct TranslationBubbleOverlay: View {
                 createdAt: Date()
             )
             
-            // ВИКОРИСТОВУЄМО DictionaryViewModel
             dictionaryVM.saveWord(wordModel)
             
             await MainActor.run {
@@ -468,70 +589,6 @@ struct TranslationBubbleOverlay: View {
             }
             synonymSaveState = .idle
             synonymScale = 1.0
-        }
-    }
-    
-    private var synonymsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Синоніми")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                
-                Spacer()
-                
-                if isLoadingSynonyms {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                } else {
-                    Text("\(filteredSynonyms.count)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: "#4ECDC4"))
-                        .cornerRadius(10)
-                }
-            }
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(filteredSynonyms, id: \.self) { synonym in
-                        Button(action: {
-                            openSynonymDetail(synonym)
-                        }) {
-                            VStack(spacing: 4) {
-                                Text(synonym)
-                                    .font(.system(size: 14, weight: .medium))
-                                
-                                if let translation = synonymTranslations[synonym],
-                                   !translation.isEmpty,
-                                   translation.lowercased() != synonym.lowercased() {
-                                    Text(translation)
-                                        .font(.system(size: 11))
-                                        .lineLimit(1)
-                                        .opacity(0.9)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(
-                                LinearGradient(
-                                    colors: [synonymColor(for: synonym).opacity(0.9), synonymColor(for: synonym)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .foregroundColor(.white)
-                            .cornerRadius(20)
-                            .shadow(color: synonymColor(for: synonym).opacity(0.3), radius: 4, x: 0, y: 2)
-                        }
-                        .scaleEffect(selectedSynonym == synonym ? 0.92 : 1.0)
-                        .animation(.spring(response: 0.2), value: selectedSynonym)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
         }
     }
     
@@ -583,15 +640,18 @@ struct TranslationBubbleOverlay: View {
         
         var finalTranslation: String
         
-        if let cached = cachedTranslation, !cached.isEmpty, cached != synonym {
+        if let cached = cachedTranslation, !cached.isEmpty, cached.lowercased() != synonym.lowercased() {
             finalTranslation = cached
         } else {
             let translationService = TranslationService()
+            // ✅ ВИПРАВЛЕНО: міняємо мови місцями
+            // Синонім - це слово мовою вивчення (originalLanguage/fromLanguage)
+            // Переклад - це мова додатка (translationLanguage/toLanguage)
             finalTranslation = await withCheckedContinuation { continuation in
                 translationService.translateSynonyms(
                     synonyms: [synonym],
-                    sourceLang: "en",
-                    targetLang: appState.appLanguage
+                    sourceLang: originalLanguage,      // ✅ Мова синоніма (наприклад, en)
+                    targetLang: translationLanguage    // ✅ Мова перекладу (наприклад, uk)
                 ) { details in
                     let translation = details.first?.translation ?? synonym
                     continuation.resume(returning: translation)
@@ -636,49 +696,6 @@ struct TranslationBubbleOverlay: View {
         return colors[hash % colors.count]
     }
     
-    private var examplesSection: some View {
-        VStack(spacing: 16) {
-            if !result.exampleSentence.isEmpty {
-                exampleCard(
-                    original: result.exampleSentence,
-                    translation: result.exampleTranslation
-                )
-            }
-            
-            if let ex2 = result.exampleSentence2, !ex2.isEmpty,
-               let tr2 = result.exampleTranslation2, !tr2.isEmpty {
-                if !result.exampleSentence.isEmpty {
-                    Divider()
-                }
-                exampleCard(
-                    original: ex2,
-                    translation: tr2
-                )
-            }
-        }
-    }
-    
-    private func exampleCard(original: String, translation: String) -> some View {
-        VStack(spacing: 8) {
-            Text(original)
-                .font(.system(size: 16))
-                .italic()
-                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                .multilineTextAlignment(.center)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-            
-            if !translation.isEmpty && translation != original {
-                Text(translation)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-    
     private var saveButton: some View {
         Button(action: saveWordWithCloud) {
             HStack(spacing: 10) {
@@ -721,7 +738,7 @@ struct TranslationBubbleOverlay: View {
         case .idle: return Color(hex: "#4ECDC4")
         case .loading: return Color(hex: "#4ECDC4").opacity(0.7)
         case .success: return Color(hex: "#2ECC71")
-        case .error(_): return Color(hex: "#F38BA8")
+        case .error: return Color(hex: "#F38BA8")
         }
     }
     
@@ -731,59 +748,32 @@ struct TranslationBubbleOverlay: View {
         saveState = .loading
         
         Task {
-            do {
-                let wordModel = SavedWordModel(
-                    original: result.original,
-                    translation: result.translation,
-                    transcription: result.ipaTranscription,
-                    exampleSentence: result.exampleSentence,
-                    languagePair: "\(originalLanguage)-\(translationLanguage)",
-                    isLearned: false,
-                    reviewCount: 0,
-                    srsInterval: 0,
-                    srsRepetition: 0,
-                    srsEasinessFactor: 2.5,
-                    nextReviewDate: nil,
-                    lastReviewDate: nil,
-                    averageQuality: 0,
-                    createdAt: Date()
-                )
+            let wordModel = SavedWordModel(
+                original: result.original,
+                translation: result.translation,
+                transcription: result.ipaTranscription,
+                exampleSentence: result.exampleSentence,
+                languagePair: result.languagePair,
+                isLearned: false,
+                reviewCount: 0,
+                srsInterval: 0,
+                srsRepetition: 0,
+                srsEasinessFactor: 2.5,
+                nextReviewDate: nil,
+                lastReviewDate: nil,
+                averageQuality: 0,
+                createdAt: Date()
+            )
+            
+            dictionaryVM.saveWord(wordModel)
+            
+            await MainActor.run {
+                saveState = .success
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
                 
-                // ВИКОРИСТОВУЄМО DictionaryViewModel замість FirestoreService напряму
-                dictionaryVM.saveWord(wordModel)
-                
-                // Якщо анонімний - одразу показуємо успіх (бо локальне збереження швидке)
-                if Auth.auth().currentUser?.isAnonymous == true {
-                    await MainActor.run {
-                        saveState = .success
-                        let generator = UINotificationFeedbackGenerator()
-                        generator.notificationOccurred(.success)
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            closeCard()
-                        }
-                    }
-                } else {
-                    // Для авторизованих чекаємо на Firebase
-                    await MainActor.run {
-                        saveState = .success
-                        let generator = UINotificationFeedbackGenerator()
-                        generator.notificationOccurred(.success)
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            closeCard()
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    saveState = .error("Помилка збереження")
-                    let generator = UINotificationFeedbackGenerator()
-                    generator.notificationOccurred(.error)
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        saveState = .idle
-                    }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    closeCard()
                 }
             }
         }

@@ -2,6 +2,8 @@
 //  TranslationResultView.swift
 //  Wordy
 //
+//  Created by Anastasiia Inzer on 01.02.2026.
+//
 
 import SwiftUI
 import AVFoundation
@@ -21,7 +23,6 @@ struct TranslationResultView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // Кнопка закрити
                 HStack {
                     Spacer()
                     Button(action: closeView) {
@@ -31,19 +32,16 @@ struct TranslationResultView: View {
                     }
                 }
                 
-                // Попередження про беззвучний режим
                 if isSilentModeEnabled {
                     silentModeWarning
                 }
                 
-                // Індикатор завантаження
                 if ttsManager.isLoading {
                     ProgressView()
                         .scaleEffect(1.2)
                         .padding()
                 }
                 
-                // Помилка
                 if let error = ttsManager.error {
                     Text("Помилка: \(error)")
                         .font(.system(size: 12))
@@ -51,15 +49,13 @@ struct TranslationResultView: View {
                         .padding(.horizontal)
                 }
                 
-                // Оригінальне слово
                 wordSection(
                     text: result.original,
-                    language: result.originalLanguageCode,
+                    language: result.fromLanguage,
                     isPrimary: true
                 )
                 
-                // Транскрипція IPA
-                if let ipa = result.ipaTranscription, !ipa.isEmpty {
+                if let ipa = result.ipaTranscription {
                     Text(ipa)
                         .font(.system(size: 18))
                         .foregroundColor(Color(hex: "#7F8C8D"))
@@ -67,21 +63,38 @@ struct TranslationResultView: View {
                 
                 Divider()
                 
-                // Переклад
                 wordSection(
                     text: result.translation,
-                    language: result.translationLanguageCode,
+                    language: result.toLanguage,
                     isPrimary: false
                 )
                 
+                if let informal = result.informalTranslation {
+                    HStack {
+                        Text("розмовне:")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Text(informal)
+                            .font(.system(size: 16))
+                            .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                            .italic()
+                        
+                        Button(action: {
+                            speakText(text: informal, language: result.toLanguage)
+                        }) {
+                            Image(systemName: "speaker.wave.2")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
+                        }
+                    }
+                }
+                
                 Divider()
                 
-                // Приклади
                 examplesSection
                 
                 Spacer(minLength: 40)
                 
-                // Кнопки
                 actionButtons
             }
             .padding()
@@ -101,8 +114,6 @@ struct TranslationResultView: View {
             }
         }
     }
-    
-    // MARK: - Компоненти
     
     private var silentModeWarning: some View {
         HStack(spacing: 8) {
@@ -129,7 +140,7 @@ struct TranslationResultView: View {
             Button(action: {
                 print("🔊 Кнопка слова натиснута: '\(text)' (\(language))")
                 checkSilentMode()
-                ttsManager.speak(text: text, language: language)
+                speakText(text: text, language: language)
             }) {
                 Image(systemName: iconName(for: language))
                     .font(.system(size: 20))
@@ -144,6 +155,11 @@ struct TranslationResultView: View {
         }
     }
     
+    private func speakText(text: String, language: String) {
+        print("🔊 TTS: '\(text)' мовою '\(language)'")
+        ttsManager.speak(text: text, language: language)
+    }
+    
     private func iconName(for language: String) -> String {
         let isPlaying = ttsManager.isPlaying && ttsManager.currentLanguage == language
         return isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2"
@@ -155,8 +171,8 @@ struct TranslationResultView: View {
                 exampleCard(
                     original: result.exampleSentence,
                     translation: result.exampleTranslation,
-                    originalLang: result.originalLanguageCode,
-                    translationLang: result.translationLanguageCode
+                    originalLang: result.fromLanguage,
+                    translationLang: result.toLanguage
                 )
             }
             
@@ -166,8 +182,8 @@ struct TranslationResultView: View {
                 exampleCard(
                     original: ex2,
                     translation: tr2,
-                    originalLang: result.originalLanguageCode,
-                    translationLang: result.translationLanguageCode
+                    originalLang: result.fromLanguage,
+                    translationLang: result.toLanguage
                 )
             }
         }
@@ -200,7 +216,7 @@ struct TranslationResultView: View {
         Button(action: {
             print("🔊 Кнопка прикладу натиснута: '\(text)' (\(language))")
             checkSilentMode()
-            ttsManager.speak(text: text, language: language)
+            speakText(text: text, language: language)
         }) {
             Image(systemName: "speaker.wave.1")
                 .font(.system(size: 14))
@@ -240,8 +256,6 @@ struct TranslationResultView: View {
             }
         }
     }
-    
-    // MARK: - Допоміжні методи
     
     private func checkSilentMode() {
         isSilentModeEnabled = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint

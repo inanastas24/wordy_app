@@ -8,11 +8,11 @@
 import SwiftUI
 import Foundation
 
-// === МОДЕЛЬ ВІДПОВІДІ ===
 struct TranslationResult: Identifiable, Hashable {
-    let id: UUID                       // ← ЗМІНЕНО: без значення за замовчуванням
+    let id: UUID
     let original: String
     let translation: String
+    let informalTranslation: String?
     let transcription: String
     let ipaTranscription: String?
     let exampleSentence: String
@@ -21,11 +21,14 @@ struct TranslationResult: Identifiable, Hashable {
     let exampleTranslation2: String?
     let synonyms: [String]
     let languagePair: String
+    let fromLanguage: String
+    let toLanguage: String
     
     init(
-        id: UUID = UUID(),             // ← ДОДАНО: параметр з дефолтним значенням
+        id: UUID = UUID(),
         original: String,
         translation: String,
+        informalTranslation: String? = nil,
         transcription: String = "",
         ipaTranscription: String? = nil,
         exampleSentence: String = "",
@@ -33,11 +36,14 @@ struct TranslationResult: Identifiable, Hashable {
         exampleSentence2: String? = nil,
         exampleTranslation2: String? = nil,
         synonyms: [String] = [],
-        languagePair: String = "en-uk"
+        languagePair: String = "en-uk",
+        fromLanguage: String? = nil,
+        toLanguage: String? = nil
     ) {
-        self.id = id                   // ← Тепер працює правильно
+        self.id = id
         self.original = original
         self.translation = translation
+        self.informalTranslation = informalTranslation
         self.transcription = transcription
         self.ipaTranscription = ipaTranscription
         self.exampleSentence = exampleSentence
@@ -46,7 +52,14 @@ struct TranslationResult: Identifiable, Hashable {
         self.exampleTranslation2 = exampleTranslation2
         self.synonyms = synonyms
         self.languagePair = languagePair
+        
+        let components = languagePair.components(separatedBy: "-")
+        self.fromLanguage = fromLanguage ?? components.first ?? "en"
+        self.toLanguage = toLanguage ?? (components.count > 1 ? components[1] : "uk")
     }
+    
+    var originalLanguageCode: String { fromLanguage }
+    var translationLanguageCode: String { toLanguage }
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -54,18 +67,5 @@ struct TranslationResult: Identifiable, Hashable {
     
     static func == (lhs: TranslationResult, rhs: TranslationResult) -> Bool {
         lhs.id == rhs.id
-    }
-}
-
-// MARK: - Розширення для визначення мови
-extension TranslationResult {
-    var originalLanguageCode: String {
-        let components = languagePair.components(separatedBy: "-")
-        return components.first ?? "en"
-    }
-    
-    var translationLanguageCode: String {
-        let components = languagePair.components(separatedBy: "-")
-        return components.count > 1 ? components[1] : "uk"
     }
 }

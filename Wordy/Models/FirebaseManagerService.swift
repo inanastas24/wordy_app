@@ -7,7 +7,7 @@ import FirebaseFirestore
 import FirebaseStorage
 import FirebaseFunctions
 import AVFoundation
-import Combine 
+import Combine
 
 @MainActor
 class FirebaseTTSManager: ObservableObject {
@@ -28,7 +28,6 @@ class FirebaseTTSManager: ObservableObject {
         print("🎤 FirebaseTTSManager ініціалізовано")
     }
     
-    // MARK: - Головний метод (СПОЧАТКУ)
     func speak(text: String, language: String) {
         print("🎤 FirebaseTTSManager.speak() викликано: '\(text)' (\(language))")
         
@@ -59,7 +58,6 @@ class FirebaseTTSManager: ObservableObject {
         }
     }
     
-    // MARK: - Перевірка кешу
     private func checkCache(for text: String, language: String, completion: @escaping (URL?) -> Void) {
         let wordId = "\(text.lowercased().trimmingCharacters(in: .whitespaces))_\(language)"
         let docRef = db.collection("words_collection").document(wordId)
@@ -84,9 +82,7 @@ class FirebaseTTSManager: ObservableObject {
         }
     }
     
-    // MARK: - Cloud Function
     private func generateAudioViaCloudFunction(text: String, language: String) {
-        // ВАЖЛИВО: Обгортаємо в data як очікує Cloud Function
         let parameters: [String: Any] = [
             "data": [
                 "word": text,
@@ -105,9 +101,9 @@ class FirebaseTTSManager: ObservableObject {
                     print("❌ Cloud Function error: \(error)")
                     self?.error = error.localizedDescription
                     
-                    // Fallback на локальне озвучування
+                    // Fallback: використовуємо локальний AVSpeechSynthesizer
                     print("🔊 Fallback на локальне озвучування")
-                    SpeechService.shared.speak(text, language: language)
+                    self?.speakLocally(text: text, language: language)
                     return
                 }
                 
@@ -126,7 +122,42 @@ class FirebaseTTSManager: ObservableObject {
         }
     }
     
-    // MARK: - Відтворення
+    // MARK: - Локальний fallback
+    private func speakLocally(text: String, language: String) {
+        let synthesizer = AVSpeechSynthesizer()
+        let utterance = AVSpeechUtterance(string: text)
+        
+        let languageCode = mapToAppleLanguageCode(language)
+        utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.0
+        
+        synthesizer.speak(utterance)
+        
+        // Імітуємо стан відтворення
+        self.isPlaying = true
+        self.currentLanguage = language
+        
+        // Автоматично скидаємо через 2 секунди (приблизний час)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.isPlaying = false
+        }
+    }
+    
+    private func mapToAppleLanguageCode(_ code: String) -> String {
+        let mapping = [
+            "uk": "uk-UA",
+            "en": "en-US",
+            "de": "de-DE",
+            "pl": "pl-PL",
+            "es": "es-ES",
+            "fr": "fr-FR",
+            "it": "it-IT",
+            "pt": "pt-PT"
+        ]
+        return mapping[code] ?? "en-US"
+    }
+    
     private func playAudio(from url: URL, language: String) {
         print("🔊 Відтворюємо аудіо: \(url.lastPathComponent)")
         

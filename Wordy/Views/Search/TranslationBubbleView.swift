@@ -1,4 +1,4 @@
-//1
+//
 //  TranslationBubbleView.swift
 //  Wordy
 //
@@ -7,7 +7,7 @@
 
 import SwiftUI
 import AVFoundation
-import Combine 
+import Combine
 
 struct TranslationBubbleView: View {
     let result: TranslationResult
@@ -22,17 +22,12 @@ struct TranslationBubbleView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    @State private var isPlayingOriginal = false
-    @State private var isPlayingTranslation = false
-    
     @State private var showConfetti = false
     @StateObject private var ttsManager = FirebaseTTSManager.shared
     
     var body: some View {
-        ZStack { // ← Додано ZStack для шарування
-            // Основна картка
+        ZStack {
             VStack(spacing: 0) {
-                // MARK: - Header
                 HStack {
                     Spacer()
                     Button(action: onDismiss) {
@@ -47,7 +42,6 @@ struct TranslationBubbleView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 
-                // MARK: - Content
                 VStack(spacing: 20) {
                     VStack(spacing: 6) {
                         HStack(spacing: 12) {
@@ -55,8 +49,8 @@ struct TranslationBubbleView: View {
                                 .font(.system(size: 28, weight: .bold, design: .rounded))
                                 .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                             
-                            AudioBubbleButton(isPlaying: $isPlayingOriginal) {
-                                speak(text: result.original, isOriginal: true)
+                            AudioBubbleButton(isPlaying: isPlaying(for: result.fromLanguage)) {
+                                speak(text: result.original, language: result.fromLanguage)
                             }
                         }
                         
@@ -79,14 +73,25 @@ struct TranslationBubbleView: View {
                             .font(.system(size: 24, weight: .semibold, design: .rounded))
                             .foregroundColor(Color(hex: "#4ECDC4"))
                         
-                        AudioBubbleButton(isPlaying: $isPlayingTranslation) {
-                            speak(text: result.translation, isOriginal: false)
+                        AudioBubbleButton(isPlaying: isPlaying(for: result.toLanguage)) {
+                            speak(text: result.translation, language: result.toLanguage)
+                        }
+                    }
+                    
+                    if let informal = result.informalTranslation {
+                        HStack(spacing: 8) {
+                            Text("розмовне:")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                            Text(informal)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                                .italic()
                         }
                     }
                 }
                 .padding(.horizontal, 24)
                 
-                // MARK: - Save Button
                 Button(action: {
                     Task {
                         await saveWord()
@@ -159,7 +164,6 @@ struct TranslationBubbleView: View {
                 Text(errorMessage)
             }
             
-            // ← ХЛОПУШКА ЗВЕРХУ КАРТКИ
             if showConfetti {
                 ConfettiView()
                     .allowsHitTesting(false)
@@ -176,7 +180,6 @@ struct TranslationBubbleView: View {
         }
     }
     
-    // MARK: - Computed Properties
     private var buttonText: String {
         if isLoading {
             return "Збереження..."
@@ -187,7 +190,15 @@ struct TranslationBubbleView: View {
         }
     }
     
-    // MARK: - Methods
+    private func isPlaying(for language: String) -> Bool {
+        ttsManager.isPlaying && ttsManager.currentLanguage == language
+    }
+    
+    private func speak(text: String, language: String) {
+        print("🔊 TranslationBubbleView: '\(text)' мовою '\(language)'")
+        ttsManager.speak(text: text, language: language)
+    }
+    
     private func saveWord() async {
         isLoading = true
         
@@ -242,19 +253,10 @@ struct TranslationBubbleView: View {
             }
         }
     }
-
-    private func speak(text: String, isOriginal: Bool) {
-        let language = isOriginal ? appState.learningLanguage : appState.appLanguage
-        
-        print("🔊 TranslationBubbleView: '\(text)' (\(language))")
-        
-        // Використовуємо isPlaying з FirebaseTTSManager
-        ttsManager.speak(text: text, language: language)
-    }
 }
 
 struct AudioBubbleButton: View {
-    @Binding var isPlaying: Bool
+    let isPlaying: Bool
     let action: () -> Void
     
     var body: some View {
