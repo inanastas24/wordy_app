@@ -36,6 +36,10 @@ struct WordyApp: App {
         
         _authViewModel = StateObject(wrappedValue: AuthViewModel())
         
+        // ВИПРАВЛЕНО: Оновлюємо streak при запуску додатку
+        StreakService.shared.updateStreak()
+        print("🔥 Streak updated: \(StreakService.shared.currentStreak) days")
+        
         // Запитуємо всі пермішени при першому запуску
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             PermissionManager.shared.requestTrackingPermission()

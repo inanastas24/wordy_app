@@ -133,32 +133,21 @@ struct MenuView: View {
     
     private var quickStats: some View {
         HStack(spacing: 12) {
+            let streak = calculateStreak()
+            let streakColor = StreakService.shared.getStreakColor(for: streak)
+            
             HStack(spacing: 4) {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#F38BA8"))
-                Text("\(calculateStreak())")
+                    .foregroundColor(Color(hex: streakColor))
+                Text("\(streak)")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color(hex: "#F38BA8").opacity(0.15))
-            .cornerRadius(12)
-            
-            HStack(spacing: 4) {
-                Image(systemName: "book.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-                Text("\(dictionaryVM.totalWords)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .contentTransition(.numericText())
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(hex: "#4ECDC4").opacity(0.15))
+            .background(Color(hex: streakColor).opacity(0.15))
             .cornerRadius(12)
         }
         .padding(.horizontal, 20)
@@ -166,7 +155,7 @@ struct MenuView: View {
     }
     
     private func calculateStreak() -> Int {
-        return min(dictionaryVM.totalWords, 7)
+        return StreakService.shared.currentStreak
     }
     
     private var actionsSection: some View {

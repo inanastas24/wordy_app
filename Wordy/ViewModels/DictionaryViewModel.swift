@@ -239,7 +239,21 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
-        WidgetDataService.shared.updateWidgetWords(words: savedWords)
+        Task {
+            await MainActor.run {
+                let items = savedWords.map { word in
+                    WidgetDataService.WidgetWordItem(
+                        id: word.id,
+                        original: word.original,
+                        translation: word.translation,
+                        transcription: word.transcription,
+                        exampleSentence: word.exampleSentence,
+                        languagePair: word.languagePair
+                    )
+                }
+                WidgetDataService.shared.updateWidgetWords(words: items)
+            }
+        }
     }
     
     // НОВИЙ МЕТОД: Масове збереження слів (для імпорту)
@@ -278,7 +292,21 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
-        WidgetDataService.shared.updateWidgetWords(words: savedWords)
+        Task {
+            await MainActor.run {
+                let items = savedWords.map { word in
+                    WidgetDataService.WidgetWordItem(
+                        id: word.id,
+                        original: word.original,
+                        translation: word.translation,
+                        transcription: word.transcription,
+                        exampleSentence: word.exampleSentence,
+                        languagePair: word.languagePair
+                    )
+                }
+                WidgetDataService.shared.updateWidgetWords(words: items)
+            }
+        }
     }
     
     // MARK: - Update Word (НОВИЙ МЕТОД)
@@ -322,7 +350,21 @@ class DictionaryViewModel: ObservableObject {
                 }
             }
         }
-        WidgetDataService.shared.updateWidgetWords(words: savedWords)
+        Task {
+            await MainActor.run {
+                let items = savedWords.map { word in
+                    WidgetDataService.WidgetWordItem(
+                        id: word.id,
+                        original: word.original,
+                        translation: word.translation,
+                        transcription: word.transcription,
+                        exampleSentence: word.exampleSentence,
+                        languagePair: word.languagePair
+                    )
+                }
+                WidgetDataService.shared.updateWidgetWords(words: items)
+            }
+        }
     }
     
     // MARK: - Word Status Updates

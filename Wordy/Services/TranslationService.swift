@@ -188,7 +188,8 @@ class TranslationService {
                         exampleTranslation: exampleTranslations.first ?? "",
                         exampleSentence2: realExamples.count > 1 ? realExamples[1] : nil,
                         exampleTranslation2: exampleTranslations.count > 1 ? exampleTranslations[1] : nil,
-                        synonyms: enrichedData?.synonyms ?? []
+                        synonyms: enrichedData?.synonyms ?? [],
+                        languagePair: "\(sourceLang)-\(targetLang)"
                     )
                     
                     print("✅ DeepL: \(word) → \(wordTranslation)")

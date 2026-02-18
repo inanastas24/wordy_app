@@ -6,86 +6,11 @@
 //
 
 import SwiftUI
-import VisionKit
-import Vision
 import AVFoundation
 
 // MARK: - Permission Type
 enum PermissionType {
     case camera, microphone, speech
-}
-
-// MARK: - Live Text Scanner
-struct LiveTextScanner: UIViewControllerRepresentable {
-    @Binding var scannedText: String
-    @Environment(\.dismiss) var dismiss
-    
-    func makeUIViewController(context: Context) -> UIViewController {
-        if #available(iOS 16.0, *) {
-            let scanner = DataScannerViewController(
-                recognizedDataTypes: [.text()],
-                qualityLevel: .accurate,
-                recognizesMultipleItems: false,
-                isHighFrameRateTrackingEnabled: false,
-                isHighlightingEnabled: true
-            )
-            scanner.delegate = context.coordinator
-            return scanner
-        } else {
-            let picker = UIImagePickerController()
-            picker.sourceType = .camera
-            picker.delegate = context.coordinator
-            return picker
-        }
-    }
-    
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject {
-        var parent: LiveTextScanner
-        
-        init(_ parent: LiveTextScanner) {
-            self.parent = parent
-        }
-    }
-}
-
-@available(iOS 16.0, *)
-extension LiveTextScanner.Coordinator: DataScannerViewControllerDelegate {
-    func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
-        switch item {
-        case .text(let text):
-            parent.scannedText = text.transcript
-            parent.dismiss()
-        default: break
-        }
-    }
-}
-
-extension LiveTextScanner.Coordinator: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        if let image = info[.originalImage] as? UIImage {
-            recognizeText(in: image)
-        }
-        parent.dismiss()
-    }
-    
-    func recognizeText(in image: UIImage) {
-        guard let cgImage = image.cgImage else { return }
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        let request = VNRecognizeTextRequest { [weak self] request, error in
-            guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
-            let text = observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
-            DispatchQueue.main.async {
-                self?.parent.scannedText = text
-            }
-        }
-        try? handler.perform([request])
-    }
 }
 
 // MARK: - Search View
@@ -100,6 +25,7 @@ struct SearchView: View {
     
     @State private var searchText = ""
     @State private var showMenu = false
+    @State private var isRecognizing = false
     @State private var translationResult: TranslationResult?
     @State private var isLoading = false
     @StateObject private var speechService = SpeechRecognitionService()
@@ -111,6 +37,7 @@ struct SearchView: View {
     @State private var showSettings = false
     @State private var showTranslationCard = false
     @State private var showLanguagePicker = false
+    @State private var showVoiceSearch = false
     
     @FocusState private var isSearchFocused: Bool
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -160,7 +87,17 @@ struct SearchView: View {
                                     checkCameraPermission()
                                 }
                                 
-                                voiceSearchButton
+                                VoiceActionButton(
+                                    speechService: speechService,
+                                    title: localizationManager.string(.voice),
+                                    subtitle: localizationManager.string(.holdToSpeak),
+                                    isDarkMode: localizationManager.isDarkMode,
+                                    language: appState.learningLanguage,
+                                    onResult: { text in
+                                        self.searchText = text
+                                        self.performSearch()
+                                    }
+                                )
                             }
                             .padding(.horizontal, 20)
                             
@@ -197,12 +134,23 @@ struct SearchView: View {
                 }
             }
             .sheet(isPresented: $showScanner) {
-                LiveTextScanner(scannedText: $scannedText)
+                TextScannerView(
+                    scannedText: $scannedText,
+                    isRecognizing: $isRecognizing,
+                    onTextRecognized: { text in
+                        // Текст вже записаний в scannedText через binding
+                        // Тут можна додати додаткову логіку якщо потрібно
+                    }
+                )
+            }
+            .sheet(isPresented: $showVoiceSearch) {
+                VoiceSearchView()
+                    .environmentObject(localizationManager)
+                    .environmentObject(appState)
             }
             .onChange(of: scannedText) { _, newText in
                 if !newText.isEmpty {
                     searchText = newText
-                    isSearchFocused = true
                     performSearch()
                     scannedText = ""
                 }
@@ -243,49 +191,11 @@ struct SearchView: View {
         case .voice(let autoStart):
             if autoStart {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.startVoiceSearch()
+                    self.showVoiceSearch = true
                     self.deepLinkAction = nil
                 }
             }
         }
-    }
-    
-    // MARK: - Voice Search
-    private func startVoiceSearch() {
-        guard !speechService.isRecording else { return }
-        
-        speechService.startRecording(language: appState.learningLanguage) { text in
-            if let text = text, !text.isEmpty {
-                self.searchText = text
-                self.performSearch()
-            }
-        }
-    }
-    
-    private var voiceSearchButton: some View {
-        Button {
-            startVoiceSearch()
-        } label: {
-            VStack(spacing: 8) {
-                Image(systemName: speechService.isRecording ? "waveform" : "mic.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(.white)
-                
-                Text(localizationManager.string(.voice))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Text(localizationManager.string(.holdToSpeak))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.8))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 100)
-            .background(speechService.isRecording ? voiceColor.opacity(0.8) : voiceColor)
-            .cornerRadius(20)
-            .shadow(color: voiceColor.opacity(0.3), radius: 8, x: 0, y: 4)
-        }
-        .buttonStyle(PlainButtonStyle())
     }
     
     private var recordingIndicator: some View {

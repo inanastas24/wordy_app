@@ -51,9 +51,11 @@ struct VoiceActionButton: View {
                     if !speechService.isRecording && !isPressed {
                         isPressed = true
                         speechService.startRecording(language: language) { text in
-                            // Пошук виконується тільки якщо є текст
+                            // ВИПРАВЛЕНО: Передаємо результат назад
                             if let text = text, !text.isEmpty {
-                                onResult(text)
+                                DispatchQueue.main.async {
+                                    onResult(text)
+                                }
                             }
                         }
                     }

@@ -37,15 +37,25 @@ struct VoiceSearchView: View {
                         
                         // Анімація запису
                         ZStack {
-                            Circle()
-                                .fill(voiceColor.opacity(0.2))
-                                .frame(width: 200, height: 200)
-                                .scaleEffect(speechService.isRecording ? 1.2 : 1.0)
-                                .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: speechService.isRecording)
+                            // Пульсуючі кола
+                            ForEach(0..<3) { i in
+                                Circle()
+                                    .fill(voiceColor.opacity(0.3 - Double(i) * 0.08))
+                                    .frame(width: 200 + CGFloat(i * 40), height: 200 + CGFloat(i * 40))
+                                    .scaleEffect(speechService.isRecording ? 1.2 : 1.0)
+                                    .opacity(speechService.isRecording ? 0.6 : 0.3)
+                                    .animation(
+                                        .easeInOut(duration: 1.2)
+                                        .repeatForever(autoreverses: true)
+                                        .delay(Double(i) * 0.2),
+                                        value: speechService.isRecording
+                                    )
+                            }
                             
                             Circle()
                                 .fill(voiceColor)
                                 .frame(width: 120, height: 120)
+                                .shadow(color: voiceColor.opacity(0.4), radius: 20, x: 0, y: 10)
                             
                             Image(systemName: speechService.isRecording ? "waveform" : "mic.fill")
                                 .font(.system(size: 50))
@@ -57,15 +67,14 @@ struct VoiceSearchView: View {
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(Color(hex: "#4ECDC4"))
                                 .padding()
+                                .multilineTextAlignment(.center)
                         }
                         
-                        // Кнопка запису
-                        LongPressButton(
+                        // ВИПРАВЛЕНО: Покращена кнопка запису з long press
+                        LongPressRecordButton(
                             isRecording: $speechService.isRecording,
                             onPressBegan: {
-                                speechService.startRecording(language: appState.learningLanguage) { _ in
-                                    // Результат обробляється через @Published в speechService
-                                }
+                                speechService.startRecording(language: appState.learningLanguage) { _ in }
                             },
                             onPressEnded: {
                                 speechService.stopRecording()
@@ -130,34 +139,55 @@ struct VoiceSearchView: View {
     }
 }
 
-// MARK: - Long Press Button
-struct LongPressButton: View {
+// MARK: - Long Press Record Button (покращена версія)
+struct LongPressRecordButton: View {
     @Binding var isRecording: Bool
     let onPressBegan: () -> Void
     let onPressEnded: () -> Void
     let buttonColor: Color
     
+    @State private var isPressed = false
+    
     var body: some View {
-        Circle()
-            .stroke(buttonColor, lineWidth: 3)
-            .frame(width: 80, height: 80)
-            .overlay(
-                Text(isRecording ? "..." : "Тримайте")
-                    .font(.system(size: 12))
-                    .foregroundColor(buttonColor)
-            )
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if !isRecording {
-                            isRecording = true
-                            onPressBegan()
-                        }
+        ZStack {
+            // Зовнішнє коло (обводка)
+            Circle()
+                .stroke(buttonColor.opacity(0.3), lineWidth: 4)
+                .frame(width: 100, height: 100)
+                .scaleEffect(isPressed ? 1.1 : 1.0)
+            
+            // Основна кнопка
+            Circle()
+                .fill(isRecording ? Color.red : buttonColor)
+                .frame(width: 80, height: 80)
+                .shadow(color: (isRecording ? Color.red : buttonColor).opacity(0.4), radius: 15, x: 0, y: 8)
+                .scaleEffect(isPressed ? 0.95 : 1.0)
+            
+            // Іконка
+            Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isRecording && !isPressed {
+                        isPressed = true
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
+                        onPressBegan()
                     }
-                    .onEnded { _ in
-                        isRecording = false
+                }
+                .onEnded { _ in
+                    isPressed = false
+                    if isRecording {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
                         onPressEnded()
                     }
-            )
+                }
+        )
+        .animation(.easeInOut(duration: 0.2), value: isPressed)
+        .animation(.easeInOut(duration: 0.3), value: isRecording)
     }
 }

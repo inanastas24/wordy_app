@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import Combine 
 
 struct TranslationBubbleView: View {
     let result: TranslationResult
@@ -25,6 +26,7 @@ struct TranslationBubbleView: View {
     @State private var isPlayingTranslation = false
     
     @State private var showConfetti = false
+    @StateObject private var ttsManager = FirebaseTTSManager.shared
     
     var body: some View {
         ZStack { // ← Додано ZStack для шарування
@@ -240,25 +242,14 @@ struct TranslationBubbleView: View {
             }
         }
     }
-    
+
     private func speak(text: String, isOriginal: Bool) {
         let language = isOriginal ? appState.learningLanguage : appState.appLanguage
         
-        if isOriginal {
-            isPlayingOriginal = true
-            let duration = min(Double(text.count) * 0.08, 3.0)
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                isPlayingOriginal = false
-            }
-        } else {
-            isPlayingTranslation = true
-            let duration = min(Double(text.count) * 0.08, 3.0)
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                isPlayingTranslation = false
-            }
-        }
+        print("🔊 TranslationBubbleView: '\(text)' (\(language))")
         
-        SpeechService.shared.speak(text, language: language)
+        // Використовуємо isPlaying з FirebaseTTSManager
+        ttsManager.speak(text: text, language: language)
     }
 }
 
@@ -278,7 +269,7 @@ struct AudioBubbleButton: View {
                         ForEach(0..<3) { i in
                             RoundedRectangle(cornerRadius: 1)
                                 .fill(Color(hex: "#4ECDC4"))
-                                .frame(width: 2.5, height: isPlaying ? 12 : 5)
+                                .frame(width: 2.5, height: 12)
                                 .animation(
                                     .easeInOut(duration: 0.4)
                                     .repeatForever(autoreverses: true)

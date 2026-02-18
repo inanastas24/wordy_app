@@ -18,10 +18,14 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showLanguageSelection = false
     
+    // ВИПРАВЛЕНО: Використовуємо StreakService
+    @State private var currentStreak: Int = 0
+    @State private var streakColor: String = "#F38BA8"
+    @State private var streakTitle: String = "0 days"
+    
     private var totalWords: Int { dictionaryVM.totalWords }
     private var learnedWords: Int { dictionaryVM.learnedCount }
     private var learningWords: Int { dictionaryVM.learningCount }
-    private var streak: Int { calculateStreak() }
     
     var body: some View {
         NavigationStack {
@@ -35,9 +39,6 @@ struct ProfileView: View {
                         
                         // Email користувача (компактно)
                         userEmailSection
-                        
-                        // Кнопка зміни мови (тільки прапор)
-                        // changeLanguageButton
                         
                         statsGrid
                         achievementsSection
@@ -68,12 +69,17 @@ struct ProfileView: View {
             }
             .onAppear {
                 dictionaryVM.fetchSavedWords()
+                updateStreak() // ВИПРАВЛЕНО: Оновлюємо streak при появі
             }
         }
     }
     
-    private func calculateStreak() -> Int {
-        return min(totalWords, 7)
+    // ВИПРАВЛЕНО: Оновлення streak
+    private func updateStreak() {
+        StreakService.shared.updateStreak()
+        currentStreak = StreakService.shared.currentStreak
+        streakColor = StreakService.shared.getStreakColor(for: currentStreak)
+        streakTitle = StreakService.shared.getStreakTitle(for: currentStreak)
     }
     
     private var header: some View {
@@ -140,39 +146,6 @@ struct ProfileView: View {
         .padding(.horizontal, 20)
     }
     
-    // MARK: - Кнопка зміни мови (тільки прапор, без тексту)
-    private var changeLanguageButton: some View {
-            Button {
-                showLanguageSelection = true
-            } label: {
-                HStack(spacing: 10) {
-                    Text(learningLanguage.flag)
-                        .font(.system(size: 24))
-                    
-                    Text(learningLanguage.displayName)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                    
-                    Spacer()
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .padding(.horizontal, 20)
-        }
-    
     private var statsGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
             StatCard(
@@ -199,11 +172,12 @@ struct ProfileView: View {
                 isDarkMode: localizationManager.isDarkMode
             )
             
+            // ВИПРАВЛЕНО: Streak з динамічним кольором
             StatCard(
                 icon: "flame.fill",
-                value: "\(streak)",
-                label: localizationManager.string(.streakDays),
-                color: Color(hex: "#F38BA8"),
+                value: streakTitle, // "1 day", "2 days", etc.
+                label: "Days streak",
+                color: Color(hex: streakColor), // Рандомний колір залежно від днів
                 isDarkMode: localizationManager.isDarkMode
             )
         }
@@ -236,18 +210,37 @@ struct ProfileView: View {
                     )
                     
                     AchievementCard(
-                        icon: "flame.fill",
-                        title: localizationManager.string(.sevenDays),
-                        isUnlocked: streak >= 7,
-                        color: "#F38BA8",
-                        isDarkMode: localizationManager.isDarkMode
-                    )
-                    
-                    AchievementCard(
                         icon: "crown.fill",
                         title: localizationManager.string(.hundredWords),
                         isUnlocked: totalWords >= 100,
                         color: "#FFD700",
+                        isDarkMode: localizationManager.isDarkMode
+                    )
+                    
+                    // 7 днів
+                    AchievementCard(
+                        icon: "flame.fill",
+                        title: "7 days",
+                        isUnlocked: currentStreak >= 7,
+                        color: "#FF6B6B",
+                        isDarkMode: localizationManager.isDarkMode
+                    )
+                    
+                    // 30 днів
+                    AchievementCard(
+                        icon: "calendar.badge.clock",
+                        title: "30 days",
+                        isUnlocked: currentStreak >= 30,
+                        color: "#9B59B6",
+                        isDarkMode: localizationManager.isDarkMode
+                    )
+                    
+                    // ВИПРАВЛЕНО: 100 днів (було дубльовано)
+                    AchievementCard(
+                        icon: "flame.circle.fill",
+                        title: "100 days",
+                        isUnlocked: currentStreak >= 100,
+                        color: "#FF8C00",
                         isDarkMode: localizationManager.isDarkMode
                     )
                 }

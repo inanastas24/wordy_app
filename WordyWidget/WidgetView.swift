@@ -40,7 +40,7 @@ enum WidgetLanguage: String, CaseIterable {
     case polish = "pl"
     
     static var current: WidgetLanguage {
-        let saved = UserDefaults(suiteName: "group.Wordy")?.string(forKey: "appLanguage") ?? "en"
+        let saved = UserDefaults(suiteName: "group.com.inzercreator.wordyapp")?.string(forKey: "appLanguage") ?? "en"
         return WidgetLanguage(rawValue: saved) ?? .english
     }
 }
@@ -68,40 +68,24 @@ struct WidgetLocalization {
     ]
 }
 
-// MARK: - Theme Environment Key
-struct WidgetThemeKey: EnvironmentKey {
-    static let defaultValue = WidgetTheme()
-}
-
-extension EnvironmentValues {
-    var widgetTheme: WidgetTheme {
-        get { self[WidgetThemeKey.self] }
-        set { self[WidgetThemeKey.self] = newValue }
-    }
-}
-
-// MARK: - Theme Manager
+// MARK: - Theme (завжди світла)
 struct WidgetTheme {
-    private let suiteName = "group.Wordy"
-    
-    var isDarkMode: Bool {
-        UserDefaults(suiteName: suiteName)?.bool(forKey: "isDarkMode") ?? false
-    }
+    var isDarkMode: Bool = false
     
     var backgroundColor: Color {
-        isDarkMode ? Color(hex: "#1C1C1E") : Color.white
+        Color(hex: "#FFFDF5")
     }
     
     var cardBackground: Color {
-        isDarkMode ? Color(hex: "#2C2C2E") : Color.white
+        Color.white
     }
     
     var textPrimary: Color {
-        isDarkMode ? Color.white : Color.black
+        Color(hex: "#2C3E50")
     }
     
     var textSecondary: Color {
-        isDarkMode ? Color(hex: "#8E8E93") : Color(hex: "#7F8C8D")
+        Color(hex: "#7F8C8D")
     }
     
     var accentColor: Color {
@@ -109,11 +93,11 @@ struct WidgetTheme {
     }
     
     var dividerColor: Color {
-        isDarkMode ? Color(hex: "#3A3A3C") : Color(hex: "#E0E0E0")
+        Color(hex: "#E0E0E0")
     }
     
     var buttonBackground: Color {
-        isDarkMode ? Color(hex: "#2C2C2E") : Color.gray.opacity(0.1)
+        Color(hex: "#F8F9FA")
     }
 }
 
@@ -123,16 +107,14 @@ struct WidgetView: View {
     @Environment(\.widgetFamily) var family
     
     private let theme = WidgetTheme()
+    private let loc = WidgetLocalization.self
     
     var body: some View {
-        ZStack {
-            // Фон залежить від теми
-            theme.backgroundColor
-                .ignoresSafeArea()
-            
-            content
-        }
-        .environment(\.widgetTheme, theme)
+        content
+            .containerBackground(for: .widget) {
+                // Фон для віджета
+                theme.backgroundColor
+            }
     }
     
     @ViewBuilder
@@ -157,49 +139,59 @@ struct SmallWidgetView: View {
     private let loc = WidgetLocalization.self
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             if let word = entry.word {
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     Text(word.original)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 22, weight: .bold))
                         .foregroundColor(theme.textPrimary)
                         .lineLimit(1)
                     
                     Text(word.translation)
-                        .font(.system(size: 16))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(theme.accentColor)
                         .lineLimit(1)
                     
                     if let transcription = word.transcription {
                         Text(transcription)
-                            .font(.system(size: 12))
+                            .font(.system(size: 11))
                             .foregroundColor(theme.textSecondary)
                     }
                 }
                 .padding(.horizontal, 8)
+                .padding(.top, 8)
             } else {
-                VStack(spacing: 4) {
-                    Image(systemName: "book.closed")
-                        .font(.system(size: 30))
-                        .foregroundColor(theme.accentColor)
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(theme.accentColor.opacity(0.15))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: "book.closed")
+                            .font(.system(size: 24))
+                            .foregroundColor(theme.accentColor)
+                    }
                     
                     Text(loc.string(.addWords))
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(theme.textSecondary)
+                        .multilineTextAlignment(.center)
                 }
+                .padding(.top, 8)
             }
             
             Spacer()
             
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
                 Link(destination: URL(string: "wordy://camera")!) {
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.8))
-                            .frame(width: 36, height: 36)
+                            .fill(Color(hex: "#A8D8EA"))
+                            .frame(width: 40, height: 40)
+                            .shadow(color: Color(hex: "#A8D8EA").opacity(0.3), radius: 4, x: 0, y: 2)
                         
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: 18))
                             .foregroundColor(.white)
                     }
                 }
@@ -208,17 +200,17 @@ struct SmallWidgetView: View {
                     ZStack {
                         Circle()
                             .fill(Color(hex: "#FFD93D"))
-                            .frame(width: 36, height: 36)
+                            .frame(width: 40, height: 40)
+                            .shadow(color: Color(hex: "#FFD93D").opacity(0.3), radius: 4, x: 0, y: 2)
                         
                         Image(systemName: "mic.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: 18))
                             .foregroundColor(.white)
                     }
                 }
             }
+            .padding(.bottom, 12)
         }
-        .padding(12)
-        .background(theme.backgroundColor)
     }
 }
 
@@ -232,22 +224,27 @@ struct MediumWidgetView: View {
         HStack(spacing: 16) {
             if let word = entry.word {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(loc.string(.wordOfDay))
-                        .font(.system(size: 12))
-                        .foregroundColor(theme.textSecondary)
-                        .textCase(.uppercase)
+                    HStack {
+                        Text(loc.string(.wordOfDay))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(theme.textSecondary)
+                            .textCase(.uppercase)
+                            .tracking(0.5)
+                        
+                        Spacer()
+                    }
                     
                     Text(word.original)
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 26, weight: .bold))
                         .foregroundColor(theme.textPrimary)
                     
                     Text(word.translation)
-                        .font(.system(size: 18))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(theme.accentColor)
                     
                     if let transcription = word.transcription {
                         Text(transcription)
-                            .font(.system(size: 14))
+                            .font(.system(size: 13))
                             .foregroundColor(theme.textSecondary)
                     }
                     
@@ -261,6 +258,7 @@ struct MediumWidgetView: View {
                 }
             } else {
                 EmptyStateView(theme: theme)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             
             Spacer()
@@ -269,7 +267,7 @@ struct MediumWidgetView: View {
                 ActionButton(
                     icon: "camera.fill",
                     title: loc.string(.scan),
-                    color: .blue,
+                    color: Color(hex: "#A8D8EA"),
                     url: "wordy://camera",
                     theme: theme
                 )
@@ -284,7 +282,6 @@ struct MediumWidgetView: View {
             }
         }
         .padding(16)
-        .background(theme.backgroundColor)
     }
 }
 
@@ -295,58 +292,74 @@ struct LargeWidgetView: View {
     private let loc = WidgetLocalization.self
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             HStack {
-                Text("Wordy")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(theme.accentColor)
+                HStack(spacing: 6) {
+                    Text("🫧")
+                        .font(.system(size: 20))
+                    
+                    Text("Wordy")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(theme.accentColor)
+                }
                 
                 Spacer()
                 
                 Text(loc.string(.wordOfDay))
-                    .font(.system(size: 14))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(theme.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
             }
             
             if let word = entry.word {
                 VStack(spacing: 12) {
-                    Text(word.original)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(theme.textPrimary)
-                    
-                    if let transcription = word.transcription {
-                        Text(transcription)
-                            .font(.system(size: 18))
-                            .foregroundColor(theme.textSecondary)
+                    VStack(spacing: 10) {
+                        Text(word.original)
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(theme.textPrimary)
+                        
+                        if let transcription = word.transcription {
+                            Text(transcription)
+                                .font(.system(size: 16))
+                                .foregroundColor(theme.textSecondary)
+                        }
+                        
+                        Divider()
+                            .background(theme.dividerColor)
+                            .padding(.horizontal, 20)
+                        
+                        Text(word.translation)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(theme.accentColor)
+                        
+                        if let example = word.example {
+                            Text(example)
+                                .font(.system(size: 14))
+                                .foregroundColor(theme.textSecondary)
+                                .italic()
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                        }
                     }
-                    
-                    Divider()
-                        .background(theme.dividerColor)
-                    
-                    Text(word.translation)
-                        .font(.system(size: 28))
-                        .foregroundColor(theme.accentColor)
-                    
-                    if let example = word.example {
-                        Text(example)
-                            .font(.system(size: 16))
-                            .foregroundColor(theme.textSecondary)
-                            .italic()
-                            .multilineTextAlignment(.center)
-                    }
+                    .padding(16)
+                    .background(theme.cardBackground)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                 }
             } else {
                 EmptyStateView(theme: theme)
+                    .frame(maxHeight: .infinity)
             }
             
             Spacer()
             
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 LargeActionButton(
                     icon: "camera.fill",
                     title: loc.string(.scanText),
                     subtitle: loc.string(.scan),
-                    color: .blue,
+                    color: Color(hex: "#A8D8EA"),
                     url: "wordy://camera",
                     theme: theme
                 )
@@ -361,8 +374,7 @@ struct LargeWidgetView: View {
                 )
             }
         }
-        .padding(20)
-        .background(theme.backgroundColor)
+        .padding(16)
     }
 }
 
@@ -376,19 +388,20 @@ struct ActionButton: View {
     
     var body: some View {
         Link(destination: URL(string: url)!) {
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 ZStack {
                     Circle()
                         .fill(color)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
+                        .shadow(color: color.opacity(0.3), radius: 4, x: 0, y: 2)
                     
                     Image(systemName: icon)
-                        .font(.system(size: 20))
+                        .font(.system(size: 22))
                         .foregroundColor(.white)
                 }
                 
                 Text(title)
-                    .font(.system(size: 10))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(theme.textPrimary)
             }
         }
@@ -409,16 +422,17 @@ struct LargeActionButton: View {
                 ZStack {
                     Circle()
                         .fill(color)
-                        .frame(width: 48, height: 48)
+                        .frame(width: 44, height: 44)
+                        .shadow(color: color.opacity(0.3), radius: 4, x: 0, y: 2)
                     
                     Image(systemName: icon)
-                        .font(.system(size: 24))
+                        .font(.system(size: 20))
                         .foregroundColor(.white)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(theme.textPrimary)
                     
                     Text(subtitle)
@@ -430,7 +444,7 @@ struct LargeActionButton: View {
             }
             .padding(12)
             .background(theme.buttonBackground)
-            .cornerRadius(12)
+            .cornerRadius(14)
         }
     }
 }
@@ -440,18 +454,28 @@ struct EmptyStateView: View {
     private let loc = WidgetLocalization.self
     
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 40))
-                .foregroundColor(theme.accentColor)
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(theme.accentColor.opacity(0.15))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: "book.closed")
+                    .font(.system(size: 30))
+                    .foregroundColor(theme.accentColor)
+            }
             
             Text(loc.string(.emptyDictionary))
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(theme.textPrimary)
+                .multilineTextAlignment(.center)
             
             Text(loc.string(.addWordsInApp))
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundColor(theme.textSecondary)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
     }
 }

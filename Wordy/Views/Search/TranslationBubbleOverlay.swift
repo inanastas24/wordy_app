@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import FirebaseAuth
+import Combine 
 
 struct TranslationBubbleOverlay: View {
     let result: TranslationResult
@@ -29,6 +30,7 @@ struct TranslationBubbleOverlay: View {
     
     @State private var synonymTranslations: [String: String] = [:]
     @State private var isLoadingSynonyms = false
+    @StateObject private var ttsManager = FirebaseTTSManager.shared
     
     enum SaveState: Equatable {
         case idle, loading, success, error(String)
@@ -795,8 +797,9 @@ struct TranslationBubbleOverlay: View {
             translationResult = nil
         }
     }
-    
+
     private func speak(text: String, language: String) {
-        SpeechService.shared.speak(text, language: language)
+        print("🔊 TranslationBubbleOverlay: '\(text)' (\(language))")
+        ttsManager.speak(text: text, language: language)
     }
 }

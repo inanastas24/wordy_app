@@ -6,30 +6,31 @@
 import WidgetKit
 import SwiftUI
 
+
 struct WordEntry: TimelineEntry {
     let date: Date
-    let word: WidgetWord?
+    let word: WidgetWord?  // WidgetWord має бути визначений тут або імпортований
     let isEmpty: Bool
 }
 
-struct WidgetWord: Codable {
-    let id: String
-    let original: String
-    let translation: String
-    let transcription: String?
-    let example: String?
-    let languagePair: String
-}
-
 struct Provider: TimelineProvider {
-    // ВИПРАВЛЕНО: використовуйте той самий App Group, що й в основному додатку
-    private let suiteName = "group.Wordy"
+    private let suiteName = "group.com.inzercreator.wordyapp"
     
     private func loadWords() -> [WidgetWord] {
-        guard let data = UserDefaults(suiteName: suiteName)?.data(forKey: "widgetWords") else {
+        guard let defaults = UserDefaults(suiteName: suiteName),
+              let data = defaults.data(forKey: "widgetWords") else {
+            print("📱 Widget: Немає збережених слів")
             return []
         }
-        return (try? JSONDecoder().decode([WidgetWord].self, from: data)) ?? []
+        
+        do {
+            let words = try JSONDecoder().decode([WidgetWord].self, from: data)
+            print("📱 Widget: Завантажено \(words.count) слів")
+            return words
+        } catch {
+            print("❌ Widget: Помилка декодування: \(error)")
+            return []
+        }
     }
     
     func placeholder(in context: Context) -> WordEntry {
@@ -81,4 +82,14 @@ struct Provider: TimelineProvider {
         let timeline = Timeline(entries: entries, policy: .atEnd)
         completion(timeline)
     }
+}
+
+// MARK: - WidgetWord (визначений тут для віджета)
+struct WidgetWord: Codable {
+    let id: String
+    let original: String
+    let translation: String
+    let transcription: String?
+    let example: String?
+    let languagePair: String
 }
