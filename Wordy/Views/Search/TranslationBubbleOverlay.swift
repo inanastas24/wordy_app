@@ -534,7 +534,7 @@ struct TranslationBubbleOverlay: View {
                     word: detail.word,
                     ipaTranscription: detail.ipaTranscription,
                     translation: newDetail.translation,
-                    language: result.toLanguage
+                    language: appState.learningLanguage
                 )
                 self.synonymTranslations[detail.word] = newDetail.translation
             }
@@ -609,6 +609,9 @@ struct TranslationBubbleOverlay: View {
     }
     
     private func fetchSynonymDetail(_ synonym: String) async {
+        print("🔍 SYNONYM DEBUG: synonym='\(synonym)'")
+           print("🔍 SYNONYM DEBUG: originalLanguage='\(originalLanguage)'")  // fromLanguage результату
+           print("🔍 SYNONYM DEBUG: translationLanguage='\(translationLanguage)'")  // toLanguage результату
         await MainActor.run {
             synonymSaveState = .idle
             synonymScale = 0.9
@@ -668,7 +671,7 @@ struct TranslationBubbleOverlay: View {
                 word: synonym,
                 ipaTranscription: ipa,
                 translation: finalTranslation,
-                language: result.toLanguage
+                language: appState.learningLanguage
             )
             showSynonymModal()
         }
