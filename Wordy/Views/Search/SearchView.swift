@@ -72,6 +72,8 @@ struct SearchView: View {
                         VStack(spacing: 25) {
                             languageSelector
                             
+                            silentModeWarning
+                            
                             SearchBar(text: $searchText, onSubmit: performSearch)
                                 .focused($isSearchFocused)
                             
@@ -186,6 +188,27 @@ struct SearchView: View {
                 isSearchFocused = false
             }
         }
+    }
+    
+    // MARK: - Silent Mode Warning
+    private var silentModeWarning: some View {
+        HStack(spacing: 6) {
+            
+            Text(localizationManager.string(.silentModeWarning))
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#FFD93D") : Color(hex: "#F39C12"))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(localizationManager.isDarkMode ? Color(hex: "#FFD93D").opacity(0.15) : Color(hex: "#F39C12").opacity(0.1))
+        )
+        .overlay(
+            Capsule()
+                .stroke(localizationManager.isDarkMode ? Color(hex: "#FFD93D").opacity(0.3) : Color(hex: "#F39C12").opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
     
     // ДОДАНО: Метод синхронізації мов

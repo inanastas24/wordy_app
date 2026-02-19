@@ -105,6 +105,16 @@ enum LocalizableKey: String {
     case enterYourEmail
     case sendResetLink
     case learnWordsEasily
+    
+    // Telegram
+    case silentModeWarning
+    case messageLimitTitle
+    case messageLimitMessage
+    case sendingStart
+    case authError
+    case authenticated
+    case notAuthenticated
+    case messageSent
 }
 
 public class LocalizationManager: ObservableObject {
@@ -247,6 +257,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Поділитися Wordy",
             .english: "Share Wordy",
             .polish: "Udostępnij Wordy"
+        ],
+        .supportChat: [
+            .ukrainian: "Напиши Wordy ✍️",
+            .english: "Message Wordy ✍️",
+            .polish: "Napisz do Wordy ✍️"
         ],
         .exportDictionary: [
             .ukrainian: "Експорт словника",
@@ -626,6 +641,49 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Вивчайте слова легко",
             .english: "Learn words easily",
             .polish: "Ucz się słów łatwo"
+        ],
+        // Режим тиші
+        .silentModeWarning: [
+            .ukrainian: "🔇 Вимкніть режим тиші для озвучки",
+            .english: "🔇 Turn off Silent Mode for audio",
+            .polish: "🔇 Wyłącz tryb cichy dla dźwięku"
+        ],
+        // Ліміт повідомлень
+        .messageLimitTitle: [
+            .ukrainian: "Ліміт повідомлень вичерпано",
+            .english: "Daily limit reached",
+            .polish: "Dzienny limit wyczerpany"
+        ],
+        .messageLimitMessage: [
+            .ukrainian: "Можна відправляти не більше 10 повідомлень на добу. Спробуйте завтра.",
+            .english: "You can send up to 10 messages per day. Try again tomorrow.",
+            .polish: "Możesz wysłać do 10 wiadomości dziennie. Spróbuj jutro."
+        ],
+        // Статуси відправки
+        .sendingStart: [
+            .ukrainian: "Початок відправки...",
+            .english: "Sending...",
+            .polish: "Wysyłanie..."
+        ],
+        .authError: [
+            .ukrainian: "❌ Не авторизовано",
+            .english: "❌ Not authenticated",
+            .polish: "❌ Nie uwierzytelniono"
+        ],
+        .authenticated: [
+            .ukrainian: "Авторизовано",
+            .english: "Authenticated",
+            .polish: "Uwierzytelniono"
+        ],
+        .notAuthenticated: [
+            .ukrainian: "Користувач не авторизований",
+            .english: "User not authenticated",
+            .polish: "Użytkownik nieuwierzytelniony"
+        ],
+        .messageSent: [
+            .ukrainian: "Повідомлення відправлено",
+            .english: "Message sent",
+            .polish: "Wiadomość wysłana"
         ]
     ]
 }
