@@ -45,14 +45,9 @@ struct SearchView: View {
     private let translationService = TranslationService()
     private let voiceColor = Color(hex: "#FFD93D")
     
-    // ДОДАНО: Обчислювана властивість для мови з перевіркою
+    // Обчислювана властивість для мови просто повертає значення
     private var currentLearningLanguage: String {
-        // Синхронізуємо appState з @AppStorage
-        let lang = learningLanguage.rawValue
-        if appState.learningLanguage != lang {
-            appState.learningLanguage = lang
-        }
-        return lang
+        learningLanguage.rawValue
     }
     
     var body: some View {
@@ -170,9 +165,12 @@ struct SearchView: View {
                 handleDeepLinkAction(newAction)
             }
             .onAppear {
-                // ДОДАНО: Синхронізація при появі
+                // Синхронізація при появі
                 syncLanguageSettings()
                 handleDeepLinkAction(deepLinkAction)
+            }
+            .onChange(of: learningLanguage) { _, newLang in
+                appState.learningLanguage = newLang.rawValue
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -211,7 +209,7 @@ struct SearchView: View {
         .padding(.horizontal, 20)
     }
     
-    // ДОДАНО: Метод синхронізації мов
+    // Метод синхронізації мов
     private func syncLanguageSettings() {
         let lang = learningLanguage.rawValue
         appState.learningLanguage = lang
@@ -462,7 +460,7 @@ struct SearchView: View {
         isSearchFocused = false
         isLoading = true
         
-        // ДОДАНО: Перевірка та синхронізація перед пошуком
+        // Перевірка та синхронізація перед пошуком
         let learningLang = currentLearningLanguage
         let appLang = appState.appLanguage
         

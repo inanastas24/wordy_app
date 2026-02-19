@@ -137,21 +137,6 @@ struct RegistrationPromptView: View {
                 .cornerRadius(28)
                 .shadow(color: Color(hex: "#2C3E50").opacity(0.3), radius: 10, x: 0, y: 5)
             }
-            
-            // Skip
-           /* Button {
-                onSkip()
-            } label: {
-                VStack(spacing: 4) {
-                    Text(localizationManager.string(.continueWithoutRegistration))
-                        .font(.system(size: 15))
-                        .foregroundColor(localizationManager.isDarkMode ? Color.gray.opacity(0.8) : .secondary)
-                    
-                    Text("⚠️ " + localizationManager.string(.wordsMayBeLost))
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange)
-                }
-            }*/
             .padding(.top, 20)
         }
         .padding(.horizontal, 30)

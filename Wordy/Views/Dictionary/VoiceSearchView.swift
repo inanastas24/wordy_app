@@ -70,7 +70,7 @@ struct VoiceSearchView: View {
                                 .multilineTextAlignment(.center)
                         }
                         
-                        // ВИПРАВЛЕНО: Покращена кнопка запису з long press
+                        // Покращена кнопка запису з long press
                         LongPressRecordButton(
                             isRecording: $speechService.isRecording,
                             onPressBegan: {

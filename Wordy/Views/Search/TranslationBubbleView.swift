@@ -26,155 +26,157 @@ struct TranslationBubbleView: View {
     @StateObject private var ttsManager = FirebaseTTSManager.shared
     
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(Color(hex: "#7F8C8D"))
-                            .padding(8)
-                            .background(Color.white.opacity(0.6))
-                            .clipShape(Circle())
+        GeometryReader { geometry in
+            ZStack {
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(Color(hex: "#7F8C8D"))
+                                .padding(8)
+                                .background(Color.white.opacity(0.6))
+                                .clipShape(Circle())
+                        }
                     }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                
-                VStack(spacing: 20) {
-                    VStack(spacing: 6) {
-                        HStack(spacing: 12) {
-                            Text(result.original)
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    
+                    VStack(spacing: 20) {
+                        VStack(spacing: 6) {
+                            HStack(spacing: 12) {
+                                Text(result.original)
+                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                                
+                                AudioBubbleButton(isPlaying: isPlaying(for: result.fromLanguage)) {
+                                    speak(text: result.original, language: result.fromLanguage)
+                                }
+                            }
                             
-                            AudioBubbleButton(isPlaying: isPlaying(for: result.fromLanguage)) {
-                                speak(text: result.original, language: result.fromLanguage)
+                            if let ipa = result.ipaTranscription {
+                                Text(ipa)
+                                    .font(.system(size: 17, design: .serif))
+                                    .foregroundColor(Color(hex: "#7F8C8D"))
+                                    .italic()
                             }
                         }
                         
-                        if let ipa = result.ipaTranscription {
-                            Text(ipa)
-                                .font(.system(size: 17, design: .serif))
-                                .foregroundColor(Color(hex: "#7F8C8D"))
-                                .italic()
+                        HStack(spacing: 6) {
+                            Circle().fill(Color(hex: "#4ECDC4").opacity(0.3)).frame(width: 4, height: 4)
+                            Circle().fill(Color(hex: "#4ECDC4").opacity(0.6)).frame(width: 4, height: 4)
+                            Circle().fill(Color(hex: "#4ECDC4").opacity(0.3)).frame(width: 4, height: 4)
                         }
-                    }
-                    
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#4ECDC4").opacity(0.3)).frame(width: 4, height: 4)
-                        Circle().fill(Color(hex: "#4ECDC4").opacity(0.6)).frame(width: 4, height: 4)
-                        Circle().fill(Color(hex: "#4ECDC4").opacity(0.3)).frame(width: 4, height: 4)
-                    }
-                    
-                    HStack(spacing: 12) {
-                        Text(result.translation)
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
                         
-                        AudioBubbleButton(isPlaying: isPlaying(for: result.toLanguage)) {
-                            speak(text: result.translation, language: result.toLanguage)
+                        HStack(spacing: 12) {
+                            Text(result.translation)
+                                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
+                            
+                            AudioBubbleButton(isPlaying: isPlaying(for: result.toLanguage)) {
+                                speak(text: result.translation, language: result.toLanguage)
+                            }
+                        }
+                        
+                        if let informal = result.informalTranslation {
+                            HStack(spacing: 8) {
+                                Text("розмовне:")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                                Text(informal)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                                    .italic()
+                            }
                         }
                     }
+                    .padding(.horizontal, 24)
                     
-                    if let informal = result.informalTranslation {
-                        HStack(spacing: 8) {
-                            Text("розмовне:")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                            Text(informal)
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-                                .italic()
+                    Button(action: {
+                        Task {
+                            await saveWord()
                         }
+                    }) {
+                        HStack(spacing: 10) {
+                            if isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: isSaved ? "checkmark.circle.fill" : "plus.circle.fill")
+                                    .font(.system(size: 20))
+                                    .symbolRenderingMode(.hierarchical)
+                                    .contentTransition(.symbolEffect(.replace))
+                            }
+                            
+                            Text(buttonText)
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(width: 220, height: 52)
+                        .background(
+                            Capsule()
+                                .fill(isSaved ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4"))
+                                .shadow(
+                                    color: (isSaved ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4")).opacity(0.4),
+                                    radius: isSaved ? 20 : 15,
+                                    x: 0,
+                                    y: isSaved ? 10 : 8
+                                )
+                        )
+                        .scaleEffect(isSaved ? 1.02 : 1.0)
+                        .opacity(isLoading ? 0.7 : 1.0)
                     }
+                    .disabled(isSaved || isLoading)
+                    .padding(.top, 24)
+                    .padding(.bottom, 20)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isSaved)
+                    .animation(.easeInOut, value: isLoading)
                 }
-                .padding(.horizontal, 24)
+                .frame(width: min(geometry.size.width - 60, 340))
+                .background(
+                    RoundedRectangle(cornerRadius: 32)
+                        .fill(Color(hex: "#FFFDF5").opacity(0.85))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 32)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .shadow(
+                            color: Color(hex: "#4ECDC4").opacity(0.15),
+                            radius: 40,
+                            x: 0,
+                            y: 20
+                        )
+                        .shadow(
+                            color: Color.black.opacity(0.08),
+                            radius: 20,
+                            x: 0,
+                            y: 10
+                        )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32)
+                        .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+                )
+                .alert("Помилка збереження", isPresented: $showError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(errorMessage)
+                }
                 
-                Button(action: {
-                    Task {
-                        await saveWord()
-                    }
-                }) {
-                    HStack(spacing: 10) {
-                        if isLoading {
-                            ProgressView()
-                                .tint(.white)
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: isSaved ? "checkmark.circle.fill" : "plus.circle.fill")
-                                .font(.system(size: 20))
-                                .symbolRenderingMode(.hierarchical)
-                                .contentTransition(.symbolEffect(.replace))
-                        }
-                        
-                        Text(buttonText)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(width: 220, height: 52)
-                    .background(
-                        Capsule()
-                            .fill(isSaved ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4"))
-                            .shadow(
-                                color: (isSaved ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4")).opacity(0.4),
-                                radius: isSaved ? 20 : 15,
-                                x: 0,
-                                y: isSaved ? 10 : 8
-                            )
-                    )
-                    .scaleEffect(isSaved ? 1.02 : 1.0)
-                    .opacity(isLoading ? 0.7 : 1.0)
+                if showConfetti {
+                    ConfettiView()
+                        .allowsHitTesting(false)
+                        .frame(width: min(geometry.size.width - 60, 340))
                 }
-                .disabled(isSaved || isLoading)
-                .padding(.top, 24)
-                .padding(.bottom, 20)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isSaved)
-                .animation(.easeInOut, value: isLoading)
             }
-            .frame(width: min(UIScreen.main.bounds.width - 60, 340))
-            .background(
-                RoundedRectangle(cornerRadius: 32)
-                    .fill(Color(hex: "#FFFDF5").opacity(0.85))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 32)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .shadow(
-                        color: Color(hex: "#4ECDC4").opacity(0.15),
-                        radius: 40,
-                        x: 0,
-                        y: 20
-                    )
-                    .shadow(
-                        color: Color.black.opacity(0.08),
-                        radius: 20,
-                        x: 0,
-                        y: 10
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 32)
-                    .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
-            )
-            .alert("Помилка збереження", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-            
-            if showConfetti {
-                ConfettiView()
-                    .allowsHitTesting(false)
-                    .frame(width: min(UIScreen.main.bounds.width - 60, 340))
-            }
-        }
-        .onChange(of: isSaved) { _, newValue in
-            if newValue {
-                showConfetti = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    showConfetti = false
+            .onChange(of: isSaved) { _, newValue in
+                if newValue {
+                    showConfetti = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        showConfetti = false
+                    }
                 }
             }
         }

@@ -42,10 +42,6 @@ struct SavedWordsView: View {
             }
             .navigationTitle("Мої слова (\(viewModel.savedWords.count))")
             .toolbar {
-                // ПРИБРАНО: кнопку реєстрації для анонімних
-                // ПРИБРАНО: кнопку виходу
-                
-                // Можна додати кнопку оновлення якщо потрібно
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         viewModel.fetchSavedWords()

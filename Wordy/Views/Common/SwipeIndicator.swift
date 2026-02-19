@@ -21,7 +21,7 @@ struct SwipeIndicator: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(opacity))  // SwiftUI приймає Double
+                    .fill(color.opacity(opacity))
             )
             .rotationEffect(.degrees(rotation))
     }

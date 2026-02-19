@@ -106,13 +106,13 @@ class DictionaryViewModel: ObservableObject {
         fetchSavedWords()
     }
     
-    // НОВИЙ МЕТОД: Обробка імпорту слів
+    //Обробка імпорту слів
     @objc private func handleWordsImported() {
         print("📥 DictionaryViewModel: Отримано сповіщення про імпорт слів")
         fetchSavedWords()
     }
     
-    /// Синхронізує локальні слова з Firestore при логіні
+    // Синхронізує локальні слова з Firestore при логіні
     private func syncLocalWordsWithFirestore(userId: String) async {
         let unsyncedWords = LocalStorageService.shared.getUnsyncedWords()
         
@@ -148,7 +148,7 @@ class DictionaryViewModel: ObservableObject {
         await loadWordsFromFirestore(userId: userId)
     }
     
-    /// Завантажує слова з Firestore та оновлюєє локальне сховище
+    // Завантажує слова з Firestore та оновлюєє локальне сховище
     private func loadWordsFromFirestore(userId: String) async {
         do {
             let firestoreWords = try await FirestoreService.shared.fetchWords()
@@ -256,7 +256,7 @@ class DictionaryViewModel: ObservableObject {
         }
     }
     
-    // НОВИЙ МЕТОД: Масове збереження слів (для імпорту)
+    // Масове збереження слів (для імпорту)
     func saveWords(_ words: [SavedWordModel]) {
         print("💾 Масове збереження \(words.count) слів")
         

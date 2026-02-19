@@ -9,7 +9,7 @@ import SwiftUI
 
 struct WordEntry: TimelineEntry {
     let date: Date
-    let word: WidgetWord?  // WidgetWord має бути визначений тут або імпортований
+    let word: WidgetWord?
     let isEmpty: Bool
 }
 

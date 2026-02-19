@@ -18,7 +18,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showLanguageSelection = false
     
-    // ВИПРАВЛЕНО: Використовуємо StreakService
+    // Використовуємо StreakService
     @State private var currentStreak: Int = 0
     @State private var streakColor: String = "#F38BA8"
     @State private var streakTitle: String = "0 days"
@@ -74,7 +74,7 @@ struct ProfileView: View {
         }
     }
     
-    // ВИПРАВЛЕНО: Оновлення streak
+    // Оновлення streak
     private func updateStreak() {
         StreakService.shared.updateStreak()
         currentStreak = StreakService.shared.currentStreak
@@ -172,7 +172,7 @@ struct ProfileView: View {
                 isDarkMode: localizationManager.isDarkMode
             )
             
-            // ВИПРАВЛЕНО: Streak з динамічним кольором
+            //Streak з динамічним кольором
             StatCard(
                 icon: "flame.fill",
                 value: streakTitle, // "1 day", "2 days", etc.
@@ -235,7 +235,7 @@ struct ProfileView: View {
                         isDarkMode: localizationManager.isDarkMode
                     )
                     
-                    // ВИПРАВЛЕНО: 100 днів (було дубльовано)
+                    // 100 днів 
                     AchievementCard(
                         icon: "flame.circle.fill",
                         title: "100 days",

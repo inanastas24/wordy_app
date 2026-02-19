@@ -2,8 +2,6 @@
 //  TranslationResultView.swift
 //  Wordy
 //
-//  Created by Anastasiia Inzer on 01.02.2026.
-//
 
 import SwiftUI
 import AVFoundation
@@ -18,7 +16,11 @@ struct TranslationResultView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     
+    // для відстеження жесту закриття
+    @Environment(\.presentationMode) private var presentationMode
+    
     @State private var isSilentModeEnabled = false
+    @State private var isDismissing = false  // прапорець закриття
     
     var body: some View {
         ScrollView {
@@ -103,16 +105,38 @@ struct TranslationResultView: View {
         .onAppear {
             print("👀 TranslationResultView з'явився")
             checkSilentMode()
+            isDismissing = false  // Скидаємо прапорець
         }
+        //зупиняємо при будь-якому зникненні з екрану
         .onDisappear {
             print("👋 TranslationResultView зник")
-            ttsManager.stopPlaying()
+            stopAudioImmediately()
         }
-        .onChange(of: scenePhase) { newPhase in
-            if newPhase == .background {
-                ttsManager.stopPlaying()
+        // відстежуємо зміну фази — якщо йдемо в бекграунд, зупиняємо
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background || newPhase == .inactive {
+                stopAudioImmediately()
             }
         }
+        // відстежуємо, якщо користувач починає тягнути вниз для закриття
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Якщо тягнемо вниз більше ніж на 50 поінтів — зупиняємо аудіо одразу
+                    if value.translation.height > 50 && !isDismissing {
+                        isDismissing = true
+                        print("👇 Почато закриття жестом — зупиняємо аудіо")
+                        stopAudioImmediately()
+                    }
+                }
+        )
+        // інтерактивний поп-гест для NavigationStack
+        .interactiveDismissDisabled(false)
+    }
+    
+    // централізований метод зупинки аудіо
+    private func stopAudioImmediately() {
+        ttsManager.stopPlaying()
     }
     
     private var silentModeWarning: some View {
@@ -138,6 +162,9 @@ struct TranslationResultView: View {
             Spacer()
             
             Button(action: {
+                // Не починаємо нове відтворення, якщо вікно закривається
+                guard !isDismissing else { return }
+                
                 print("🔊 Кнопка слова натиснута: '\(text)' (\(language))")
                 checkSilentMode()
                 speakText(text: text, language: language)
@@ -151,11 +178,17 @@ struct TranslationResultView: View {
                             .fill(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
                     )
             }
-            .disabled(ttsManager.isLoading)
+            .disabled(ttsManager.isLoading || isDismissing)  // ОНОВЛЕНО: блокуємо при закритті
         }
     }
     
     private func speakText(text: String, language: String) {
+        // Не починаємо, якщо вікно закривається
+        guard !isDismissing else {
+            print("⛔️ Вікно закривається — не починаємо відтворення")
+            return
+        }
+        
         print("🔊 TTS: '\(text)' мовою '\(language)'")
         ttsManager.speak(text: text, language: language)
     }
@@ -214,6 +247,8 @@ struct TranslationResultView: View {
     
     private func speakButton(text: String, language: String, color: Color? = nil) -> some View {
         Button(action: {
+            guard !isDismissing else { return }  // блокуємо при закритті
+            
             print("🔊 Кнопка прикладу натиснута: '\(text)' (\(language))")
             checkSilentMode()
             speakText(text: text, language: language)
@@ -222,12 +257,16 @@ struct TranslationResultView: View {
                 .font(.system(size: 14))
                 .foregroundColor(color ?? Color(hex: "#4ECDC4"))
         }
+        .disabled(isDismissing)  // блокуємо при закритті
     }
     
     private var actionButtons: some View {
         VStack(spacing: 12) {
             if let onSave = onSave {
-                Button(action: onSave) {
+                Button(action: {
+                    guard !isDismissing else { return }
+                    onSave()
+                }) {
                     HStack {
                         Image(systemName: "bookmark.fill")
                         Text("Зберегти слово")
@@ -236,24 +275,26 @@ struct TranslationResultView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(hex: "#4ECDC4"))
+                    .background(isDismissing ? Color.gray : Color(hex: "#4ECDC4"))  // ОНОВЛЕНО
                     .cornerRadius(12)
                 }
+                .disabled(isDismissing)
             }
             
             Button(action: closeView) {
                 Text("Закрити")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
+                    .foregroundColor(isDismissing ? Color.gray : Color(hex: "#7F8C8D"))  // ОНОВЛЕНО
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(Color.white)
                     .cornerRadius(12)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(hex: "#E0E0E0"), lineWidth: 1)
+                            .stroke(isDismissing ? Color.gray : Color(hex: "#E0E0E0"), lineWidth: 1)  // ОНОВЛЕНО
                     )
             }
+            .disabled(isDismissing)  // запобігаємо повторному натисканню
         }
     }
     
@@ -262,8 +303,13 @@ struct TranslationResultView: View {
     }
     
     private func closeView() {
-        ttsManager.stopPlaying()
+        guard !isDismissing else { return }
+        
+        isDismissing = true  // Встановлюємо прапорець
+        stopAudioImmediately()  // Зупиняємо аудіо одразу
+        
         onClose()
         dismiss()
     }
 }
+

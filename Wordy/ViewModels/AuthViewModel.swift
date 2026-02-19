@@ -73,9 +73,9 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
     
     // MARK: - Email/Password Authentication
     
-    /// Реєстрація або вхід через email/password
-    /// Якщо email не існує - створює акаунт
-    /// Якщо email існує - перевіряє пароль і входить
+    // Реєстрація або вхід через email/password
+    // Якщо email не існує - створює акаунт
+    // Якщо email існує - перевіряє пароль і входить
     func signInOrRegisterWithEmail(email: String, password: String, displayName: String? = nil) async {
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         
@@ -133,7 +133,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
         }
     }
     
-    /// Чиста реєстрація (використовується коли точно знаємо що користувача немає)
+    // Чиста реєстрація (використовується коли точно знаємо що користувача немає)
     private func registerWithEmail(email: String, password: String, displayName: String?) async {
         print("📝 === REGISTER DEBUG ===")
         print("   Email for registration: '\(email)'")
@@ -179,7 +179,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
         }
     }
     
-    /// Скидання пароля
+    // Скидання пароля
     func resetPassword(email: String) async {
         await MainActor.run { isLoading = true }
         
@@ -194,7 +194,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
         }
     }
     
-    /// Оновлення пароля (для залогіненого користувача)
+    // Оновлення пароля (для залогіненого користувача)
     func updatePassword(currentPassword: String, newPassword: String) async {
         guard let user = Auth.auth().currentUser, let email = user.email else {
             errorMessage = "Користувач не авторизований"
@@ -303,7 +303,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
     
     // MARK: - Account Linking (Об'єднання акаунтів)
     
-    /// Обробка Apple авторизації з підтримкою об'єднання акаунтів
+    // Обробка Apple авторизації з підтримкою об'єднання акаунтів
     private func handleAppleAuthorization(_ authorization: ASAuthorization) async {
         guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let identityToken = appleIDCredential.identityToken,
@@ -346,7 +346,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
         currentNonce = nil
     }
     
-    /// Об'єднання Apple ID з існуючим email акаунтом
+    // Об'єднання Apple ID з існуючим email акаунтом
     private func linkAppleToExistingAccount(email: String, appleCredential: AuthCredential, displayName: String) async {
         print("🔗 Account exists with different credential. Attempting to link...")
         
@@ -375,7 +375,7 @@ class AuthViewModel: NSObject, ObservableObject, ASAuthorizationControllerDelega
         }
     }
     
-    /// Прив'язка Apple ID до поточного залогіненого користувача (для налаштувань)
+    // Прив'язка Apple ID до поточного залогіненого користувача (для налаштувань)
     func linkAppleIDToCurrentUser() async {
         guard let user = Auth.auth().currentUser else {
             errorMessage = "Спочатку увійдіть в акаунт"

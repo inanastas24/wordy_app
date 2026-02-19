@@ -524,8 +524,8 @@ struct TranslationBubbleOverlay: View {
         let translationService = TranslationService()
         translationService.translateSynonyms(
             synonyms: [detail.word],
-            sourceLang: originalLanguage,      // ✅ ВИПРАВЛЕНО
-            targetLang: translationLanguage    // ✅ ВИПРАВЛЕНО
+            sourceLang: originalLanguage,
+            targetLang: translationLanguage
         ) { details in
             guard let newDetail = details.first else { return }
             
@@ -644,14 +644,13 @@ struct TranslationBubbleOverlay: View {
             finalTranslation = cached
         } else {
             let translationService = TranslationService()
-            // ✅ ВИПРАВЛЕНО: міняємо мови місцями
             // Синонім - це слово мовою вивчення (originalLanguage/fromLanguage)
             // Переклад - це мова додатка (translationLanguage/toLanguage)
             finalTranslation = await withCheckedContinuation { continuation in
                 translationService.translateSynonyms(
                     synonyms: [synonym],
-                    sourceLang: originalLanguage,      // ✅ Мова синоніма (наприклад, en)
-                    targetLang: translationLanguage    // ✅ Мова перекладу (наприклад, uk)
+                    sourceLang: originalLanguage,
+                    targetLang: translationLanguage    
                 ) { details in
                     let translation = details.first?.translation ?? synonym
                     continuation.resume(returning: translation)

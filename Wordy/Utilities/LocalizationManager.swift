@@ -115,7 +115,9 @@ enum LocalizableKey: String {
     case authenticated
     case notAuthenticated
     case messageSent
-    
+
+    case tapWordToTranslate  
+
     // PermissionType
     case permissionCameraTitle
     case permissionCameraMessage
@@ -534,7 +536,7 @@ public class LocalizationManager: ObservableObject {
 
         // Rate App Popup
         .enjoyingApp: [
-            .ukrainian: "Подобається додаток?",
+            .ukrainian: "Подobaється додаток?",
             .english: "Enjoying the app?",
             .polish: "Podoba Ci się aplikacja?"
         ],
@@ -756,6 +758,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Відкрити налаштування",
             .english: "Open Settings",
             .polish: "Otwórz ustawienia"
+        ],
+        .tapWordToTranslate: [
+            .ukrainian: "Тапніть слово для перекладу",
+            .english: "Tap word to translate",
+            .polish: "Dotknij słowo, aby przetłumaczyć"
         ]
     ]
 }
@@ -763,3 +770,4 @@ public class LocalizationManager: ObservableObject {
 extension Notification.Name {
     static let languageChanged = Notification.Name("languageChanged")
 }
+
