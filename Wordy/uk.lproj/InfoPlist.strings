@@ -1,0 +1,11 @@
+/* Camera permission */
+NSCameraUsageDescription = "Додаток потребує доступу до камери для сканування тексту з книг та документів";
+
+/* Microphone permission */
+NSMicrophoneUsageDescription = "Потрібен доступ до мікрофона для голосового пошуку слів";
+
+/* Speech recognition permission */
+NSSpeechRecognitionUsageDescription = "Дозволяє перетворювати вашу мову на текст";
+
+/* User tracking permission */
+NSUserTrackingUsageDescription = "Це допомагає показувати релевантну рекламу та підтримувати безкоштовність додатку";

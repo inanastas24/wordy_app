@@ -1,0 +1,11 @@
+/* Camera permission */
+NSCameraUsageDescription = "Aplikacja wymaga dostępu do kamery do skanowania tekstu z książek i dokumentów";
+
+/* Microphone permission */
+NSMicrophoneUsageDescription = "Potrzebny dostęp do mikrofonu do wyszukiwania głosowego słów";
+
+/* Speech recognition permission */
+NSSpeechRecognitionUsageDescription = "Pozwala na zamianę mowy na tekst";
+
+/* User tracking permission */
+NSUserTrackingUsageDescription = "Pomaga to wyświetlać trafne reklamy i utrzymać aplikację za darmo";

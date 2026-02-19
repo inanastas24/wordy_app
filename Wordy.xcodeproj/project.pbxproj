@@ -72,6 +72,8 @@
 		46B54A2F2F2BC74E0070EA1B /* Exceptions for "Wordy" folder in "Wordy" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"/Localized: pl.lproj/InfoPlist.strings",
+				"/Localized: uk.lproj/InfoPlist.strings",
 				Info.plist,
 			);
 			target = 460257BC2F27B97F000844D1 /* Wordy */;
@@ -310,6 +312,8 @@
 			knownRegions = (
 				en,
 				Base,
+				uk,
+				pl,
 			);
 			mainGroup = 460257B42F27B97F000844D1;
 			minimizedProjectReferenceProxies = 1;
@@ -546,10 +550,10 @@
 				INFOPLIST_FILE = Wordy/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Додаток потребує доступу до камери для сканування тексту";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Додаток потребує доступу до мікрофона для голосового вводу";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Додаток потребує доступу до розпізнавання мови для голосового пошуку";
-				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Цей дозвіл допомагає нам покращувати додаток та пропонувати персоналізований контент. Ваші дані не передаються третім особам.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Wordy uses camera to scan text";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Wordy uses microphone for voice search";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Wordy uses speech recognition";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "This helps show relevant ads";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -586,10 +590,10 @@
 				INFOPLIST_FILE = Wordy/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Додаток потребує доступу до камери для сканування тексту";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Додаток потребує доступу до мікрофона для голосового вводу";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Додаток потребує доступу до розпізнавання мови для голосового пошуку";
-				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Цей дозвіл допомагає нам покращувати додаток та пропонувати персоналізований контент. Ваші дані не передаються третім особам.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Wordy uses camera to scan text";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Wordy uses microphone for voice search";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Wordy uses speech recognition";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "This helps show relevant ads";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

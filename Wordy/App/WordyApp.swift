@@ -19,7 +19,7 @@ struct WordyApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
     
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
-    @AppStorage("learningLanguage") private var learningLanguage: String = "en"
+    @AppStorage("learningLanguage") private var learningLanguage: String = ""
    
     init() {
         FirebaseApp.configure()
