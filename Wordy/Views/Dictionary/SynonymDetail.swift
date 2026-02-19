@@ -12,4 +12,5 @@ struct SynonymDetail: Identifiable {
     let word: String
     let ipaTranscription: String?
     let translation: String
+    let language: String
 }

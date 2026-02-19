@@ -29,7 +29,11 @@ class FirebaseTTSManager: ObservableObject {
     }
     
     func speak(text: String, language: String) {
-        print("🎤 FirebaseTTSManager.speak() викликано: '\(text)' (\(language))")
+        let normalizedText = text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        
+        print("🎤 FirebaseTTSManager.speak() викликано: '\(normalizedText)' (\(language))")
         
         guard !text.isEmpty else {
             print("❌ Порожній текст")
@@ -42,9 +46,9 @@ class FirebaseTTSManager: ObservableObject {
         error = nil
         currentLanguage = language
         
-        print("🔍 Перевіряємо кеш для: \(text)_\(language)")
+        print("🔍 Перевіряємо кеш для: \(normalizedText)_\(language)")
         
-        checkCache(for: text, language: language) { [weak self] cachedURL in
+        checkCache(for: normalizedText, language: language) { [weak self] cachedURL in
             DispatchQueue.main.async {
                 if let url = cachedURL {
                     print("✅ Знайдено в кеші: \(url)")
@@ -59,7 +63,10 @@ class FirebaseTTSManager: ObservableObject {
     }
     
     private func checkCache(for text: String, language: String, completion: @escaping (URL?) -> Void) {
-        let wordId = "\(text.lowercased().trimmingCharacters(in: .whitespaces))_\(language)"
+        let normalizedText = text.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression) // Замінити множинні пробіли на один
+        let wordId = "\(normalizedText)_\(language)"
         let docRef = db.collection("words_collection").document(wordId)
         
         docRef.getDocument { snapshot, error in
@@ -83,9 +90,13 @@ class FirebaseTTSManager: ObservableObject {
     }
     
     private func generateAudioViaCloudFunction(text: String, language: String) {
+        let normalizedText = text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        
         let parameters: [String: Any] = [
             "data": [
-                "word": text,
+                "word": normalizedText,
                 "language": language
             ]
         ]

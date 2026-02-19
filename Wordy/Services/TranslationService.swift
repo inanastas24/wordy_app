@@ -409,7 +409,7 @@ class TranslationService {
         let urlString = "https://api-free.deepl.com/v2/translate"
         
         guard let url = URL(string: urlString) else {
-            completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
+            completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0, language: sourceLang) })
             return
         }
         
@@ -427,7 +427,7 @@ class TranslationService {
         
         URLSession.shared.dataTask(with: request) { data, _, _ in
             guard let data = data else {
-                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
+                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0, language: sourceLang) })
                 return
             }
             
@@ -440,14 +440,14 @@ class TranslationService {
                         guard i < synonyms.count else { break }
                         let original = synonyms[i]
                         let translated = trans["text"] as? String ?? original
-                        details.append(SynonymDetail(word: original, ipaTranscription: nil, translation: translated))
+                        details.append(SynonymDetail(word: original, ipaTranscription: nil, translation: translated, language: sourceLang))
                     }
                     completion(details)
                 } else {
-                    completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
+                    completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0, language: sourceLang) })
                 }
             } catch {
-                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0) })
+                completion(synonyms.map { SynonymDetail(word: $0, ipaTranscription: nil, translation: $0, language: sourceLang) })
             }
         }.resume()
     }

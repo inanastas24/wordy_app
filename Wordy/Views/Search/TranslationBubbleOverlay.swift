@@ -373,7 +373,7 @@ struct TranslationBubbleOverlay: View {
                                 .multilineTextAlignment(.center)
                             
                             Button(action: {
-                                speak(text: detail.word, language: originalLanguage)
+                                speak(text: detail.word, language: detail.language)
                             }) {
                                 Image(systemName: "speaker.wave.2.fill")
                                     .font(.system(size: 20))
@@ -533,7 +533,8 @@ struct TranslationBubbleOverlay: View {
                 self.selectedSynonymDetail = SynonymDetail(
                     word: detail.word,
                     ipaTranscription: detail.ipaTranscription,
-                    translation: newDetail.translation
+                    translation: newDetail.translation,
+                    language: result.toLanguage
                 )
                 self.synonymTranslations[detail.word] = newDetail.translation
             }
@@ -666,7 +667,8 @@ struct TranslationBubbleOverlay: View {
             selectedSynonymDetail = SynonymDetail(
                 word: synonym,
                 ipaTranscription: ipa,
-                translation: finalTranslation
+                translation: finalTranslation,
+                language: result.toLanguage
             )
             showSynonymModal()
         }
@@ -788,7 +790,11 @@ struct TranslationBubbleOverlay: View {
     }
 
     private func speak(text: String, language: String) {
-        print("🔊 TranslationBubbleOverlay: '\(text)' (\(language))")
-        ttsManager.speak(text: text, language: language)
+        print("🔊 DEBUG: speaking '\(text)' with language '\(language)'")
+            print("🔊 DEBUG: detail.language = '\(selectedSynonymDetail?.language ?? "nil")'")
+            print("🔊 DEBUG: originalLanguage = '\(originalLanguage)'")
+            print("🔊 DEBUG: result.fromLanguage = '\(result.fromLanguage)'")
+            print("🔊 DEBUG: result.toLanguage = '\(result.toLanguage)'")
+            ttsManager.speak(text: text, language: language)
     }
 }
