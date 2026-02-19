@@ -19,7 +19,7 @@ class LocalStorageService {
     
     // MARK: - Local Words Storage
     
-    /// Конвертує Firestore модель в локальну структуру для зберігання
+    //Конвертує Firestore модель в локальну структуру для зберігання
     private func convertToLocalModel(_ word: SavedWordModel) -> LocalSavedWord {
         return LocalSavedWord(
             id: word.id ?? UUID().uuidString,
@@ -42,7 +42,7 @@ class LocalStorageService {
         )
     }
     
-    /// Конвертує локальну структуру назад в Firestore модель
+    // Конвертує локальну структуру назад в Firestore модель
     private func convertToFirestoreModel(_ local: LocalSavedWord) -> SavedWordModel {
         return SavedWordModel(
             id: local.id,
@@ -147,7 +147,7 @@ class LocalStorageService {
     
     // MARK: - Migration Logic
     
-    /// Отримує всі несинхронізовані слова (додані офлайн до логіну)
+    // Отримує всі несинхронізовані слова (додані офлайн до логіну)
     func getUnsyncedWords() -> [SavedWordModel] {
         let localWords = fetchLocalWordsRaw()
         return localWords
@@ -166,7 +166,7 @@ class LocalStorageService {
         saveLocalWordsRaw(words)
     }
     
-    /// Оновлює локальні слова даними з Firestore (при логіні)
+    // Оновлює локальні слова даними з Firestore (при логіні)
     func mergeWithFirestoreWords(_ firestoreWords: [SavedWordModel], userId: String) {
         var localWords = fetchLocalWordsRaw()
         var updatedLocalWords: [LocalSavedWord] = []
@@ -196,8 +196,7 @@ class LocalStorageService {
 }
 
 // MARK: - Local Model
-
-/// Локальна структура для зберігання в UserDefaults (без @DocumentID)
+// Локальна структура для зберігання в UserDefaults (без @DocumentID)
 struct LocalSavedWord: Codable {
     var id: String
     var original: String

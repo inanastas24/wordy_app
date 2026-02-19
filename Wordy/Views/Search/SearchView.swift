@@ -10,7 +10,7 @@ import AVFoundation
 
 // MARK: - Permission Type
 enum PermissionType {
-    case camera, microphone, speech
+    case camera, microphone, speech, tracking
 }
 
 // MARK: - Search View
@@ -446,6 +446,9 @@ struct SearchView: View {
         case .speech:
             title = localizationManager.string(.speechPermission)
             message = localizationManager.string(.permissionMessage)
+        case .tracking:
+                title = localizationManager.string(.trackingPermission)
+                message = localizationManager.string(.permissionMessage)
         }
         
         errorTitle = title

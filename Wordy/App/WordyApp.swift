@@ -36,7 +36,7 @@ struct WordyApp: App {
         
         _authViewModel = StateObject(wrappedValue: AuthViewModel())
         
-        // ВИПРАВЛЕНО: Оновлюємо streak при запуску додатку
+        // Оновлюємо streak при запуску додатку
         StreakService.shared.updateStreak()
         print("🔥 Streak updated: \(StreakService.shared.currentStreak) days")
         

@@ -39,7 +39,7 @@ struct UserProfile: Codable {
     }
 }
 
-// MARK: - Saved Word Model (ТІЛЬКИ ОДНА ДЕКЛАРАЦІЯ)
+// MARK: - Saved Word Model
 struct SavedWordModel: Identifiable, Codable {
     @DocumentID var id: String?
     var original: String
@@ -137,7 +137,6 @@ class FirestoreService {
         return try? document.data(as: UserProfile.self)
     }
     
-    // ДОДАНО: Метод updateUserProfile
     func updateUserProfile(updates: [String: Any]) async throws {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw AuthError.userNotFound

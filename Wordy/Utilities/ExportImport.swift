@@ -132,7 +132,6 @@ class DictionaryExportService {
                 let isLearned = item["isLearned"] as? Bool ?? false
                 let reviewCount = item["reviewCount"] as? Int ?? 0
                 
-                // ВИПРАВЛЕНО: Правильний порядок аргументів згідно з структурою SavedWordModel
                 var word = SavedWordModel(
                     id: UUID().uuidString,
                     original: original,

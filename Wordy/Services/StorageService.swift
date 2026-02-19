@@ -8,12 +8,11 @@ import FirebaseStorage
 import FirebaseAuth
 import UIKit
 
-// ВИДАЛЕНО: @MainActor і ObservableObject - вони не потрібні тут
 class StorageService {
     static let shared = StorageService()
     private let storage = Storage.storage().reference()
     
-    /// Завантажує аватар в Storage і повертає URL
+    // Завантажує аватар в Storage і повертає URL
     func uploadAvatar(_ image: UIImage, userId: String) async throws -> String {
         print("📤 StorageService: Завантаження аватара")
         print("   UserID: \(userId)")
@@ -44,7 +43,7 @@ class StorageService {
         return urlString
     }
     
-    /// Видаляє аватар з Storage
+    // Видаляє аватар з Storage
     func deleteAvatar(userId: String) async throws {
         print("🗑️ StorageService: Видалення аватара")
         let avatarRef = storage.child("avatars/\(userId).jpg")
@@ -52,7 +51,7 @@ class StorageService {
         print("   ✅ Видалено")
     }
     
-    /// Завантажує аватар з URL
+    // Завантажує аватар з URL
     func downloadAvatar(from urlString: String) async throws -> UIImage? {
         print("📥 StorageService: Завантаження аватара з URL")
         

@@ -1,10 +1,10 @@
-//1
+//
 //  PermissionManager.swift
 //  Wordy
 //
 
 import SwiftUI
-import Combine  // ДОДАЙТЕ ЦЕЙ ІМПОРТ
+import Combine
 import AVFoundation
 import Speech
 import AppTrackingTransparency
@@ -18,6 +18,8 @@ class PermissionManager: ObservableObject {
     @Published var speechAuthorized = false
     @Published var trackingAuthorized = false
     @Published var trackingStatus: ATTrackingManager.AuthorizationStatus = .notDetermined
+    
+    private let localizationManager = LocalizationManager.shared
     
     private init() {}
     
@@ -153,5 +155,77 @@ class PermissionManager: ObservableObject {
     @available(iOS 14, *)
     func checkTrackingPermission() -> ATTrackingManager.AuthorizationStatus {
         return ATTrackingManager.trackingAuthorizationStatus
+    }
+    
+    // MARK: - Custom Pre-Permission Alert (локалізований)
+    func showPrePermissionAlert(
+        for type: PermissionType,
+        from viewController: UIViewController,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let titleKey: LocalizableKey
+        let messageKey: LocalizableKey
+        
+        switch type {
+        case .camera:
+            titleKey = .permissionCameraTitle
+            messageKey = .permissionCameraMessage
+        case .microphone:
+            titleKey = .permissionMicrophoneTitle
+            messageKey = .permissionMicrophoneMessage
+        case .speech:
+            titleKey = .permissionSpeechTitle
+            messageKey = .permissionSpeechMessage
+        case .tracking:
+            titleKey = .permissionTrackingTitle
+            messageKey = .permissionTrackingMessage
+        }
+        
+        let alert = UIAlertController(
+            title: localizationManager.string(titleKey),
+            message: localizationManager.string(messageKey),
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(
+            title: localizationManager.string(.permissionAllow),
+            style: .default
+        ) { _ in
+            completion(true)
+        })
+        
+        alert.addAction(UIAlertAction(
+            title: localizationManager.string(.permissionDeny),
+            style: .cancel
+        ) { _ in
+            completion(false)
+        })
+        
+        viewController.present(alert, animated: true)
+    }
+    
+    // MARK: - Settings Alert when denied (локалізований)
+    func showSettingsAlert(from viewController: UIViewController) {
+        let alert = UIAlertController(
+            title: localizationManager.string(.permissionRequired),
+            message: localizationManager.string(.permissionMessage),
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(
+            title: localizationManager.string(.permissionSettings),
+            style: .default
+        ) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        })
+        
+        alert.addAction(UIAlertAction(
+            title: localizationManager.string(.cancel),
+            style: .cancel
+        ))
+        
+        viewController.present(alert, animated: true)
     }
 }

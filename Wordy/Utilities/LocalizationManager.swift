@@ -115,6 +115,19 @@ enum LocalizableKey: String {
     case authenticated
     case notAuthenticated
     case messageSent
+    
+    // PermissionType
+    case permissionCameraTitle
+    case permissionCameraMessage
+    case permissionMicrophoneTitle
+    case permissionMicrophoneMessage
+    case permissionSpeechTitle
+    case permissionSpeechMessage
+    case permissionTrackingTitle
+    case permissionTrackingMessage
+    case permissionAllow
+    case permissionDeny
+    case permissionSettings
 }
 
 public class LocalizationManager: ObservableObject {
@@ -684,6 +697,65 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Повідомлення відправлено",
             .english: "Message sent",
             .polish: "Wiadomość wysłana"
+        ],
+        .permissionCameraTitle: [
+            .ukrainian: "Доступ до камери",
+            .english: "Camera Access",
+            .polish: "Dostęp do kamery"
+        ],
+        .permissionCameraMessage: [
+            .ukrainian: "Wordy використовує камеру для сканування тексту з книг та документів",
+            .english: "Wordy uses camera to scan text from books and documents",
+            .polish: "Wordy używa kamery do skanowania tekstu z książek i dokumentów"
+        ],
+
+        .permissionMicrophoneTitle: [
+            .ukrainian: "Доступ до мікрофона",
+            .english: "Microphone Access",
+            .polish: "Dostęp do mikrofonu"
+        ],
+        .permissionMicrophoneMessage: [
+            .ukrainian: "Потрібен для голосового пошуку слів",
+            .english: "Needed for voice search of words",
+            .polish: "Potrzebny do wyszukiwania głosowego słów"
+        ],
+
+        .permissionSpeechTitle: [
+            .ukrainian: "Розпізнавання мови",
+            .english: "Speech Recognition",
+            .polish: "Rozpoznawanie mowy"
+        ],
+        .permissionSpeechMessage: [
+            .ukrainian: "Дозволяє перетворювати вашу мову на текст",
+            .english: "Allows converting your speech to text",
+            .polish: "Pozwala na zamianę mowy na tekst"
+        ],
+
+        .permissionTrackingTitle: [
+            .ukrainian: "Персоналізація реклами",
+            .english: "Ad Personalization",
+            .polish: "Personalizacja reklam"
+        ],
+        .permissionTrackingMessage: [
+            .ukrainian: "Це допомагає показувати релевантну рекламу та підтримувати безкоштовність додатку",
+            .english: "This helps show relevant ads and keep the app free",
+            .polish: "Pomaga to wyświetlać trafne reklamy i utrzymać aplikację za darmo"
+        ],
+
+        .permissionAllow: [
+            .ukrainian: "Дозволити",
+            .english: "Allow",
+            .polish: "Zezwól"
+        ],
+        .permissionDeny: [
+            .ukrainian: "Відхилити",
+            .english: "Deny",
+            .polish: "Odmów"
+        ],
+        .permissionSettings: [
+            .ukrainian: "Відкрити налаштування",
+            .english: "Open Settings",
+            .polish: "Otwórz ustawienia"
         ]
     ]
 }

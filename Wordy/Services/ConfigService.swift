@@ -55,7 +55,7 @@ class ConfigService {
         return decoded
     }
     
-    /// Отримує Chat ID з декодуванням Base64
+    // Отримує Chat ID з декодуванням Base64
     var telegramChatID: String? {
         guard let encoded = get("TelegramChatID"),
               !encoded.isEmpty,
@@ -68,14 +68,12 @@ class ConfigService {
         return decoded
     }
     
-    /// Перевіряє чи налаштований Telegram
+    // Перевіряє чи налаштований Telegram
     var isTelegramConfigured: Bool {
         telegramBotToken != nil && telegramChatID != nil
     }
     
-    // MARK: - Helper для розробки (кодування)
-    
-    /// Використовуйте це в Playground для отримання Base64 значень
+    // Використовуйте це в Playground для отримання Base64 значень
     static func encodeBase64(_ string: String) -> String {
         return Data(string.utf8).base64EncodedString()
     }

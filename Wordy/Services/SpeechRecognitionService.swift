@@ -35,8 +35,7 @@ class SpeechRecognitionService: ObservableObject {
     
     func stopRecording() {
         audioEngine.stop()
-        
-        // Видаляємо tap!
+    
         audioEngine.inputNode.removeTap(onBus: 0)
         
         recognitionRequest?.endAudio()
