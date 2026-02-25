@@ -1,67 +1,159 @@
-//1
+//
 //  ContentView.swift
 //  Wordy
 //
-//  Created by Anastasiia Inzer on 05.02.2026.
-//
 
 import SwiftUI
-import Combine
-import StoreKit
-import NaturalLanguage
-import AVFoundation
-
-extension Notification.Name {
-    static let showContactForm = Notification.Name("showContactForm")
-}
 
 struct ContentView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    
+    @State private var onboardingStep: OnboardingStep = .appLanguage
+    @State private var selectedAppLanguage: Language = .english
+    @State private var selectedLearningLanguage: LearningLanguage = .english
+    @State private var showPaywall = false
+    @State private var showMainApp = false
+    
+    enum OnboardingStep {
+        case appLanguage
+        case learningLanguage
+        case paywall
+        case permissions
+        case mainApp
+    }
     
     var body: some View {
-        ZStack {
-            Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
-                .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
-                VStack(spacing: 10) {
-                    Text("🫧")
-                        .font(.system(size: 80))
-                    Text("Wordy")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                }
-                .padding(.top, 60)
-                
-                Spacer()
-                
-                VStack(spacing: 20) {
-                    Text(localizationManager.string(.selectAppLanguage))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    
-                    ForEach(Language.allCases, id: \.self) { language in
-                        LanguageCard(
-                            flag: flagForLanguage(language),
-                            name: language.displayName,
-                            isSelected: localizationManager.currentLanguage == language
-                        ) {
-                            localizationManager.setLanguage(language)
-                            appState.appLanguage = language.rawValue
+        Group {
+            switch onboardingStep {
+            case .appLanguage:
+                OnboardingAppLanguageSelectionView(
+                    selectedLanguage: $selectedAppLanguage,
+                    onContinue: {
+                        localizationManager.setLanguage(selectedAppLanguage)
+                        withAnimation {
+                            onboardingStep = .learningLanguage
                         }
+                    }
+                )
+                
+            case .learningLanguage:
+                OnboardingLearningLanguageSelectionView(
+                    selectedLanguage: $selectedLearningLanguage,
+                    onContinue: {
+                        appState.learningLanguage = selectedLearningLanguage.rawValue
+                        withAnimation {
+                            onboardingStep = .paywall
+                        }
+                    }
+                )
+                
+            case .paywall:
+                PaywallView(
+                    isFirstTime: true,
+                    onClose: {
+                        withAnimation {
+                            onboardingStep = .permissions
+                        }
+                    },
+                    onSubscribe: {
+                        withAnimation {
+                            onboardingStep = .permissions
+                        }
+                    }
+                )
+                    .environmentObject(subscriptionManager)
+                    .environmentObject(localizationManager)
+                    .onChange(of: subscriptionManager.isPremium) { _, isPremium in
+                        if isPremium {
+                            withAnimation {
+                                onboardingStep = .permissions
+                            }
+                        }
+                    }
+                    .overlay(
+                        VStack {
+                            Spacer()
+                            if subscriptionManager.isTrialActive {
+                                Button {
+                                    withAnimation {
+                                        onboardingStep = .permissions
+                                    }
+                                } label: {
+                                    Text("Продовжити з тріалом")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hex: "#4ECDC4"))
+                                        .padding()
+                                }
+                            }
+                        }
+                    )
+                
+            case .permissions:
+                OnboardingPermissionsRequestView {
+                    withAnimation {
+                        onboardingStep = .mainApp
                     }
                 }
                 
+            case .mainApp:
+                MainTabView(selectedTab: .constant(0), deepLinkAction: .constant(nil), isFirstTime: false)
+                .environmentObject(appState)
+                .environmentObject(localizationManager)
+                .environmentObject(authViewModel)
+                .environmentObject(subscriptionManager)
+            }
+        }
+    }
+}
+
+// MARK: - App Language Selection
+struct OnboardingAppLanguageSelectionView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
+    @Binding var selectedLanguage: Language
+    let onContinue: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color(hex: "#FFFDF5")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 30) {
                 Spacer()
                 
-                NavigationLink(destination: LearningLanguageSelectionView()
-                    .environmentObject(appState)
-                    .environmentObject(localizationManager)
-                    .environmentObject(authViewModel)) {
+                Text("🫧")
+                    .font(.system(size: 80))
+                
+                Text("Wordy")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: "#2C3E50"))
+                
+                Text("Оберіть мову додатку")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Color(hex: "#2C3E50"))
+                
+                VStack(spacing: 12) {
+                    ForEach(Language.allCases) { language in
+                        LanguageSelectionCard(
+                            flag: language.flag,
+                            name: language.displayName,
+                            isSelected: selectedLanguage == language,
+                            action: {
+                                selectedLanguage = language
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 30)
+                
+                Spacer()
+                
+                Button(action: onContinue) {
                     HStack {
-                        Text(localizationManager.string(.continue))
+                        Text("Продовжити")
                             .font(.system(size: 18, weight: .semibold))
                         Image(systemName: "arrow.right")
                     }
@@ -76,113 +168,160 @@ struct ContentView: View {
             }
         }
     }
+}
+
+// MARK: - Learning Language Selection
+struct OnboardingLearningLanguageSelectionView: View {
+    @Environment(\.colorScheme) private var colorScheme
     
-    func flagForLanguage(_ lang: Language) -> String {
-        switch lang {
-        case .ukrainian: return "🇺🇦"
-        case .english: return "🇬🇧"
-        case .polish: return "🇵🇱"
+    @Binding var selectedLanguage: LearningLanguage
+    let onContinue: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color(hex: "#FFFDF5")
+                .ignoresSafeArea()
+            
+            VStack(spacing: 30) {
+                Spacer()
+                
+                Text("Яку мову хочете вивчати?")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(Color(hex: "#2C3E50"))
+                    .multilineTextAlignment(.center)
+                
+                Text("Можна змінити пізніше в налаштуваннях")
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(hex: "#7F8C8D"))
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    ForEach(LearningLanguage.allCases) { language in
+                        LearningLanguageCard(
+                            flag: language.flag,
+                            nameLocal: language.localDisplayName,
+                            isSelected: selectedLanguage == language,
+                            isDarkMode: colorScheme == .dark,  // ← додайте це
+                            action: {
+                                selectedLanguage = language
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+                
+                Spacer()
+                
+                Button(action: onContinue) {
+                    HStack {
+                        Text("Продовжити")
+                            .font(.system(size: 18, weight: .semibold))
+                        Image(systemName: "arrow.right")
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(Color(hex: "#4ECDC4"))
+                    .cornerRadius(25)
+                }
+                .padding(.horizontal, 30)
+                .padding(.bottom, 40)
+            }
         }
     }
 }
 
-// ВИДАЛЕНО: SearchView - він вже є в окремому файлі SearchView.swift
-
-struct MainTabView: View {
-    @Binding var selectedTab: Int
-    @Binding var deepLinkAction: DeepLinkAction?
-    
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var localizationManager: LocalizationManager
+// MARK: - Permissions Request View
+struct OnboardingPermissionsRequestView: View {
+    let onComplete: () -> Void
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            SearchView(
-                selectedTab: $selectedTab,
-                deepLinkAction: $deepLinkAction
-            )
-                .environmentObject(appState)
-                .environmentObject(localizationManager)
-                .tabItem {
-                    Image(systemName: "magnifyingglass")
-                    Text(localizationManager.string(.search))
-                }
-                .tag(0)
+        ZStack {
+            Color(hex: "#FFFDF5")
+                .ignoresSafeArea()
             
-            DictionaryView()
-                .environmentObject(appState)
-                .environmentObject(localizationManager)
-                .tabItem {
-                    Image(systemName: "book.fill")
-                    Text(localizationManager.string(.dictionary))
+            VStack(spacing: 30) {
+                Spacer()
+                
+                Text("Останній крок")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(Color(hex: "#2C3E50"))
+                
+                Text("Дозволи потрібні для повноцінної роботи додатку")
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(hex: "#7F8C8D"))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                
+                VStack(spacing: 16) {
+                    OnboardingPermissionRow(icon: "camera.fill", title: "Камера", description: "Для сканування тексту")
+                    OnboardingPermissionRow(icon: "mic.fill", title: "Мікрофон", description: "Для голосового пошуку")
+                    OnboardingPermissionRow(icon: "waveform", title: "Розпізнавання мови", description: "Для перетворення мови в текст")
                 }
-                .tag(1)
-            
-            ProfileView()
-                .environmentObject(appState)
-                .environmentObject(localizationManager)
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text(localizationManager.string(.profile))
+                .padding(.horizontal, 30)
+                
+                Spacer()
+                
+                Button(action: {
+                    requestAllPermissions()
+                    onComplete()
+                }) {
+                    Text("Надати дозволи")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color(hex: "#4ECDC4"))
+                        .cornerRadius(25)
                 }
-                .tag(2)
-        }
-        .accentColor(Color(hex: "#4ECDC4"))
-        .onAppear {
-            setupTabBarAppearance()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .switchToSearchTab)) { _ in
-            withAnimation {
-                selectedTab = 0
+                .padding(.horizontal, 30)
+                .padding(.bottom, 40)
             }
         }
     }
     
-    private func setupTabBarAppearance() {
-        let appearance = UITabBarAppearance()
-        if localizationManager.isDarkMode {
-            appearance.backgroundColor = UIColor(Color(hex: "#1C1C1E"))
-        } else {
-            appearance.backgroundColor = UIColor(Color(hex: "#FFFDF5"))
+    private func requestAllPermissions() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            PermissionManager.shared.requestCameraPermission()
+            PermissionManager.shared.requestMicrophonePermission()
+            PermissionManager.shared.requestSpeechPermission()
+            PermissionManager.shared.requestTrackingPermission()
         }
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 }
 
-extension Notification.Name {
-    static let switchToSearchTab = Notification.Name("switchToSearchTab")
-}
+// MARK: - Supporting Views
+// LanguageSelectionCard та LearningLanguageCard видалено - вони вже існують в окремих файлах
 
-struct ActionButton: View {
+struct OnboardingPermissionRow: View {
     let icon: String
     let title: String
-    let subtitle: String
-    let color: Color
-    let isDarkMode: Bool
-    let action: () -> Void
+    let description: String
     
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 28))
-                    .foregroundColor(.white)
-                
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+                .frame(width: 40)
+            
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color(hex: "#2C3E50"))
                 
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.8))
+                Text(description)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "#7F8C8D"))
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 100)
-            .background(color)
-            .cornerRadius(20)
-            .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)
+            
+            Spacer()
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
 }
+

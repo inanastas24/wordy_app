@@ -1,239 +1,217 @@
-//  LoginView.swift (ВИПРАВЛЕНИЙ)
+//
+//  LoginView.swift
+//  Wordy
 //
 
 import SwiftUI
 import AuthenticationServices
-
-enum LoginStep: Equatable {
-    case welcome
-    case signIn
-}
+import FirebaseAuth
+import LocalAuthentication
+import CryptoKit
 
 struct LoginView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
+    @Environment(\.dismiss) var dismiss
     
-    @State private var currentStep: LoginStep = .welcome
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var showError = false
+    let onComplete: () -> Void
+    
+    @State private var hasCompleted = false
+    @State private var currentNonce: String?
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(hex: "#E8F6F3"),
-                    Color(hex: "#FFFDF5")
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            backgroundColor.ignoresSafeArea()
             
-            VStack(spacing: 0) {
+            VStack(spacing: 40) {
+                Spacer()
+                
+                // Logo
                 VStack(spacing: 16) {
                     Text("🫧")
                         .font(.system(size: 80))
-                        .opacity(0.9)
                     
                     Text("Wordy")
-                        .font(.system(size: 42, weight: .light, design: .rounded))
-                        .foregroundColor(Color(hex: "#2C3E50"))
-                }
-                .padding(.top, 100)
-                
-                Spacer()
-                
-                Group {
-                    switch currentStep {
-                    case .welcome:
-                        welcomeView
-                    case .signIn:
-                        signInView
-                    }
-                }
-                .animation(.easeInOut(duration: 0.3), value: currentStep)
-                
-                Spacer()
-                Spacer()
-            }
-        }
-        .alert("Помилка", isPresented: $showError) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage ?? "Сталася помилка")
-        }
-        .onChange(of: authViewModel.errorMessage) { _, newValue in
-            if !newValue.isEmpty {
-                errorMessage = newValue
-                showError = true
-                // Скидаємо помилку після показу
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    authViewModel.errorMessage = ""
-                }
-            }
-        }
-    }
-    
-    private var welcomeView: some View {
-        VStack(spacing: 32) {
-            VStack(spacing: 12) {
-                Text("Ласкаво просимо!")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(Color(hex: "#2C3E50"))
-                
-                Text("Збережіть свій прогрес та\nвивчайте мови ефективно")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-            }
-            
-            HStack(spacing: 24) {
-                BenefitView(
-                    icon: "icloud.fill",
-                    title: "Хмара",
-                    description: "Збереження слів"
-                )
-                
-                BenefitView(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Синхронізація",
-                    description: "На всіх пристроях"
-                )
-                
-                BenefitView(
-                    icon: "lock.shield.fill",
-                    title: "Безпека",
-                    description: "Apple ID"
-                )
-            }
-            
-            Button(action: goToSignIn) {
-                HStack(spacing: 8) {
-                    Text("Продовжити")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundColor(accentColor)
                     
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 16, weight: .semibold))
+                    Text(subtitleText)
+                        .font(.system(size: 18))
+                        .foregroundColor(secondaryTextColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(Color(hex: "#4ECDC4"))
-                .cornerRadius(28)
-                .shadow(
-                    color: Color(hex: "#4ECDC4").opacity(0.4),
-                    radius: 12,
-                    x: 0,
-                    y: 6
-                )
-            }
-            .padding(.horizontal, 40)
-        }
-        .padding(.horizontal, 20)
-    }
-    
-    private var signInView: some View {
-        VStack(spacing: 32) {
-            VStack(spacing: 12) {
-                Text("Увійдіть через Apple")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(Color(hex: "#2C3E50"))
                 
-                Text("Швидко, безпечно та без паролів")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
-            }
-            
-            VStack(spacing: 20) {
-                // 🔥 НОВЕ: Кастомна кнопка Apple Sign In
-                AppleSignInButton {
-                    authViewModel.signInWithApple()
+                Spacer()
+                
+                // Authentication Options
+                VStack(spacing: 16) {
+                    // Biometric Button
+                    if authViewModel.biometricManager.isBiometricAvailable &&
+                       authViewModel.biometricManager.isEnabled &&
+                       Auth.auth().currentUser != nil {
+                        biometricButton
+                    }
+                    
+                    // Apple Sign In
+                    SignInWithAppleButton(
+                        .signIn,
+                        onRequest: { request in
+                            let nonce = authViewModel.startSignInWithAppleFlow()
+                            currentNonce = nonce
+                            request.requestedScopes = [.fullName, .email]
+                            request.nonce = sha256(nonce)
+                        },
+                        onCompletion: { result in
+                            Task {
+                                await handleAppleSignIn(result: result)
+                            }
+                        }
+                    )
+                    .signInWithAppleButtonStyle(
+                        localizationManager.isDarkMode ? .white : .black
+                    )
+                    .frame(height: 56)
+                    .cornerRadius(28)
+                    
+                    // Privacy note
+                    Text(privacyText)
+                        .font(.system(size: 12))
+                        .foregroundColor(secondaryTextColor)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
                 }
-                .frame(height: 56)
-                .disabled(authViewModel.isLoading)
+                .padding(.horizontal, 30)
+                .padding(.bottom, 50)
                 
                 if authViewModel.isLoading {
                     ProgressView()
-                        .scaleEffect(1.2)
-                        .tint(Color(hex: "#4ECDC4"))
+                        .scaleEffect(1.5)
+                        .tint(accentColor)
                 }
             }
-            .padding(.horizontal, 40)
-            
-            Button(action: goBack) {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .semibold))
-                    
-                    Text("Назад")
-                        .font(.system(size: 15))
-                }
-                .foregroundColor(Color(hex: "#7F8C8D"))
+        }
+        .alert(localizationManager.string(.error), isPresented: .constant(!authViewModel.errorMessage.isEmpty)) {
+            Button("OK") {
+                authViewModel.errorMessage = ""
             }
-            .padding(.top, 10)
-            .disabled(authViewModel.isLoading)
+        } message: {
+            Text(authViewModel.errorMessage)
+        }
+        .onChange(of: authViewModel.isAuthenticated) { _, isAuthenticated in
+            if isAuthenticated && !hasCompleted {
+                hasCompleted = true
+                dismiss()
+                onComplete()
+            }
+        }
+        .onAppear {
+            hasCompleted = false
+            Task {
+                await tryBiometricAuth()
+            }
         }
     }
     
-    private func goToSignIn() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            currentStep = .signIn
-        }
-    }
-    
-    private func goBack() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            currentStep = .welcome
-        }
-    }
-}
-
-// MARK: - Кастомна кнопка Apple Sign In
-struct AppleSignInButton: View {
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
+    private var biometricButton: some View {
+        Button {
+            Task {
+                await tryBiometricAuth()
+            }
+        } label: {
             HStack(spacing: 12) {
-                Image(systemName: "apple.logo")
-                    .font(.system(size: 20, weight: .semibold))
+                Image(systemName: biometricIconName)
+                    .font(.system(size: 24))
                 
-                Text("Увійти через Apple")
-                    .font(.system(size: 17, weight: .semibold))
+                Text("Увійти з \(authViewModel.biometricManager.biometricName)")
+                    .font(.system(size: 18, weight: .semibold))
             }
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 56)
-            .background(Color.black)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: "#4ECDC4"), Color(hex: "#44A08D")],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
             .cornerRadius(28)
-            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 4)
         }
-        .buttonStyle(PlainButtonStyle())
     }
-}
-
-struct BenefitView: View {
-    let icon: String
-    let title: String
-    let description: String
     
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 28))
-                .foregroundColor(Color(hex: "#4ECDC4"))
-            
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Color(hex: "#2C3E50"))
-            
-            Text(description)
-                .font(.system(size: 11))
-                .foregroundColor(Color(hex: "#7F8C8D"))
-                .multilineTextAlignment(.center)
+    private var biometricIconName: String {
+        switch authViewModel.biometricManager.biometricType {
+        case .faceID:
+            return "faceid"
+        case .touchID:
+            return "touchid"
+        default:
+            return "lock.shield"
         }
-        .frame(width: 90)
+    }
+    
+    private func tryBiometricAuth() async {
+        guard authViewModel.biometricManager.isEnabled,
+              Auth.auth().currentUser != nil else { return }
+        
+        let success = await authViewModel.authenticateWithBiometric()
+        if success {
+            print("✅ Biometric authentication successful")
+        }
+    }
+    
+    private func handleAppleSignIn(result: Result<ASAuthorization, Error>) async {
+        switch result {
+        case .success(let authorization):
+            await authViewModel.handleAppleAuthorization(authorization)
+        case .failure(let error):
+            let nsError = error as NSError
+            if nsError.code != 1001 { // Не показуємо помилку якщо користувач скасував
+                await MainActor.run {
+                    authViewModel.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+    
+    private func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        let hashString = hashedData.compactMap {
+            String(format: "%02x", $0)
+        }.joined()
+        
+        return hashString
+    }
+    
+    // MARK: - Helpers
+    
+    private var backgroundColor: Color {
+        localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
+    }
+    
+    private var accentColor: Color {
+        Color(hex: "#4ECDC4")
+    }
+    
+    private var secondaryTextColor: Color {
+        localizationManager.isDarkMode ? Color(hex: "#A0A0A0") : Color(hex: "#7F8C8D")
+    }
+    
+    private var subtitleText: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вивчайте англійську легко та ефективно"
+        case .polish: return "Ucz się angielskiego łatwo i efektywnie"
+        case .english: return "Learn English easily and effectively"
+        }
+    }
+    
+    private var privacyText: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Ваші дані захищено. Ми не зберігаємо ваші паролі."
+        case .polish: return "Twoje dane są chronione. Nie przechowujemy Twoich haseł."
+        case .english: return "Your data is protected. We don't store your passwords."
+        }
     }
 }

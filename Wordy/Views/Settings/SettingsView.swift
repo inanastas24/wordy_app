@@ -1,3 +1,4 @@
+//
 //  SettingsView.swift
 //  Wordy
 //
@@ -6,12 +7,58 @@ import SwiftUI
 import FirebaseAuth
 import SwiftData
 import UniformTypeIdentifiers
+import LocalAuthentication
+
+struct BiometricSettingsRow: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
+    
+    var body: some View {
+        if authViewModel.biometricManager.isBiometricAvailable {
+            Toggle(isOn: $authViewModel.biometricManager.isEnabled) {
+                HStack {
+                    Image(systemName: biometricIcon)
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .frame(width: 30)
+                    
+                    VStack(alignment: .leading) {
+                        Text("Увійти з \(authViewModel.biometricManager.biometricName)")
+                            .font(.system(size: 16))
+                        
+                        Text("Швидкий та безпечний доступ")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .onChange(of: authViewModel.biometricManager.isEnabled) { _, isEnabled in
+                if isEnabled {
+                    // Просимо підтвердити біометрію при ввімкненні
+                    Task {
+                        let success = await authViewModel.biometricManager.authenticate()
+                        if !success {
+                            authViewModel.biometricManager.setEnabled(false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private var biometricIcon: String {
+        switch authViewModel.biometricManager.biometricType {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        default: return "lock.shield"
+        }
+    }
+}
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @AppStorage("appLanguage") private var appLanguageString: String = "en"
     
@@ -23,6 +70,7 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var showLogoutConfirmation = false
+    @State private var showPaywall = false
     
     private var appLanguage: Language {
         get { Language(rawValue: appLanguageString) ?? .english }
@@ -38,15 +86,11 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 30) {
                         header
-                        
-                        // Email користувача (компактно)
                         userEmailSection
-                        
+                        subscriptionSection
                         languageSection
                         dataManagementSection
                         appearanceSection
-                        
-                        // Logout
                         logoutSection
                         
                         Spacer(minLength: 50)
@@ -59,6 +103,18 @@ struct SettingsView: View {
                 if let url = exportURL {
                     ShareSheet(activityItems: [url])
                 }
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(
+                    isFirstTime: true,
+                    onClose: {
+                        showPaywall = false
+                    },
+                    onSubscribe: {
+                        showPaywall = false
+                    }
+                )
+                .environmentObject(subscriptionManager)
             }
             .fileImporter(
                 isPresented: $showImportPicker,
@@ -90,8 +146,6 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - UI Sections
-    
     private var header: some View {
         HStack {
             Button { dismiss() } label: {
@@ -114,7 +168,6 @@ struct SettingsView: View {
         .padding(.top, 10)
     }
     
-    // MARK: - Email користувача (компактний блок)
     private var userEmailSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "person.circle.fill")
@@ -152,30 +205,102 @@ struct SettingsView: View {
         .padding(.horizontal, 20)
     }
     
-    private var languageSection: some View {
-            VStack(alignment: .leading, spacing: 15) {
-                Text(localizationManager.string(.appLanguage))
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .padding(.horizontal, 20)
-                
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(Language.allCases) { language in
-                            LanguageChip(
-                                language: language,
-                                isSelected: appLanguage == language,
-                                isDarkMode: localizationManager.isDarkMode
-                            ) {
-                                selectLanguage(language)
-                            }
-                        }
+    private var subscriptionSection: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Підписка")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .padding(.horizontal, 20)
+            
+            SettingsSubscriptionSection(
+                manager: subscriptionManager,
+                onManage: {
+                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                        UIApplication.shared.open(url)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
+                },
+                onRestore: {
+                    Task {
+                        await subscriptionManager.restorePurchases()
+                    }
                 }
+            )
+            .padding(.horizontal, 20)
+            
+            if !subscriptionManager.isPremium {
+                Button {
+                    showPaywall = true
+                } label: {
+                    HStack(spacing: 15) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "#FFD700").opacity(0.15))
+                                .frame(width: 36, height: 36)
+                            
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color(hex: "#FFD700"))
+                        }
+                        
+                        Text(upgradeToPremiumTitle)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Color(hex: "#FFD700"))
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hex: "#7F8C8D"))
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                            .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color(hex: "#FFD700").opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 20)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
         }
+    }
+    
+    private var upgradeToPremiumTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Оновити до Premium"
+        case .polish: return "Ulepsz do Premium"
+        case .english: return "Upgrade to Premium"
+        }
+    }
+    
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text(localizationManager.string(.appLanguage))
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .padding(.horizontal, 20)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Language.allCases) { language in
+                        LanguageChip(
+                            language: language,
+                            isSelected: appLanguage == language,
+                            isDarkMode: localizationManager.isDarkMode
+                        ) {
+                            selectLanguage(language)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+            }
+        }
+    }
     
     private func selectLanguage(_ language: Language) {
         withAnimation(.spring(response: 0.35)) {
@@ -292,12 +417,26 @@ struct SettingsView: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    // MARK: - Actions
-    
     private func performLogout() {
         do {
+            // Скидаємо всі onboarding прапорці
+            UserDefaults.standard.set(false, forKey: "hasSelectedLanguage")
+            UserDefaults.standard.set(false, forKey: "hasSelectedLearningLanguage")
+            UserDefaults.standard.set(false, forKey: "hasSeenPermissions")
+            UserDefaults.standard.set(false, forKey: "hasSeenPaywall")
+            UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+            
+            // Скидаємо мову навчання
+            UserDefaults.standard.removeObject(forKey: "learningLanguage")
+            
             try authViewModel.signOut()
+            
+            // Закриваємо Settings і повертаємось до RootView
             dismiss()
+            
+            // Надсилаємо нотифікацію для RootView
+            NotificationCenter.default.post(name: Notification.Name("userDidLogout"), object: nil)
+            
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -354,8 +493,6 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - Localization Helpers
-    
     private func importCompletedTitle() -> String {
         switch localizationManager.currentLanguage {
         case .ukrainian: return "Імпорт завершено"
@@ -406,7 +543,6 @@ struct SettingsView: View {
 }
 
 // MARK: - Supporting Views
-
 struct LanguageChip: View {
     let language: Language
     let isSelected: Bool

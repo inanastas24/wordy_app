@@ -13,6 +13,8 @@ struct LanguageSelectionView: View {
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
     @AppStorage("appLanguage") private var appLanguage: Language = .english
     
+    let onComplete: () -> Void 
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 40) {
@@ -50,6 +52,7 @@ struct LanguageSelectionView: View {
                 
                 Button {
                     hasSelectedLanguage = true
+                    onComplete()
                 } label: {
                     HStack {
                         Text("Продовжити")

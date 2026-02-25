@@ -245,9 +245,17 @@ struct MenuView: View {
         }
     }
     
+    // Замініть метод requestReview():
     private func requestReview() {
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            SKStoreReviewController.requestReview(in: windowScene)
+        if #available(iOS 18.0, *) {
+            // Використовуйте AppStore.requestReview(in:) — але це для App Store, не для In-App
+            // Для In-App reviews в iOS 18+ використовуйте:
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+            // Немає прямої заміни, тому залиште як є або приберіть функціонал
+        } else {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                SKStoreReviewController.requestReview(in: windowScene)
+            }
         }
     }
     

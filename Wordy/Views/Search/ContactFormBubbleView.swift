@@ -137,7 +137,8 @@ struct ContactFormBubbleView: View {
             .padding(.bottom, 24)
             .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isSent)
         }
-        .frame(width: min(UIScreen.main.bounds.width - 60, 340))
+        .frame(maxWidth: 340)
+        .padding(.horizontal, 30)
         .background(
             RoundedRectangle(cornerRadius: 32)
                 .fill(Color(hex: "#FFFDF5").opacity(0.9))

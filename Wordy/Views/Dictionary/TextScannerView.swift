@@ -284,6 +284,7 @@ struct WordButton: View {
 }
 
 // MARK: - Обробник розпізнавання тексту
+@MainActor
 class TextRecognitionHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     static let shared = TextRecognitionHandler()
     

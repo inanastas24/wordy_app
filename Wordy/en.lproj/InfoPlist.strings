@@ -9,3 +9,6 @@ NSSpeechRecognitionUsageDescription = "Wordy uses speech recognition to convert 
 
 /* User tracking permission */
 NSUserTrackingUsageDescription = "This helps show relevant ads and keep the app free";
+
+/* Face ID permission */
+NSFaceIDUsageDescription = "Wordy uses Face ID for quick and secure access to your account";

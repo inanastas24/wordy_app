@@ -72,8 +72,6 @@
 		46B54A2F2F2BC74E0070EA1B /* Exceptions for "Wordy" folder in "Wordy" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"/Localized: pl.lproj/InfoPlist.strings",
-				"/Localized: uk.lproj/InfoPlist.strings",
 				Info.plist,
 			);
 			target = 460257BC2F27B97F000844D1 /* Wordy */;

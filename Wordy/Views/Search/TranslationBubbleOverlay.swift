@@ -252,7 +252,7 @@ struct TranslationBubbleOverlay: View {
                 Text(original)
                     .font(.system(size: 16))
                     .italic()
-                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.9) : Color(hex: "#2C3E50"))
                 Spacer()
                 Button(action: { speak(text: original, language: originalLang) }) {
                     Image(systemName: "speaker.wave.1")
@@ -265,7 +265,7 @@ struct TranslationBubbleOverlay: View {
                 HStack {
                     Text(translation)
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#4ECDC4").opacity(0.9) : Color(hex: "#4ECDC4"))
                     Spacer()
                     Button(action: { speak(text: translation, language: transLang) }) {
                         Image(systemName: "speaker.wave.1")
@@ -276,7 +276,9 @@ struct TranslationBubbleOverlay: View {
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.5)))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5)))
     }
     
     private var synonymsSection: some View {

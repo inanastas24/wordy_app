@@ -107,7 +107,6 @@ enum LocalizableKey: String {
     case learnWordsEasily
     
     // Telegram
-    case silentModeWarning
     case messageLimitTitle
     case messageLimitMessage
     case sendingStart
@@ -130,6 +129,20 @@ enum LocalizableKey: String {
     case permissionAllow
     case permissionDeny
     case permissionSettings
+    case freeTrial, daysLeft, upgrade
+    case termsOfService
+    case privacyPolicy
+    case upgradeToPremium, trialExplanation
+    
+    // MARK: - Subscription Keys
+    case subscriptionExpired
+    case subscriptionActive
+    case renewSubscription
+    case noSubscription
+    case subscriptionStatus
+    case manageSubscription
+    case restorePurchases
+    case permissionNotificationTitle, permissionNotificationMessage
 }
 
 public class LocalizationManager: ObservableObject {
@@ -138,7 +151,7 @@ public class LocalizationManager: ObservableObject {
     @Published var currentLanguage: Language
     @Published var isDarkMode: Bool
     
-     init() {
+    init() {
         let systemLang = Locale.current.language.languageCode?.identifier
         let initialLanguage: Language
         
@@ -157,7 +170,15 @@ public class LocalizationManager: ObservableObject {
         }
         
         self.currentLanguage = initialLanguage
-        self.isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+        
+        // 🆕 Світла тема за замовчуванням, темна тільки якщо явно встановлено
+        if UserDefaults.standard.object(forKey: "isDarkMode") == nil {
+            // Перший запуск - світла тема
+            self.isDarkMode = false
+            UserDefaults.standard.set(false, forKey: "isDarkMode")
+        } else {
+            self.isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
+        }
         
         applyAppearance()
     }
@@ -329,16 +350,6 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Вже є акаунт? Увійти",
             .english: "Already have an account? Sign In",
             .polish: "Masz już konto? Zaloguj się"
-        ],
-        .welcomeBack: [
-            .ukrainian: "З поверненням!",
-            .english: "Welcome back!",
-            .polish: "Witaj ponownie!"
-        ],
-        .signInToContinue: [
-            .ukrainian: "Увійдіть, щоб продовжити",
-            .english: "Sign in to continue",
-            .polish: "Zaloguj się, aby kontynuować"
         ],
         .signIn: [
             .ukrainian: "Увійти",
@@ -657,12 +668,6 @@ public class LocalizationManager: ObservableObject {
             .english: "Learn words easily",
             .polish: "Ucz się słów łatwo"
         ],
-        // Режим тиші
-        .silentModeWarning: [
-            .ukrainian: "🔇 Вимкніть режим тиші для озвучки",
-            .english: "🔇 Turn off Silent Mode for audio",
-            .polish: "🔇 Wyłącz tryb cichy dla dźwięku"
-        ],
         // Ліміт повідомлень
         .messageLimitTitle: [
             .ukrainian: "Ліміт повідомлень вичерпано",
@@ -763,7 +768,98 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Тапніть слово для перекладу",
             .english: "Tap word to translate",
             .polish: "Dotknij słowo, aby przetłumaczyć"
+        ],
+        .freeTrial: [
+            .ukrainian: "Безкоштовний період",
+            .english: "Free Trial",
+            .polish: "Darmowy okres próbny"
+        ],
+        .daysLeft: [
+            .ukrainian: "Залишилось %d днів",
+            .english: "%d days left",
+            .polish: "Pozostało %d dni"
+        ],
+        .upgrade: [
+            .ukrainian: "Оновити",
+            .english: "Upgrade",
+            .polish: "Ulepsz"
+        ],
+        .welcomeBack: [
+            .ukrainian: "Ласкаво просимо!",
+            .english: "Welcome back!",
+            .polish: "Witaj ponownie!"
+        ],
+        .signInToContinue: [
+            .ukrainian: "Збережіть свій прогрес та вивчайте мови ефективно",
+            .english: "Save your progress and learn languages effectively",
+            .polish: "Zapisz swój postęp i ucz się języków efektywnie"
+        ],
+        .termsOfService: [
+            .ukrainian: "Умови використання",
+            .english: "Terms of Service",
+            .polish: "Warunki użytkowania"
+        ],
+        .privacyPolicy: [
+            .ukrainian: "Політика конфіденційності",
+            .english: "Privacy Policy",
+            .polish: "Polityka prywatności"
+        ],
+        .upgradeToPremium: [
+            .ukrainian: "Premium",
+            .english: "Premium",
+            .polish: "Premium"
+        ],
+        .trialExplanation: [
+            .ukrainian: "Після 3 днів автоматичне списання. Скасувати можна будь-коли.",
+            .english: "Auto-renews after 3 days. Cancel anytime.",
+            .polish: "Automatyczne odnowienie po 3 dniach. Anuluj w dowolnym momencie."
+        ],
+        .subscriptionExpired: [
+            .ukrainian: "Підписка закінчилась",
+            .english: "Subscription Expired",
+            .polish: "Subskrypcja wygasła"
+        ],
+        .subscriptionActive: [
+            .ukrainian: "Підписка активна",
+            .english: "Subscription Active",
+            .polish: "Subskrypcja aktywna"
+        ],
+        .renewSubscription: [
+            .ukrainian: "Поновити підписку",
+            .english: "Renew Subscription",
+            .polish: "Odnów subskrypcję"
+        ],
+        .noSubscription: [
+            .ukrainian: "Немає підписки",
+            .english: "No Subscription",
+            .polish: "Brak subskrypcji"
+        ],
+        .subscriptionStatus: [
+            .ukrainian: "Статус підписки",
+            .english: "Subscription Status",
+            .polish: "Status subskrypcji"
+        ],
+        .manageSubscription: [
+            .ukrainian: "Керувати підпискою",
+            .english: "Manage Subscription",
+            .polish: "Zarządzaj subskrypcją"
+        ],
+        .restorePurchases: [
+            .ukrainian: "Відновити покупки",
+            .english: "Restore Purchases",
+            .polish: "Przywróć zakupy"
+        ],
+        .permissionNotificationTitle: [
+            .ukrainian: "Дозвіл на сповіщення",
+            .english: "Notification Permission",
+            .polish: "Zezwolenie na powiadomienia"
+        ],
+        .permissionNotificationMessage: [
+            .ukrainian: "Додаток надсилатиме нагадування про навчання та повторення слів",
+            .english: "The app will send reminders for learning and word reviews",
+            .polish: "Aplikacja będzie wysyłać przypomnienia o nauce i powtórkach słów"
         ]
+        
     ]
 }
 

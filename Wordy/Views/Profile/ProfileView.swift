@@ -1,3 +1,4 @@
+//
 //  ProfileView.swift
 //  Wordy
 //
@@ -10,6 +11,7 @@ struct ProfileView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     
@@ -17,8 +19,8 @@ struct ProfileView: View {
     @State private var selectedTab: Int = 2
     @State private var showSettings = false
     @State private var showLanguageSelection = false
+    @State private var showPaywall = false
     
-    // Використовуємо StreakService
     @State private var currentStreak: Int = 0
     @State private var streakColor: String = "#F38BA8"
     @State private var streakTitle: String = "0 days"
@@ -36,10 +38,6 @@ struct ProfileView: View {
                 ScrollView {
                     VStack(spacing: 25) {
                         header
-                        
-                        // Email користувача (компактно)
-                        userEmailSection
-                        
                         statsGrid
                         achievementsSection
                         activitySection
@@ -59,9 +57,24 @@ struct ProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
+                    .environmentObject(subscriptionManager)
             }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(
+                    isFirstTime: true,
+                    onClose: {
+                        showPaywall = false
+                    },
+                    onSubscribe: {
+                        showPaywall = false
+                    }
+                )
+                .environmentObject(subscriptionManager)
+            }
+
             .navigationDestination(isPresented: $showLanguageSelection) {
                 LearningLanguageSelectionView(
+                    onComplete: {},
                     isChangeMode: true,
                     onLanguageChanged: {}
                 )
@@ -69,12 +82,11 @@ struct ProfileView: View {
             }
             .onAppear {
                 dictionaryVM.fetchSavedWords()
-                updateStreak() // ВИПРАВЛЕНО: Оновлюємо streak при появі
+                updateStreak()
             }
         }
     }
     
-    // Оновлення streak
     private func updateStreak() {
         StreakService.shared.updateStreak()
         currentStreak = StreakService.shared.currentStreak
@@ -108,7 +120,6 @@ struct ProfileView: View {
         .padding(.top, 10)
     }
     
-    // MARK: - Email користувача (компактний блок)
     private var userEmailSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "person.circle.fill")
@@ -130,12 +141,32 @@ struct ProfileView: View {
                         .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                 }
                 
-                Text(localizationManager.string(.profile))
-                    .font(.system(size: 12))
-                    .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                // Subscription badge
+                HStack(spacing: 8) {
+                    if subscriptionManager.isPremium {
+                        PremiumBadgeView(type: .premium)
+                    } else if case .trial = subscriptionManager.status {
+                        PremiumBadgeView(type: .trial)
+                    } else {
+                        Text("Free")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color(hex: "#7F8C8D"))
+                    }
+                }
             }
             
             Spacer()
+            
+            // Upgrade button for non-premium
+            if !subscriptionManager.isPremium {
+                Button {
+                    showPaywall = true
+                } label: {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(hex: "#FFD700"))
+                }
+            }
         }
         .padding()
         .background(
@@ -172,12 +203,11 @@ struct ProfileView: View {
                 isDarkMode: localizationManager.isDarkMode
             )
             
-            //Streak з динамічним кольором
             StatCard(
                 icon: "flame.fill",
-                value: streakTitle, // "1 day", "2 days", etc.
+                value: streakTitle,
                 label: "Days streak",
-                color: Color(hex: streakColor), // Рандомний колір залежно від днів
+                color: Color(hex: streakColor),
                 isDarkMode: localizationManager.isDarkMode
             )
         }
@@ -217,7 +247,6 @@ struct ProfileView: View {
                         isDarkMode: localizationManager.isDarkMode
                     )
                     
-                    // 7 днів
                     AchievementCard(
                         icon: "flame.fill",
                         title: "7 days",
@@ -226,7 +255,6 @@ struct ProfileView: View {
                         isDarkMode: localizationManager.isDarkMode
                     )
                     
-                    // 30 днів
                     AchievementCard(
                         icon: "calendar.badge.clock",
                         title: "30 days",
@@ -235,12 +263,20 @@ struct ProfileView: View {
                         isDarkMode: localizationManager.isDarkMode
                     )
                     
-                    // 100 днів 
                     AchievementCard(
                         icon: "flame.circle.fill",
                         title: "100 days",
                         isUnlocked: currentStreak >= 100,
                         color: "#FF8C00",
+                        isDarkMode: localizationManager.isDarkMode
+                    )
+                    
+                    // Premium achievement
+                    AchievementCard(
+                        icon: "crown.fill",
+                        title: "Premium",
+                        isUnlocked: subscriptionManager.isPremium,
+                        color: "#FFD700",
                         isDarkMode: localizationManager.isDarkMode
                     )
                 }
@@ -264,6 +300,30 @@ struct ProfileView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private var subscriptionSection: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Text("Підписка")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .padding(.horizontal, 20)
+            
+            SettingsSubscriptionSection(
+                manager: subscriptionManager,
+                onManage: {
+                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                        UIApplication.shared.open(url)
+                    }
+                },
+                onRestore: {
+                    Task {
+                        await subscriptionManager.restorePurchases()
+                    }
+                }
+            )
+            .padding(.horizontal, 20)
         }
     }
 }

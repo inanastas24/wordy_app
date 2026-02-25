@@ -9,9 +9,15 @@ import SwiftUI
 import Combine
 
 class AppState: ObservableObject {
-    @Published var appLanguage: String = "uk"
-    @Published var learningLanguage: String = ""
-    @Published var searchHistory: [SearchItem] = []
+    @Published var appLanguage: String
+    @Published var learningLanguage: String
+    @Published var searchHistory: [SearchItem]
+    
+    init() {
+        self.appLanguage = "uk"
+        self.learningLanguage = ""
+        self.searchHistory = []
+    }
 }
 
 struct SearchItem: Identifiable, Codable {

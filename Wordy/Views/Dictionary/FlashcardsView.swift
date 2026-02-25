@@ -656,3 +656,8 @@ struct FirestoreCardFace: View {
         .scaleEffect(x: isReversed ? -1.0 : 1.0, y: 1.0)
     }
 }
+// MARK: - Notifications
+extension Notification.Name {
+    static let switchToSearchTab = Notification.Name("switchToSearchTab")
+}
+

@@ -168,7 +168,7 @@ class LocalStorageService {
     
     // Оновлює локальні слова даними з Firestore (при логіні)
     func mergeWithFirestoreWords(_ firestoreWords: [SavedWordModel], userId: String) {
-        var localWords = fetchLocalWordsRaw()
+        let localWords = fetchLocalWordsRaw()
         var updatedLocalWords: [LocalSavedWord] = []
         
         // Додаємо слова з Firestore (вони пріоритетні)

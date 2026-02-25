@@ -55,20 +55,20 @@ class PermissionManager: ObservableObject {
     
     // MARK: - Microphone Permission
     func requestMicrophonePermission() {
-        let status = AVAudioSession.sharedInstance().recordPermission
-        switch status {
-        case .undetermined:
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    self.microphoneAuthorized = granted
+            let status = AVAudioApplication.shared.recordPermission
+            switch status {
+            case .undetermined:
+                AVAudioApplication.requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        self.microphoneAuthorized = granted
+                    }
                 }
-            }
-        case .granted:
-            self.microphoneAuthorized = true
-        case .denied:
-            self.microphoneAuthorized = false
-        @unknown default:
-            break
+            case .granted:
+                self.microphoneAuthorized = true
+            case .denied:
+                self.microphoneAuthorized = false
+            @unknown default:
+                break
         }
     }
     
@@ -179,6 +179,9 @@ class PermissionManager: ObservableObject {
         case .tracking:
             titleKey = .permissionTrackingTitle
             messageKey = .permissionTrackingMessage
+        case .notification:
+            titleKey = .permissionNotificationTitle
+            messageKey = .permissionNotificationMessage
         }
         
         let alert = UIAlertController(

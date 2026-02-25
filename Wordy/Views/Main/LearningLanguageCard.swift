@@ -14,6 +14,8 @@ struct LearningLanguageCard: View {
     let isDarkMode: Bool
     let action: () -> Void
     
+    @EnvironmentObject var localizationManager: LocalizationManager
+    
     var body: some View {
         Button(action: action) {
             VStack(spacing: 12) {

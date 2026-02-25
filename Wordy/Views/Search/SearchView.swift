@@ -8,18 +8,14 @@
 import SwiftUI
 import AVFoundation
 
-// MARK: - Permission Type
-enum PermissionType {
-    case camera, microphone, speech, tracking
-}
-
-// MARK: - Search View
 struct SearchView: View {
     @Binding var selectedTab: Int
     @Binding var deepLinkAction: DeepLinkAction?
     
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+    @EnvironmentObject var authViewModel: AuthViewModel
     
     @AppStorage("learningLanguage") private var learningLanguage: LearningLanguage = .english
     
@@ -38,14 +34,13 @@ struct SearchView: View {
     @State private var showTranslationCard = false
     @State private var showLanguagePicker = false
     @State private var showVoiceSearch = false
+    @State private var showPaywall = false
     
     @FocusState private var isSearchFocused: Bool
-    @EnvironmentObject var authViewModel: AuthViewModel
     
     private let translationService = TranslationService()
     private let voiceColor = Color(hex: "#FFD93D")
     
-    // Обчислювана властивість для мови просто повертає значення
     private var currentLearningLanguage: String {
         learningLanguage.rawValue
     }
@@ -65,9 +60,8 @@ struct SearchView: View {
                     
                     ScrollView {
                         VStack(spacing: 25) {
-                            languageSelector
                             
-                            silentModeWarning
+                            languageSelector
                             
                             SearchBar(text: $searchText, onSubmit: performSearch)
                                 .focused($isSearchFocused)
@@ -99,7 +93,7 @@ struct SearchView: View {
                                     title: localizationManager.string(.voice),
                                     subtitle: localizationManager.string(.holdToSpeak),
                                     isDarkMode: localizationManager.isDarkMode,
-                                    language: currentLearningLanguage,  // ВИПРАВЛЕНО: використовуємо властивість
+                                    language: currentLearningLanguage,
                                     onResult: { text in
                                         self.searchText = text
                                         self.performSearch()
@@ -110,7 +104,10 @@ struct SearchView: View {
                             
                             historySection
                             
-                            Spacer(minLength: 50)
+                            // 🆕 ПРИБРАНО кнопку Premium — вона більше не потрібна
+                            // Користувач вже має підписку після onboarding
+                            
+                            Spacer(minLength: 30)
                         }
                     }
                     .scrollDismissesKeyboard(.interactively)
@@ -144,9 +141,7 @@ struct SearchView: View {
                 TextScannerView(
                     scannedText: $scannedText,
                     isRecognizing: $isRecognizing,
-                    onTextRecognized: { text in
-                        // Текст вже записаний в scannedText через binding
-                    }
+                    onTextRecognized: { text in }
                 )
             }
             .sheet(isPresented: $showVoiceSearch) {
@@ -165,7 +160,6 @@ struct SearchView: View {
                 handleDeepLinkAction(newAction)
             }
             .onAppear {
-                // Синхронізація при появі
                 syncLanguageSettings()
                 handleDeepLinkAction(deepLinkAction)
             }
@@ -177,65 +171,29 @@ struct SearchView: View {
             } message: {
                 Text(errorMessage)
             }
-            .fullScreenCover(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(localizationManager)
-                    .environmentObject(appState)
+            .fullScreenCover(isPresented: $showPaywall) {
+                PaywallView(
+                    isFirstTime: false,  // 🆕 не перший раз, бо вже був підписником
+                    onClose: {
+                        showPaywall = false
+                    },
+                    onSubscribe: {
+                        showPaywall = false
+                        // Опціонально: автоматично виконати пошук після покупки
+                        // performSearch()
+                    }
+                )
+                .environmentObject(subscriptionManager)
+                .environmentObject(localizationManager)
             }
             .onChange(of: selectedTab) { _, _ in
                 isSearchFocused = false
             }
         }
+        .modifier(SubscriptionPaywallModifier())
     }
     
-    // MARK: - Silent Mode Warning
-    private var silentModeWarning: some View {
-        HStack(spacing: 6) {
-            
-            Text(localizationManager.string(.silentModeWarning))
-                .font(.system(size: 11, weight: .medium))
-        }
-        .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#FFD93D") : Color(hex: "#F39C12"))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            Capsule()
-                .fill(localizationManager.isDarkMode ? Color(hex: "#FFD93D").opacity(0.15) : Color(hex: "#F39C12").opacity(0.1))
-        )
-        .overlay(
-            Capsule()
-                .stroke(localizationManager.isDarkMode ? Color(hex: "#FFD93D").opacity(0.3) : Color(hex: "#F39C12").opacity(0.3), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-    }
-    
-    // Метод синхронізації мов
-    private func syncLanguageSettings() {
-        let lang = learningLanguage.rawValue
-        appState.learningLanguage = lang
-        print("🔍 DEBUG: Synced learningLanguage to '\(lang)'")
-    }
-    
-    // MARK: - Deep Link Handling
-    private func handleDeepLinkAction(_ action: DeepLinkAction?) {
-        guard let action = action else { return }
-        
-        switch action {
-        case .camera:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.checkCameraPermission()
-                self.deepLinkAction = nil
-            }
-            
-        case .voice(let autoStart):
-            if autoStart {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.showVoiceSearch = true
-                    self.deepLinkAction = nil
-                }
-            }
-        }
-    }
+    // MARK: - UI Components
     
     private var recordingIndicator: some View {
         HStack {
@@ -255,7 +213,6 @@ struct SearchView: View {
         .padding(.top, 10)
     }
     
-    // MARK: - Language Selector
     private var languageSelector: some View {
         Button {
             withAnimation(.spring(response: 0.35)) {
@@ -293,7 +250,6 @@ struct SearchView: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    // MARK: - Language Picker Overlay
     private var languagePickerOverlay: some View {
         ZStack {
             Color.black.opacity(0.4)
@@ -314,7 +270,7 @@ struct SearchView: View {
                         Button {
                             withAnimation(.spring(response: 0.35)) {
                                 learningLanguage = language
-                                appState.learningLanguage = language.rawValue  // Синхронізація
+                                appState.learningLanguage = language.rawValue
                                 showLanguagePicker = false
                             }
                         } label: {
@@ -409,7 +365,33 @@ struct SearchView: View {
         }
     }
     
-    // MARK: - Permission Handling
+    // MARK: - Methods
+    
+    private func syncLanguageSettings() {
+        let lang = learningLanguage.rawValue
+        appState.learningLanguage = lang
+    }
+    
+    private func handleDeepLinkAction(_ action: DeepLinkAction?) {
+        guard let action = action else { return }
+        
+        switch action {
+        case .camera:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.checkCameraPermission()
+                self.deepLinkAction = nil
+            }
+            
+        case .voice(let autoStart):
+            if autoStart {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.showVoiceSearch = true
+                    self.deepLinkAction = nil
+                }
+            }
+        }
+    }
+    
     private func checkCameraPermission() {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
@@ -431,45 +413,52 @@ struct SearchView: View {
     }
     
     private func showPermissionAlert(for type: PermissionType) {
-        let title: String
-        let message: String
-        
-        switch type {
-        case .camera:
-            title = localizationManager.string(.cameraPermission)
-            message = localizationManager.string(.permissionMessage)
-        case .microphone:
-            title = localizationManager.string(.microphonePermission)
-            message = localizationManager.string(.permissionMessage)
-        case .speech:
-            title = localizationManager.string(.speechPermission)
-            message = localizationManager.string(.permissionMessage)
-        case .tracking:
+            let title: String
+            let message: String
+            
+            switch type {
+            case .camera:
+                title = localizationManager.string(.cameraPermission)
+                message = localizationManager.string(.permissionMessage)
+            case .microphone:
+                title = localizationManager.string(.microphonePermission)
+                message = localizationManager.string(.permissionMessage)
+            case .speech:
+                title = localizationManager.string(.speechPermission)
+                message = localizationManager.string(.permissionMessage)
+            case .tracking:
                 title = localizationManager.string(.trackingPermission)
                 message = localizationManager.string(.permissionMessage)
+            case .notification:  
+                title = localizationManager.string(.permissionNotificationTitle)
+                message = localizationManager.string(.permissionNotificationMessage)
+            }
+            
+            errorTitle = title
+            errorMessage = message
+            showErrorAlert = true
         }
-        
-        errorTitle = title
-        errorMessage = message
-        showErrorAlert = true
-    }
     
-    // MARK: - Search
-    func performSearch() {
-        guard !searchText.isEmpty else { return }
-        isSearchFocused = false
-        isLoading = true
+    private func performSearch() {
+            guard !searchText.isEmpty else { return }
+          
+        if subscriptionManager.isSubscriptionExpired {
+                showPaywall = true
+                return
+            }
+            
+        if !subscriptionManager.canUseApp {
+                showPaywall = true
+                return
+            }
+            
+            isSearchFocused = false
+            isLoading = true
         
-        // Перевірка та синхронізація перед пошуком
         let learningLang = currentLearningLanguage
         let appLang = appState.appLanguage
         
-        print("🔍 DEBUG: performSearch called")
-        print("🔍 DEBUG: appLanguage = '\(appLang)'")
-        print("🔍 DEBUG: learningLanguage = '\(learningLang)'")
-        
         guard !learningLang.isEmpty else {
-            print("❌ ERROR: learningLanguage is empty!")
             isLoading = false
             errorTitle = "Помилка"
             errorMessage = "Оберіть мову для вивчення в налаштуваннях"
@@ -525,4 +514,9 @@ struct SearchView: View {
             }
         }
     }
+}
+
+// MARK: - Permission Type
+enum PermissionType {
+    case camera, microphone, speech, tracking, notification
 }

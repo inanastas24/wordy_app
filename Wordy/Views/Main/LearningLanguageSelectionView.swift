@@ -28,6 +28,17 @@ enum LearningLanguage: String, CaseIterable, Identifiable {
         }
     }
     
+    var localDisplayName: String {
+            switch self {
+            case .english: return "English"
+            case .polish: return "Polski"
+            case .german: return "Deutsch"
+            case .french: return "Français"
+            case .spanish: return "Español"
+            case .italian: return "Italiano"
+            }
+        }
+    
     var flag: String {
         switch self {
         case .english: return "🇬🇧"
@@ -47,6 +58,8 @@ struct LearningLanguageSelectionView: View {
     
     @AppStorage("learningLanguage") private var selectedLanguage: LearningLanguage = .english
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
+    
+    let onComplete: () -> Void
     
     // Для режиму зміни мови (коли вже пройшли онбординг)
     var isChangeMode: Bool = false
@@ -95,7 +108,7 @@ struct LearningLanguageSelectionView: View {
                     }
                     .padding(.horizontal, 20)
                 }
-                
+           
                 // Continue Button
                 Button {
                     if isChangeMode {
@@ -105,6 +118,7 @@ struct LearningLanguageSelectionView: View {
                     } else {
                         // Режим онбордингу - переходимо далі
                         hasSelectedLearningLanguage = true
+                        onComplete()
                     }
                 } label: {
                     HStack {
@@ -133,6 +147,8 @@ struct LanguageSelectionCard: View {
     let isSelected: Bool
     let action: () -> Void
     
+    @EnvironmentObject var localizationManager: LocalizationManager
+    
     var body: some View {
         Button(action: action) {
             VStack(spacing: 12) {
@@ -141,16 +157,16 @@ struct LanguageSelectionCard: View {
                 
                 Text(name)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(isSelected ? .white : Color(hex: "#2C3E50"))
+                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
             }
             .frame(maxWidth: .infinity, minHeight: 110)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(isSelected ? Color(hex: "#4ECDC4") : Color.white)
+                    .fill(isSelected ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(isSelected ? Color.clear : Color(hex: "#E0E0E0"), lineWidth: 2)
+                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hex: "#E0E0E0")), lineWidth: 2)
             )
             .shadow(
                 color: isSelected ? Color(hex: "#4ECDC4").opacity(0.3) : Color.black.opacity(0.05),

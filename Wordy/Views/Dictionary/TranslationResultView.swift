@@ -15,9 +15,11 @@ struct TranslationResultView: View {
     @StateObject private var ttsManager = FirebaseTTSManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) var colorScheme
     
     // для відстеження жесту закриття
     @Environment(\.presentationMode) private var presentationMode
+    @EnvironmentObject var localizationManager: LocalizationManager
     
     @State private var isSilentModeEnabled = false
     @State private var isDismissing = false  // прапорець закриття
@@ -224,31 +226,35 @@ struct TranslationResultView: View {
     
     private func exampleCard(original: String, translation: String, originalLang: String, translationLang: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Оригінальне речення
             HStack {
                 Text(original)
                     .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "#2C3E50"))
+                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.95) : Color(hex: "#2C3E50"))
                     .italic()
                 Spacer()
                 speakButton(text: original, language: originalLang)
             }
             
+            // Переклад речення
             HStack {
                 Text(translation)
                     .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
+                    .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#4ECDC4").opacity(0.95) : Color(hex: "#4ECDC4"))
                 Spacer()
-                speakButton(text: translation, language: translationLang, color: Color(hex: "#7F8C8D"))
+                speakButton(text: translation, language: translationLang)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.9) : Color.white)
+        )
     }
     
     private func speakButton(text: String, language: String, color: Color? = nil) -> some View {
         Button(action: {
-            guard !isDismissing else { return }  // блокуємо при закритті
-            
+            guard !isDismissing else { return }
             print("🔊 Кнопка прикладу натиснута: '\(text)' (\(language))")
             checkSilentMode()
             speakText(text: text, language: language)
@@ -257,7 +263,7 @@ struct TranslationResultView: View {
                 .font(.system(size: 14))
                 .foregroundColor(color ?? Color(hex: "#4ECDC4"))
         }
-        .disabled(isDismissing)  // блокуємо при закритті
+        .disabled(isDismissing)
     }
     
     private var actionButtons: some View {
