@@ -9,6 +9,7 @@ import AVFoundation
 import Speech
 import AppTrackingTransparency
 import AdSupport
+import UserNotifications
 
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
@@ -17,82 +18,135 @@ class PermissionManager: ObservableObject {
     @Published var microphoneAuthorized = false
     @Published var speechAuthorized = false
     @Published var trackingAuthorized = false
+    @Published var notificationAuthorized = false
     @Published var trackingStatus: ATTrackingManager.AuthorizationStatus = .notDetermined
     
     private let localizationManager = LocalizationManager.shared
     
     private init() {}
     
-    // MARK: - Request All Permissions
-    func requestAllPermissions() {
-        requestCameraPermission()
-        requestMicrophonePermission()
-        requestSpeechPermission()
+    // MARK: - Request All Permissions (викликати при першому вході)
+    func requestAllPermissions(completion: (() -> Void)? = nil) {
+        let group = DispatchGroup()
         
+        // Camera
+        group.enter()
+        requestCameraPermission {
+            group.leave()
+        }
+        
+        // Microphone
+        group.enter()
+        requestMicrophonePermission {
+            group.leave()
+        }
+        
+        // Speech
+        group.enter()
+        requestSpeechPermission {
+            group.leave()
+        }
+        
+        // Notifications
+        group.enter()
+        requestNotificationPermission {
+            group.leave()
+        }
+        
+        // Tracking (з затримкою як у тебе було)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.requestTrackingPermission()
+            group.enter()
+            self.requestTrackingPermission {
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .main) {
+            completion?()
         }
     }
     
     // MARK: - Camera Permission
-    func requestCameraPermission() {
+    func requestCameraPermission(completion: (() -> Void)? = nil) {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     self.cameraAuthorized = granted
+                    completion?()
                 }
             }
         case .authorized:
             self.cameraAuthorized = true
+            completion?()
         case .denied, .restricted:
             self.cameraAuthorized = false
+            completion?()
         @unknown default:
-            break
+            completion?()
         }
     }
     
     // MARK: - Microphone Permission
-    func requestMicrophonePermission() {
-            let status = AVAudioApplication.shared.recordPermission
-            switch status {
-            case .undetermined:
-                AVAudioApplication.requestRecordPermission { granted in
-                    DispatchQueue.main.async {
-                        self.microphoneAuthorized = granted
-                    }
+    func requestMicrophonePermission(completion: (() -> Void)? = nil) {
+        let status = AVAudioApplication.shared.recordPermission
+        switch status {
+        case .undetermined:
+            AVAudioApplication.requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    self.microphoneAuthorized = granted
+                    completion?()
                 }
-            case .granted:
-                self.microphoneAuthorized = true
-            case .denied:
-                self.microphoneAuthorized = false
-            @unknown default:
-                break
+            }
+        case .granted:
+            self.microphoneAuthorized = true
+            completion?()
+        case .denied:
+            self.microphoneAuthorized = false
+            completion?()
+        @unknown default:
+            completion?()
         }
     }
     
     // MARK: - Speech Recognition Permission
-    func requestSpeechPermission() {
+    func requestSpeechPermission(completion: (() -> Void)? = nil) {
         let status = SFSpeechRecognizer.authorizationStatus()
         switch status {
         case .notDetermined:
             SFSpeechRecognizer.requestAuthorization { authStatus in
                 DispatchQueue.main.async {
                     self.speechAuthorized = authStatus == .authorized
+                    completion?()
                 }
             }
         case .authorized:
             self.speechAuthorized = true
+            completion?()
         case .denied, .restricted:
             self.speechAuthorized = false
+            completion?()
         @unknown default:
-            break
+            completion?()
+        }
+    }
+    
+    // MARK: - Notification Permission
+    func requestNotificationPermission(completion: (() -> Void)? = nil) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            DispatchQueue.main.async {
+                self.notificationAuthorized = granted
+                if granted {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+                completion?()
+            }
         }
     }
     
     // MARK: - App Tracking Transparency Permission
-    func requestTrackingPermission() {
+    func requestTrackingPermission(completion: (() -> Void)? = nil) {
         if #available(iOS 14, *) {
             let status = ATTrackingManager.trackingAuthorizationStatus
             self.trackingStatus = status
@@ -103,25 +157,23 @@ class PermissionManager: ObservableObject {
                     DispatchQueue.main.async {
                         self?.trackingStatus = authStatus
                         self?.trackingAuthorized = authStatus == .authorized
-                        
-                        if authStatus == .authorized {
-                            print("✅ Tracking authorized")
-                        } else {
-                            print("❌ Tracking denied: \(authStatus)")
-                        }
+                        completion?()
                     }
                 }
             case .authorized:
                 self.trackingAuthorized = true
                 self.trackingStatus = .authorized
+                completion?()
             case .denied, .restricted:
                 self.trackingAuthorized = false
                 self.trackingStatus = status
+                completion?()
             @unknown default:
-                break
+                completion?()
             }
         } else {
             self.trackingAuthorized = true
+            completion?()
         }
     }
     
@@ -130,6 +182,12 @@ class PermissionManager: ObservableObject {
         cameraAuthorized = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         microphoneAuthorized = AVAudioSession.sharedInstance().recordPermission == .granted
         speechAuthorized = SFSpeechRecognizer.authorizationStatus() == .authorized
+        
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                self.notificationAuthorized = settings.authorizationStatus == .authorized
+            }
+        }
         
         if #available(iOS 14, *) {
             trackingStatus = ATTrackingManager.trackingAuthorizationStatus
@@ -155,56 +213,6 @@ class PermissionManager: ObservableObject {
     @available(iOS 14, *)
     func checkTrackingPermission() -> ATTrackingManager.AuthorizationStatus {
         return ATTrackingManager.trackingAuthorizationStatus
-    }
-    
-    // MARK: - Custom Pre-Permission Alert (локалізований)
-    func showPrePermissionAlert(
-        for type: PermissionType,
-        from viewController: UIViewController,
-        completion: @escaping (Bool) -> Void
-    ) {
-        let titleKey: LocalizableKey
-        let messageKey: LocalizableKey
-        
-        switch type {
-        case .camera:
-            titleKey = .permissionCameraTitle
-            messageKey = .permissionCameraMessage
-        case .microphone:
-            titleKey = .permissionMicrophoneTitle
-            messageKey = .permissionMicrophoneMessage
-        case .speech:
-            titleKey = .permissionSpeechTitle
-            messageKey = .permissionSpeechMessage
-        case .tracking:
-            titleKey = .permissionTrackingTitle
-            messageKey = .permissionTrackingMessage
-        case .notification:
-            titleKey = .permissionNotificationTitle
-            messageKey = .permissionNotificationMessage
-        }
-        
-        let alert = UIAlertController(
-            title: localizationManager.string(titleKey),
-            message: localizationManager.string(messageKey),
-            preferredStyle: .alert
-        )
-        
-        alert.addAction(UIAlertAction(
-            title: localizationManager.string(.permissionAllow),
-            style: .default
-        ) { _ in
-            completion(true)
-        })
-        
-        alert.addAction(UIAlertAction(
-            title: localizationManager.string(.permissionDeny),
-            style: .cancel
-        ) { _ in
-            completion(false)
-        })
-        
-        viewController.present(alert, animated: true)
     }
     
     // MARK: - Settings Alert when denied (локалізований)

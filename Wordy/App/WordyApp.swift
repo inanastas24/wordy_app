@@ -67,6 +67,9 @@ struct WordyApp: App {
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage: Bool = false
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage: Bool = false
     @AppStorage("learningLanguage") private var learningLanguage: String = ""
+    @AppStorage("hasRequestedPermissions") private var hasRequestedPermissions: Bool = false
+   
+    @State private var isRequestingPermissions = false
    
     init() {
         FirebaseApp.configure()
@@ -76,13 +79,31 @@ struct WordyApp: App {
     
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(authViewModel)
-                .environmentObject(localizationManager)
-                .environmentObject(appState)
-                .environmentObject(profileViewModel)
-                .environmentObject(permissionManager)
-                .environmentObject(subscriptionManager)
+            ZStack {
+                RootView()
+                    .environmentObject(authViewModel)
+                    .environmentObject(localizationManager)
+                    .environmentObject(appState)
+                    .environmentObject(profileViewModel)
+                    .environmentObject(permissionManager)
+                    .environmentObject(subscriptionManager)
+                    .opacity(isRequestingPermissions ? 0 : 1) // Ховаємо UI поки показуємо пермішени
+                
+                // Показуємо splash/loading поки запитуємо пермішени
+                if isRequestingPermissions {
+                    Color.black.ignoresSafeArea()
+                }
+            }
+            .onAppear {
+                // Запитуємо пермішени при першому вході
+                if !hasRequestedPermissions {
+                    isRequestingPermissions = true
+                    permissionManager.requestAllPermissions {
+                        hasRequestedPermissions = true
+                        isRequestingPermissions = false
+                    }
+                }
+            }
         }
     }
 }

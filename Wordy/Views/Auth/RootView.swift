@@ -56,9 +56,9 @@ enum AppFlow: Equatable {
     case appLanguage
     case learningLanguage
     case notifications
-    case paywall        // Обов'язковий paywall для нових
-    case mainApp        // 🆕 Для всіх авторизованих (включаючи expired)
-    case biometricAuth  // 🆕 ДОДАЙТЕ цей case
+    case paywall
+    case mainApp
+    case biometricAuth
 }
 
 // MARK: - Root View
@@ -66,7 +66,7 @@ struct RootView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appState: AppState
     
     @State private var currentFlow: AppFlow = .loading
     @State private var deepLinkAction: DeepLinkAction?
@@ -79,10 +79,8 @@ struct RootView: View {
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
     @AppStorage("hasSeenNotifications") private var hasSeenNotifications = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    
-    let onClose: () -> Void = {}
-    let onSubscribe: () -> Void = {}
-    var isBlocker: Bool = false
+    @AppStorage("appLanguage") private var appLanguage: String = ""
+    @AppStorage("learningLanguage") private var learningLanguage: String = ""
     
     var body: some View {
         content
@@ -93,7 +91,6 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openPaywallFromNotification)) { _ in
                 if currentFlow == .mainApp {
                     // Показуємо paywall як sheet з mainApp
-                    // Це обробляється в MainTabView
                 } else {
                     currentFlow = .paywall
                 }
@@ -101,6 +98,7 @@ struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: .userDidLogout)) { _ in
                 print("👤 User logged out, resetting flow")
                 withAnimation {
+                    resetStateOnLogout()
                     currentFlow = .login
                 }
             }
@@ -109,6 +107,12 @@ struct RootView: View {
                 if !isChecking && !isAuthChecked {
                     isAuthChecked = true
                     handleAuthState()
+                }
+            }
+            .onChange(of: authViewModel.isAuthenticated) { _, isAuthenticated in
+                print("🔐 Auth state changed: \(isAuthenticated)")
+                if isAuthenticated {
+                    handleSuccessfulLogin()
                 }
             }
             .onChange(of: isSubscriptionLoaded) { _, loaded in
@@ -130,13 +134,12 @@ struct RootView: View {
             
         case .login:
             LoginView(onComplete: {
-                // Скидаємо onboarding при новому логіні
-                hasCompletedOnboarding = false
-                loadSubscriptionData()
+                print("✅ LoginView onComplete called")
+                handleSuccessfulLogin()
             })
             
         case .appLanguage:
-            LanguageSelectionView(onComplete: {
+            LanguageSelectionView(onComplete: {_ in 
                 hasSelectedLanguage = true
                 withAnimation {
                     determineNextFlow()
@@ -144,7 +147,10 @@ struct RootView: View {
             })
             
         case .learningLanguage:
-            LearningLanguageSelectionView(onComplete: {
+            LearningLanguageSelectionView(onComplete: { selectedLearningLang in
+                // ✅ Отримуємо вибрану мову вивчення і зберігаємо
+                learningLanguage = selectedLearningLang
+                appState.learningLanguage = selectedLearningLang
                 hasSelectedLearningLanguage = true
                 withAnimation {
                     determineNextFlow()
@@ -161,9 +167,8 @@ struct RootView: View {
             
         case .paywall:
             PaywallView(
-                isFirstTime: true,  // Обов'язковий
+                isFirstTime: true,
                 onClose: {
-                    // Не можна закрити без підписки
                     print("⚠️ Paywall cannot be dismissed on first run")
                 },
                 onSubscribe: {
@@ -175,16 +180,14 @@ struct RootView: View {
             )
             
         case .mainApp:
-            // 🆕 Всі авторизовані користувачі йдуть сюди (включаючи expired)
             MainTabView(
                 selectedTab: $selectedTab,
                 deepLinkAction: $deepLinkAction,
                 isFirstTime: false
             )
             
-        case .biometricAuth:  // 🆕 ДОДАЙТЕ обробку цього case
+        case .biometricAuth:
             BiometricAuthView {
-                // Після успішної біометричної автентифікації
                 withAnimation {
                     handleAuthState()
                 }
@@ -192,11 +195,50 @@ struct RootView: View {
         }
     }
     
+    // MARK: - State Management
+    
+    private func resetStateOnLogout() {
+        // ✅ Скидаємо тільки auth-related стани
+        isAuthChecked = false
+        isSubscriptionLoaded = false
+        hasCompletedOnboarding = false
+        // НЕ скидаємо: hasSelectedLanguage, hasSelectedLearningLanguage,
+        // appLanguage, learningLanguage
+    }
+    
+    private func handleSuccessfulLogin() {
+        print("🎯 Handling successful login")
+        
+        // ✅ Відновлюємо збережені мовні налаштування
+        restoreLanguageSettings()
+        
+        // Завантажуємо дані підписки
+        loadSubscriptionData()
+    }
+    
+    private func restoreLanguageSettings() {
+        // Відновлюємо мову додатка
+        if !appLanguage.isEmpty, let savedLanguage = Language(rawValue: appLanguage) {
+            print("🌍 Restoring app language: \(appLanguage)")
+            localizationManager.setLanguage(savedLanguage)
+            hasSelectedLanguage = true
+        }
+        
+        // Відновлюємо мову вивчення
+        if !learningLanguage.isEmpty {
+            print("📚 Restoring learning language: \(learningLanguage)")
+            appState.learningLanguage = learningLanguage
+            hasSelectedLearningLanguage = true
+        } else {
+            // Якщо learningLanguage порожній, скидаємо флаг
+            print("📚 No learning language saved, resetting flag")
+            hasSelectedLearningLanguage = false
+        }
+    }
+    
     private func checkInitialState() {
-        // 🆕 Якщо є збережена сесія і біометрія ввімкнена — пропонуємо її
         if Auth.auth().currentUser != nil &&
            authViewModel.biometricManager.isEnabled {
-            // Показуємо екран з біометрією
             currentFlow = .biometricAuth
         } else if !authViewModel.isCheckingAuth {
             isAuthChecked = true
@@ -238,29 +280,25 @@ struct RootView: View {
         print("   - hasSelectedLearningLanguage: \(hasSelectedLearningLanguage)")
         print("   - hasSeenNotifications: \(hasSeenNotifications)")
         print("   - hasCompletedOnboarding: \(hasCompletedOnboarding)")
+        print("   - appLanguage: \(appLanguage)")
+        print("   - learningLanguage: \(learningLanguage)")
         print("   - status: \(subscriptionManager.status)")
-        print("   - isPremium: \(subscriptionManager.isPremium)")
-        print("   - isTrialActive: \(subscriptionManager.isTrialActive)")
-        print("   - isSubscriptionExpired: \(subscriptionManager.isSubscriptionExpired)")
-        print("   - canUseApp: \(subscriptionManager.canUseApp)")
         
         let nextFlow: AppFlow
         
         if !authViewModel.isAuthenticated {
             nextFlow = .login
-        } else if !hasSelectedLanguage {
+        } else if !hasSelectedLanguage || appLanguage.isEmpty {
             nextFlow = .appLanguage
-        } else if !hasSelectedLearningLanguage {
+        } else if !hasSelectedLearningLanguage || learningLanguage.isEmpty {
+            // ✅ Тепер правильно перевіряємо І флаг І значення
             nextFlow = .learningLanguage
         } else if !hasCompletedOnboarding {
-            // 🆕 Тільки якщо НІКОЛИ не було підписки (unknown), а не expired
-            // Expired користувачі вже проходили onboarding
             hasSeenNotifications = true
             
             if subscriptionManager.status == .unknown {
                 nextFlow = .paywall
             } else {
-                // Якщо була підписка (навіть expired) - пропускаємо paywall
                 hasCompletedOnboarding = true
                 nextFlow = .mainApp
             }
@@ -295,7 +333,6 @@ extension Notification.Name {
     static let userDidLogout = Notification.Name("userDidLogout")
 }
 
-// 🆕 ДОДАЙТЕ цей View для біометричної автентифікації
 struct BiometricAuthView: View {
     let onComplete: () -> Void
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -350,7 +387,6 @@ struct BiometricAuthView: View {
                 .padding(.horizontal, 30)
                 
                 Button {
-                    // Пропускаємо біометрію
                     onComplete()
                 } label: {
                     Text("Використати пароль")
@@ -363,7 +399,6 @@ struct BiometricAuthView: View {
             }
         }
         .onAppear {
-            // Автоматично пробуємо біометрію при появі
             Task {
                 let success = await authViewModel.authenticateWithBiometric()
                 if success {

@@ -12,7 +12,6 @@ import CryptoKit
 struct LoginView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
-    @Environment(\.dismiss) var dismiss
     
     let onComplete: () -> Void
     
@@ -101,7 +100,8 @@ struct LoginView: View {
         .onChange(of: authViewModel.isAuthenticated) { _, isAuthenticated in
             if isAuthenticated && !hasCompleted {
                 hasCompleted = true
-                dismiss()
+                // ❌ Прибрано dismiss() - він тут не працює
+                // ✅ Викликаємо onComplete для переходу в RootView
                 onComplete()
             }
         }

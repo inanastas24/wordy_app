@@ -74,7 +74,10 @@ struct ProfileView: View {
 
             .navigationDestination(isPresented: $showLanguageSelection) {
                 LearningLanguageSelectionView(
-                    onComplete: {},
+                    onComplete: { selectedLanguage in
+                        // Зберігаємо вибрану мову
+                        learningLanguage = LearningLanguage(rawValue: selectedLanguage) ?? .english
+                    },
                     isChangeMode: true,
                     onLanguageChanged: {}
                 )

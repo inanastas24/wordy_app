@@ -1,4 +1,4 @@
-//1
+//
 //  LearningLanguageSelectionView.swift
 //  Wordy
 //
@@ -29,15 +29,15 @@ enum LearningLanguage: String, CaseIterable, Identifiable {
     }
     
     var localDisplayName: String {
-            switch self {
-            case .english: return "English"
-            case .polish: return "Polski"
-            case .german: return "Deutsch"
-            case .french: return "Français"
-            case .spanish: return "Español"
-            case .italian: return "Italiano"
-            }
+        switch self {
+        case .english: return "English"
+        case .polish: return "Polski"
+        case .german: return "Deutsch"
+        case .french: return "Français"
+        case .spanish: return "Español"
+        case .italian: return "Italiano"
         }
+    }
     
     var flag: String {
         switch self {
@@ -59,7 +59,7 @@ struct LearningLanguageSelectionView: View {
     @AppStorage("learningLanguage") private var selectedLanguage: LearningLanguage = .english
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
     
-    let onComplete: () -> Void
+    let onComplete: (String) -> Void
     
     // Для режиму зміни мови (коли вже пройшли онбординг)
     var isChangeMode: Bool = false
@@ -118,7 +118,7 @@ struct LearningLanguageSelectionView: View {
                     } else {
                         // Режим онбордингу - переходимо далі
                         hasSelectedLearningLanguage = true
-                        onComplete()
+                        onComplete(selectedLanguage.rawValue) // Передаємо rawValue (String)
                     }
                 } label: {
                     HStack {
@@ -133,9 +133,9 @@ struct LearningLanguageSelectionView: View {
                     .cornerRadius(25)
                     .shadow(color: Color(hex: "#4ECDC4").opacity(0.3), radius: 10, x: 0, y: 5)
                 }
+                // Видалено .disabled() - кнопка завжди активна бо є дефолтне значення .english
                 .padding(.horizontal, 30)
                 .padding(.bottom, 10)
-                .opacity(1.0) // Кнопка завжди активна
             }
         }
     }
