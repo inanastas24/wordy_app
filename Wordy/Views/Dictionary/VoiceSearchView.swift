@@ -1,10 +1,3 @@
-//
-//  VoiceSearchView.swift
-//  Wordy
-//
-//  Created by Anastasiia Inzer on 11.02.2026.
-//
-
 import SwiftUI
 
 struct VoiceSearchView: View {
@@ -16,9 +9,38 @@ struct VoiceSearchView: View {
     @State private var showResult = false
     @State private var translationResult: TranslationResult?
     @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var selectedLanguage: String = "uk"
     
-    // Жовтий/золотий колір для голосового пошуку
-    private let voiceColor = Color(hex: "#FFD93D")  // Теплий жовтий
+    var onResult: ((String, String) -> Void)?
+    
+    private let voiceColor = Color(hex: "#FFD93D")
+    
+    // 🆕 Мови для вибору
+    private var languageOptions: [(code: String, name: String, flag: String)] {
+        let appLang = appState.appLanguage
+        let learningLang = appState.learningLanguage
+        
+        // Показуємо спочатку мову додатка і мову вивчення
+        var options: [(code: String, name: String, flag: String)] = []
+        
+        if let appOption = speechService.availableLanguages.first(where: { $0.code == appLang }) {
+            options.append(appOption)
+        }
+        if let learningOption = speechService.availableLanguages.first(where: { $0.code == learningLang }),
+           !options.contains(where: { $0.code == learningOption.code }) {
+            options.append(learningOption)
+        }
+        
+        // Додаємо решту мов
+        for lang in speechService.availableLanguages {
+            if !options.contains(where: { $0.code == lang.code }) {
+                options.append(lang)
+            }
+        }
+        
+        return options
+    }
     
     var body: some View {
         NavigationStack {
@@ -26,18 +48,19 @@ struct VoiceSearchView: View {
                 Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                     .ignoresSafeArea()
                 
-                VStack(spacing: 30) {
+                VStack(spacing: 25) {
                     if !showResult {
-                        // Інтерфейс запису
                         Spacer()
                         
-                        Text("Тримаєте кнопку і говоріть")
+                        // 🆕 Селектор мови
+                        languageSelector
+                        
+                        Text(localizationManager.string(.holdToSpeak))
                             .font(.system(size: 18))
                             .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                         
                         // Анімація запису
                         ZStack {
-                            // Пульсуючі кола
                             ForEach(0..<3) { i in
                                 Circle()
                                     .fill(voiceColor.opacity(0.3 - Double(i) * 0.08))
@@ -62,32 +85,62 @@ struct VoiceSearchView: View {
                                 .foregroundColor(.white)
                         }
                         
-                        if speechService.isRecording {
+                        // Розпізнаний текст
+                        if !speechService.recognizedText.isEmpty {
                             Text(speechService.recognizedText)
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(Color(hex: "#4ECDC4"))
-                                .padding()
                                 .multilineTextAlignment(.center)
+                                .padding()
                         }
                         
-                        // Покращена кнопка запису з long press
+                        // 🆕 Показуємо вибрану мову
+                        HStack {
+                            Text(localizationManager.string(.listeningIn))
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                            Text(languageName(selectedLanguage))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
+                        }
+                        
+                        if let error = errorMessage {
+                            Text(error)
+                                .font(.system(size: 14))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        
                         LongPressRecordButton(
                             isRecording: $speechService.isRecording,
                             onPressBegan: {
-                                speechService.startRecording(language: appState.learningLanguage) { _ in }
+                                print("🎤 Starting recording in \(selectedLanguage)")
+                                errorMessage = nil
+                                
+                                speechService.startRecording(language: selectedLanguage) { text in
+                                    guard let text = text, !text.isEmpty else {
+                                        DispatchQueue.main.async {
+                                            errorMessage = localizationManager.string(.recognitionError)
+                                        }
+                                        return
+                                    }
+                                    
+                                    print("🎤 Recognized: '\(text)' in language: \(selectedLanguage)")
+                                    
+                                    DispatchQueue.main.async {
+                                        performSearch(text: text, language: selectedLanguage)
+                                    }
+                                }
                             },
                             onPressEnded: {
                                 speechService.stopRecording()
-                                if !speechService.recognizedText.isEmpty {
-                                    performSearch(speechService.recognizedText)
-                                }
                             },
                             buttonColor: voiceColor
                         )
                         
                         Spacer()
                     } else if let result = translationResult {
-                        // Результат
                         TranslationResultView(result: result, onClose: {
                             dismiss()
                         })
@@ -95,11 +148,11 @@ struct VoiceSearchView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Голосовий пошук")
+            .navigationTitle(localizationManager.string(.voice))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Скасувати") {
+                    Button(localizationManager.string(.cancel)) {
                         dismiss()
                     }
                 }
@@ -107,39 +160,76 @@ struct VoiceSearchView: View {
         }
     }
     
-    private func performSearch(_ text: String) {
-        isLoading = true
-        
-        let translationService = TranslationService()
-        translationService.translate(
-            word: text,
-            appLanguage: appState.appLanguage,
-            learningLanguage: appState.learningLanguage
-        ) { result in
-            isLoading = false
+    // MARK: - UI Components
+    
+    private var languageSelector: some View {
+        VStack(spacing: 12) {
+            Text(localizationManager.string(.selectLanguageToSpeak))
+                .font(.system(size: 14))
+                .foregroundColor(.gray)
             
-            switch result {
-            case .success(let translation):
-                translationResult = translation
-                showResult = true
-                
-                // Зберігаємо в історію
-                let item = SearchItem(
-                    word: translation.original,
-                    translation: translation.translation,
-                    date: Date()
-                )
-                appState.searchHistory.insert(item, at: 0)
-                
-            case .failure:
-                // Скидаємо і пробуємо знову
-                speechService.recognizedText = ""
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(languageOptions, id: \.code) { lang in
+                        VoiceLanguageButton(
+                            flag: lang.flag,
+                            name: lang.name,
+                            isSelected: selectedLanguage == lang.code,
+                            action: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    selectedLanguage = lang.code
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal)
             }
         }
     }
+    
+    private func languageName(_ code: String) -> String {
+        languageOptions.first(where: { $0.code == code })?.name ?? code.uppercased()
+    }
+    
+    private func performSearch(text: String, language: String) {
+            DispatchQueue.main.async {
+                self.onResult?(text, language)
+                self.dismiss()
+            }
+        }
+    }
+
+// MARK: - Language Button
+struct VoiceLanguageButton: View {
+    let flag: String
+    let name: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(flag)
+                    .font(.system(size: 32))
+                Text(name)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : .primary)
+            }
+            .frame(width: 70, height: 70)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color(hex: "#4ECDC4") : Color.gray.opacity(0.2))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color(hex: "#4ECDC4") : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 }
 
-// MARK: - Long Press Record Button (покращена версія)
 struct LongPressRecordButton: View {
     @Binding var isRecording: Bool
     let onPressBegan: () -> Void
@@ -150,20 +240,17 @@ struct LongPressRecordButton: View {
     
     var body: some View {
         ZStack {
-            // Зовнішнє коло (обводка)
             Circle()
                 .stroke(buttonColor.opacity(0.3), lineWidth: 4)
                 .frame(width: 100, height: 100)
                 .scaleEffect(isPressed ? 1.1 : 1.0)
             
-            // Основна кнопка
             Circle()
                 .fill(isRecording ? Color.red : buttonColor)
                 .frame(width: 80, height: 80)
                 .shadow(color: (isRecording ? Color.red : buttonColor).opacity(0.4), radius: 15, x: 0, y: 8)
                 .scaleEffect(isPressed ? 0.95 : 1.0)
             
-            // Іконка
             Image(systemName: isRecording ? "stop.fill" : "mic.fill")
                 .font(.system(size: 32, weight: .semibold))
                 .foregroundColor(.white)

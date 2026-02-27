@@ -88,24 +88,21 @@ struct SearchView: View {
                                     checkCameraPermission()
                                 }
                                 
-                                VoiceActionButton(
-                                    speechService: speechService,
+                                // 🆕 СПРОЩЕНО: Просто відкриваємо VoiceSearchView по тапу
+                                ActionButton(
+                                    icon: "mic.fill",
                                     title: localizationManager.string(.voice),
                                     subtitle: localizationManager.string(.holdToSpeak),
-                                    isDarkMode: localizationManager.isDarkMode,
-                                    language: currentLearningLanguage,
-                                    onResult: { text in
-                                        self.searchText = text
-                                        self.performSearch()
-                                    }
-                                )
+                                    color: voiceColor,
+                                    isDarkMode: localizationManager.isDarkMode
+                                ) {
+                                    isSearchFocused = false
+                                    showVoiceSearch = true
+                                }
                             }
                             .padding(.horizontal, 20)
                             
                             historySection
-                            
-                            // 🆕 ПРИБРАНО кнопку Premium — вона більше не потрібна
-                            // Користувач вже має підписку після onboarding
                             
                             Spacer(minLength: 30)
                         }
@@ -144,10 +141,14 @@ struct SearchView: View {
                     onTextRecognized: { text in }
                 )
             }
+            // 🆕 ОНОВЛЕНО: VoiceSearchView з callback
             .sheet(isPresented: $showVoiceSearch) {
-                VoiceSearchView()
-                    .environmentObject(localizationManager)
-                    .environmentObject(appState)
+                VoiceSearchView { text, language in
+                    print("🎤 SearchView received callback: '\(text)', language: \(language)")
+                    self.performVoiceSearch(text: text, spokenLanguage: language)
+                }
+                .environmentObject(localizationManager)
+                .environmentObject(appState)
             }
             .onChange(of: scannedText) { _, newText in
                 if !newText.isEmpty {
@@ -173,14 +174,12 @@ struct SearchView: View {
             }
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView(
-                    isFirstTime: false,  // 🆕 не перший раз, бо вже був підписником
+                    isFirstTime: false,
                     onClose: {
                         showPaywall = false
                     },
                     onSubscribe: {
                         showPaywall = false
-                        // Опціонально: автоматично виконати пошук після покупки
-                        // performSearch()
                     }
                 )
                 .environmentObject(subscriptionManager)
@@ -413,79 +412,143 @@ struct SearchView: View {
     }
     
     private func showPermissionAlert(for type: PermissionType) {
-            let title: String
-            let message: String
-            
-            switch type {
-            case .camera:
-                title = localizationManager.string(.cameraPermission)
-                message = localizationManager.string(.permissionMessage)
-            case .microphone:
-                title = localizationManager.string(.microphonePermission)
-                message = localizationManager.string(.permissionMessage)
-            case .speech:
-                title = localizationManager.string(.speechPermission)
-                message = localizationManager.string(.permissionMessage)
-            case .tracking:
-                title = localizationManager.string(.trackingPermission)
-                message = localizationManager.string(.permissionMessage)
-            case .notification:  
-                title = localizationManager.string(.permissionNotificationTitle)
-                message = localizationManager.string(.permissionNotificationMessage)
-            }
-            
-            errorTitle = title
-            errorMessage = message
-            showErrorAlert = true
+        let title: String
+        let message: String
+        
+        switch type {
+        case .camera:
+            title = localizationManager.string(.cameraPermission)
+            message = localizationManager.string(.permissionMessage)
+        case .microphone:
+            title = localizationManager.string(.microphonePermission)
+            message = localizationManager.string(.permissionMessage)
+        case .speech:
+            title = localizationManager.string(.speechPermission)
+            message = localizationManager.string(.permissionMessage)
+        case .tracking:
+            title = localizationManager.string(.trackingPermission)
+            message = localizationManager.string(.permissionMessage)
+        case .notification:
+            title = localizationManager.string(.permissionNotificationTitle)
+            message = localizationManager.string(.permissionNotificationMessage)
         }
+        
+        errorTitle = title
+        errorMessage = message
+        showErrorAlert = true
+    }
+    
+    // MARK: - Search Methods
     
     private func performSearch() {
-            guard !searchText.isEmpty else { return }
-          
-        if subscriptionManager.isSubscriptionExpired {
-                showPaywall = true
-                return
-            }
-            
-        if !subscriptionManager.canUseApp {
-                showPaywall = true
-                return
-            }
-            
-            isSearchFocused = false
-            isLoading = true
+        guard !searchText.isEmpty else { return }
         
-        let learningLang = currentLearningLanguage
-        let appLang = appState.appLanguage
+        // Визначаємо напрямок перекладу для текстового пошуку
+        let detectedLang = translationService.detectLanguageSync(searchText)
+        let fromLang: String
+        let toLang: String
         
-        guard !learningLang.isEmpty else {
-            isLoading = false
-            errorTitle = "Помилка"
-            errorMessage = "Оберіть мову для вивчення в налаштуваннях"
-            showErrorAlert = true
+        if let detected = detectedLang {
+            if detected == appState.appLanguage {
+                fromLang = appState.appLanguage
+                toLang = currentLearningLanguage
+            } else {
+                fromLang = currentLearningLanguage
+                toLang = appState.appLanguage
+            }
+        } else {
+            fromLang = currentLearningLanguage
+            toLang = appState.appLanguage
+        }
+        
+        executeTranslation(word: searchText, fromLang: fromLang, toLang: toLang)
+    }
+    
+    // 🆕 ОНОВЛЕНИЙ МЕТОД: З явною мовою
+    private func performVoiceSearch(text: String, spokenLanguage: String) {
+        let detectedLang = translationService.detectLanguageSync(text)
+           let actualLanguage = detectedLang ?? spokenLanguage
+        print("🎤 performVoiceSearch called with: '\(text)', spokenLanguage: \(spokenLanguage)")
+        print("🎤 App language: \(appState.appLanguage), Learning: \(currentLearningLanguage)")
+        
+        guard !text.isEmpty else {
+            print("🎤 Text is empty, returning")
             return
         }
         
+        if subscriptionManager.isSubscriptionExpired {
+            showPaywall = true
+            return
+        }
+        
+        if !subscriptionManager.canUseApp {
+            showPaywall = true
+            return
+        }
+        
+        // 🆕 ПРАВИЛЬНА ЛОГІКА:
+        // Якщо spokenLanguage == мова додатка (uk) → перекладаємо на мову вивчення (pl)
+        // Якщо spokenLanguage == мова вивчення (pl) → перекладаємо на мову додатка (uk)
+        
+        let fromLang: String
+        let toLang: String
+        
+        if spokenLanguage == appState.appLanguage {
+            // Користувач говорить мовою додатка (українською)
+            // uk → pl
+            fromLang = appState.appLanguage      // uk
+            toLang = currentLearningLanguage      // pl
+            print("🎤 User spoke APP language (\(spokenLanguage)): \(fromLang) → \(toLang)")
+        } else if spokenLanguage == currentLearningLanguage {
+            // Користувач говорить мовою вивчення (польською)
+            // pl → uk
+            fromLang = currentLearningLanguage    // pl
+            toLang = appState.appLanguage         // uk
+            print("🎤 User spoke LEARNING language (\(spokenLanguage)): \(fromLang) → \(toLang)")
+        } else {
+            // Інша мова → перекладаємо на мову додатка
+            fromLang = spokenLanguage
+            toLang = appState.appLanguage
+            print("🎤 User spoke OTHER language (\(spokenLanguage)): \(fromLang) → \(toLang)")
+        }
+        
+        print("🎤 Final direction: \(fromLang) → \(toLang)")
+        
+        // Оновлюємо поле пошуку
+        self.searchText = text
+        
+        executeTranslation(word: text, fromLang: fromLang, toLang: toLang)
+    }
+    
+    // 🆕 УНІВЕРСАЛЬНИЙ МЕТОД: Виконання перекладу
+    private func executeTranslation(word: String, fromLang: String, toLang: String) {
+        print("🎤 executeTranslation: \(word), \(fromLang) → \(toLang)")
+        
+        isSearchFocused = false
+        isLoading = true
+        
         Task {
             do {
-                try await FirestoreService.shared.logSearch(query: searchText, result: "searching")
+                try await FirestoreService.shared.logSearch(query: word, result: "searching")
             } catch {
                 print("Помилка логування: \(error)")
             }
         }
         
         translationService.translate(
-            word: searchText,
-            appLanguage: appLang,
-            learningLanguage: learningLang
+            word: word,
+            fromLanguage: fromLang,
+            toLanguage: toLang
         ) { result in
             isLoading = false
             
             switch result {
             case .success(let translation):
+                print("🎤 Translation success: \(translation.original) → \(translation.translation)")
+                
                 Task {
                     do {
-                        try await FirestoreService.shared.logSearch(query: searchText, result: translation.translation)
+                        try await FirestoreService.shared.logSearch(query: word, result: translation.translation)
                     } catch {
                         print("Помилка логування: \(error)")
                     }
@@ -500,9 +563,11 @@ struct SearchView: View {
                 searchText = ""
                 
             case .failure(let error):
+                print("🎤 Translation error: \(error)")
+                
                 Task {
                     do {
-                        try await FirestoreService.shared.logSearch(query: searchText, result: "error: \(error.localizedDescription)")
+                        try await FirestoreService.shared.logSearch(query: word, result: "error: \(error.localizedDescription)")
                     } catch {
                         print("Помилка логування: \(error)")
                     }

@@ -19,20 +19,37 @@ struct TextScannerView: View {
     @State private var isCameraReady = false
     @State private var cameraError: String?
     
+    @State private var isFrozen = false
+    @State private var capturedImage: UIImage?
+    @State private var photoOutput = AVCapturePhotoOutput()
+    @State private var imageSize: CGSize = .zero
+    
     var body: some View {
         ZStack {
-            // Чорний фон
             Color.black.ignoresSafeArea()
             
-            // Камера
-            CameraPreview(session: session)
-                .ignoresSafeArea()
-                .opacity(isCameraReady ? 1 : 0)
+            if !isFrozen {
+                CameraPreview(session: session)
+                    .ignoresSafeArea()
+                    .opacity(isCameraReady ? 1 : 0)
+            }
             
-            // Розпізнані слова поверх камери
-            if isCameraReady {
+            if let image = capturedImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .ignoresSafeArea()
+                    .background(GeometryReader { geo in
+                        Color.clear.onAppear {
+                            imageSize = geo.size
+                        }
+                    })
+            }
+            
+            GeometryReader { geo in
                 WordsOverlay(
                     words: recognizedWords,
+                    containerSize: geo.size,
                     onWordTap: { word in
                         scannedText = word
                         onTextRecognized?(word)
@@ -40,14 +57,12 @@ struct TextScannerView: View {
                     }
                 )
             }
+            .ignoresSafeArea()
             
-            // Кнопка закриття
             VStack {
                 HStack {
                     Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
+                    Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 32))
                             .foregroundColor(.white)
@@ -58,31 +73,82 @@ struct TextScannerView: View {
                 Spacer()
             }
             
-            // Підказка знизу
+            if !isFrozen && isCameraReady {
+                VStack {
+                    Spacer()
+                    Button(action: capturePhoto) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 72, height: 72)
+                                .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 4)
+                            Circle()
+                                .stroke(Color.white, lineWidth: 4)
+                                .frame(width: 80, height: 80)
+                        }
+                    }
+                    .padding(.bottom, 100)
+                }
+            }
+            
+            if isFrozen {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 40) {
+                        Button(action: retakePhoto) {
+                            VStack(spacing: 8) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 24))
+                                Text(localizationManager.string(.retakeText))
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(12)
+                        }
+                        
+                        Button { dismiss() } label: {
+                            VStack(spacing: 8) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 24))
+                                Text(localizationManager.string(.doneText))
+                                    .font(.system(size: 14))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "#4ECDC4"))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.bottom, 40)
+                }
+            }
+            
             VStack {
                 Spacer()
-                Text(localizationManager.string(.tapWordToTranslate))
+                Text(isFrozen ? localizationManager.string(.tapWordToTranslate) : localizationManager.string(.tapToCapture))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(Color.black.opacity(0.6))
                     .cornerRadius(20)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, isFrozen ? 140 : 40)
             }
             
-            // Індикатор завантаження
-            if !isCameraReady && cameraError == nil {
+            if !isCameraReady && cameraError == nil && !isFrozen {
                 VStack(spacing: 12) {
                     ProgressView()
                         .scaleEffect(1.5)
                         .tint(.white)
-                    Text("Запуск камери...")
+                    Text(localizationManager.string(.startingCameraText))
                         .foregroundColor(.white)
                 }
             }
             
-            // Помилка камери
             if let error = cameraError {
                 VStack(spacing: 16) {
                     Image(systemName: "camera.fill")
@@ -91,7 +157,7 @@ struct TextScannerView: View {
                     Text(error)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
-                    Button("Закрити") { dismiss() }
+                    Button(localizationManager.string(.closeText)) { dismiss() }
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
@@ -105,203 +171,29 @@ struct TextScannerView: View {
         .onDisappear { session.stopRunning() }
     }
     
-    private func setupCamera() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-                    DispatchQueue.main.async { self.cameraError = "Камера не знайдена" }
-                    return
-                }
-                
-                let input = try AVCaptureDeviceInput(device: device)
-                let output = AVCaptureVideoDataOutput()
-                output.setSampleBufferDelegate(TextRecognitionHandler.shared, queue: DispatchQueue(label: "textRecognition"))
-                output.alwaysDiscardsLateVideoFrames = true
-                
-                self.session.beginConfiguration()
-                
-                if self.session.canAddInput(input) {
-                    self.session.addInput(input)
-                }
-                
-                if self.session.canAddOutput(output) {
-                    self.session.addOutput(output)
-                }
-                
-                self.session.commitConfiguration()
-                
-                TextRecognitionHandler.shared.onWordsRecognized = { words in
-                    DispatchQueue.main.async {
-                        self.recognizedWords = words
-                    }
-                }
-                
-                self.session.startRunning()
-                
-                DispatchQueue.main.async {
-                    self.isCameraReady = true
-                }
-                
-            } catch {
-                DispatchQueue.main.async {
-                    self.cameraError = "Помилка камери: \(error.localizedDescription)"
-                }
+    private func capturePhoto() {
+        let settings = AVCapturePhotoSettings()
+        settings.flashMode = .auto
+        
+        let delegate = PhotoCaptureDelegate { image in
+                    print("📸 Фото отримано, розмір: \(image.size)")
+            DispatchQueue.main.async {
+                self.capturedImage = image
+                self.isFrozen = true
+                self.session.stopRunning()
+                self.imageSize = CGSize(width: image.size.width, height: image.size.height)
+                self.recognizeTextInImage(image)
             }
         }
-    }
-}
-
-// MARK: - Розпізнане слово
-struct RecognizedWord: Identifiable {
-    let id = UUID()
-    let text: String
-    let boundingBox: CGRect
-    let confidence: Float
-}
-
-// MARK: - Превью камери
-struct CameraPreview: UIViewRepresentable {
-    let session: AVCaptureSession
-    
-    func makeUIView(context: Context) -> VideoPreviewView {
-        let view = VideoPreviewView()
-        view.videoPreviewLayer.session = session
-        view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        return view
-    }
-    
-    func updateUIView(_ uiView: VideoPreviewView, context: Context) {
-        uiView.videoPreviewLayer.frame = uiView.bounds
-    }
-}
-
-class VideoPreviewView: UIView {
-    override class var layerClass: AnyClass {
-        return AVCaptureVideoPreviewLayer.self
-    }
-    
-    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
-        return layer as! AVCaptureVideoPreviewLayer
-    }
-}
-
-// MARK: - Оверлей зі словами (просто кнопки без рамок)
-struct WordsOverlay: View {
-    let words: [RecognizedWord]
-    let onWordTap: (String) -> Void
-    
-    // Фільтруємо дублікати та слова, що перекриваються
-    private var filteredWords: [RecognizedWord] {
-        var unique: [RecognizedWord] = []
-        var seenTexts: Set<String> = []
         
-        for word in words {
-            let lowerText = word.text.lowercased()
-            
-            // Пропускаємо дублікати за текстом
-            guard !seenTexts.contains(lowerText) else { continue }
-            
-            // Пропускаємо слова, що занадто близько до вже доданих (перекриття)
-            let isOverlapping = unique.contains { existing in
-                let dx = abs(existing.boundingBox.midX - word.boundingBox.midX)
-                let dy = abs(existing.boundingBox.midY - word.boundingBox.midY)
-                return dx < 0.15 && dy < 0.08 // Мінімальна відстань
-            }
-            
-            guard !isOverlapping else { continue }
-            
-            seenTexts.insert(lowerText)
-            unique.append(word)
-        }
-        
-        return unique.prefix(8).sorted { $0.boundingBox.minY > $1.boundingBox.minY } // Зверху вниз
+        objc_setAssociatedObject(photoOutput, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        photoOutput.capturePhoto(with: settings, delegate: delegate)
     }
     
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                ForEach(filteredWords) { word in
-                    WordButton(
-                        word: word,
-                        screenSize: geometry.size,
-                        onTap: { onWordTap(word.text) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Кнопка слова (з покращеним стилем)
-// MARK: - Кнопка слова (з обмеженням позицій)
-struct WordButton: View {
-    let word: RecognizedWord
-    let screenSize: CGSize
-    let onTap: () -> Void
-    
-    // Обмежуємо позицію в межах екрану з відступами
-    private var position: CGPoint {
-        let padding: CGFloat = 60 // Відступ від країв
+    private func recognizeTextInImage(_ image: UIImage) {
+        guard let cgImage = image.cgImage else { return }
         
-        let rawX = word.boundingBox.midX * screenSize.width
-        let rawY = (1 - word.boundingBox.midY) * screenSize.height
-        
-        let clampedX = max(padding, min(screenSize.width - padding, rawX))
-        let clampedY = max(100, min(screenSize.height - 150, rawY)) // Відступ зверху/знизу
-        
-        return CGPoint(x: clampedX, y: clampedY)
-    }
-    
-    // Розмір пропорційний до bounding box
-    private var fontSize: CGFloat {
-        let height = word.boundingBox.height * screenSize.height
-        return max(12, min(18, height * 0.5)) // Менший розмір
-    }
-    
-    // Максимальна ширина бабла
-    private var maxWidth: CGFloat {
-        screenSize.width * 0.7
-    }
-    
-    var body: some View {
-        Button(action: onTap) {
-            Text(word.text)
-                .font(.system(size: fontSize, weight: .semibold))
-                .foregroundColor(.black)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .frame(maxWidth: maxWidth)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(hex: "#FFD93D"))
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                )
-        }
-        .position(position)
-    }
-}
-
-// MARK: - Обробник розпізнавання тексту
-@MainActor
-class TextRecognitionHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    static let shared = TextRecognitionHandler()
-    
-    var onWordsRecognized: (([RecognizedWord]) -> Void)?
-    private var lastRecognitionTime: Date = Date()
-    
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        // Обмеження: максимум 2 рази на секунду
-        let now = Date()
-        guard now.timeIntervalSince(lastRecognitionTime) >= 0.5 else { return }
-        lastRecognitionTime = now
-        
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        
-        let request = VNRecognizeTextRequest { [weak self] request, error in
-            guard let self = self else { return }
-            
+        let request = VNRecognizeTextRequest { request, error in
             if let error = error {
                 print("❌ Recognition error: \(error)")
                 return
@@ -311,22 +203,18 @@ class TextRecognitionHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             
             let words = results.compactMap { observation -> RecognizedWord? in
                 guard let candidate = observation.topCandidates(1).first else { return nil }
-                
                 let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard text.count >= 2 else { return nil } // Мінімум 2 символи
+                guard text.count >= 3 else { return nil }
                 
                 return RecognizedWord(
                     text: text,
                     boundingBox: observation.boundingBox,
                     confidence: candidate.confidence
                 )
-            }
-            
-            // Топ-15 за впевненістю
-            let topWords = Array(words.sorted { $0.confidence > $1.confidence }.prefix(15))
+            }.sorted { $0.confidence > $1.confidence }
             
             DispatchQueue.main.async {
-                self.onWordsRecognized?(topWords)
+                self.recognizedWords = Array(words.prefix(12))
             }
         }
         
@@ -334,12 +222,150 @@ class TextRecognitionHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         request.recognitionLanguages = ["en", "uk", "de", "fr", "es", "it", "pl"]
         request.usesLanguageCorrection = true
         
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up)
         
-        do {
-            try handler.perform([request])
-        } catch {
-            print("❌ Handler error: \(error)")
+        DispatchQueue.global(qos: .userInitiated).async {
+            do { try handler.perform([request]) }
+            catch { print("❌ Handler error: \(error)") }
+        }
+    }
+    
+    private func retakePhoto() {
+        capturedImage = nil
+        recognizedWords = []
+        isFrozen = false
+        imageSize = .zero
+        setupCamera()
+    }
+    
+    private func setupCamera() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.session.beginConfiguration()
+            self.session.inputs.forEach { self.session.removeInput($0) }
+            self.session.outputs.forEach { self.session.removeOutput($0) }
+            
+            do {
+                guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                    DispatchQueue.main.async {
+                        self.cameraError = self.localizationManager.string(.cameraNotFoundText)
+                    }
+                    return
+                }
+                
+                let input = try AVCaptureDeviceInput(device: device)
+                if self.session.canAddInput(input) { self.session.addInput(input) }
+                if self.session.canAddOutput(self.photoOutput) { self.session.addOutput(self.photoOutput) }
+                
+                self.session.commitConfiguration()
+                self.session.startRunning()
+                
+                DispatchQueue.main.async { self.isCameraReady = true }
+            } catch {
+                DispatchQueue.main.async { self.cameraError = error.localizedDescription }
+            }
+        }
+    }
+}
+
+class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
+    let completion: (UIImage) -> Void
+    init(completion: @escaping (UIImage) -> Void) {
+        self.completion = completion
+        super.init()
+    }
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error { return }
+        guard let imageData = photo.fileDataRepresentation(),
+              let image = UIImage(data: imageData) else { return }
+        completion(image)
+    }
+}
+
+struct RecognizedWord: Identifiable {
+    let id = UUID()
+    let text: String
+    let boundingBox: CGRect
+    let confidence: Float
+}
+
+struct CameraPreview: UIViewRepresentable {
+    let session: AVCaptureSession
+    func makeUIView(context: Context) -> VideoPreviewView {
+        let view = VideoPreviewView()
+        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+    func updateUIView(_ uiView: VideoPreviewView, context: Context) {
+        uiView.videoPreviewLayer.frame = uiView.bounds
+    }
+}
+
+class VideoPreviewView: UIView {
+    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+    var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+}
+
+// MARK: - Оверлей з вертикальними колонками
+struct WordsOverlay: View {
+    let words: [RecognizedWord]
+    let containerSize: CGSize
+    let onWordTap: (String) -> Void
+    
+    // Кількість колонок
+    private let columns = 2
+    
+    var body: some View {
+        let layout = calculateLayout()
+        
+        HStack(alignment: .top, spacing: 20) {
+            ForEach(0..<columns, id: \.self) { colIndex in
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(layout[colIndex]) { word in
+                        WordButton(word: word, onTap: { onWordTap(word.text) })
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 100)
+    }
+    
+    // Розподіляємо слова по колонках зверху вниз
+    private func calculateLayout() -> [[RecognizedWord]] {
+        var result: [[RecognizedWord]] = Array(repeating: [], count: columns)
+        
+        for (index, word) in words.enumerated() {
+            let col = index % columns
+            result[col].append(word)
+        }
+        
+        return result
+    }
+}
+
+// MARK: - Кнопка слова
+struct WordButton: View {
+    let word: RecognizedWord
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            Text(word.text)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .truncationMode(.tail)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(hex: "#FFD93D"))
+                        .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 2)
+                )
         }
     }
 }

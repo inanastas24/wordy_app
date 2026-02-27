@@ -463,7 +463,50 @@ class TranslationService {
             return !blocked.contains(lower) && !blocked.contains { lower.contains($0) }
         }
     }
-    
+    func detectLanguageSync(_ text: String) -> String? {
+        let specificChars: [(CharacterSet, String)] = [
+            (CharacterSet(charactersIn: "ґєіїҐЄІЇ"), "uk"),
+            (CharacterSet(charactersIn: "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ"), "pl"),  // 🆕 Польські символи
+            (CharacterSet(charactersIn: "äöüßÄÖÜẞ"), "de"),
+            (CharacterSet(charactersIn: "àâæçéèêëïîôœùûüÿÀÂÆÇÉÈÊËÏÎÔŒÙÛÜŸ"), "fr"),
+            (CharacterSet(charactersIn: "áéíóúüñÁÉÍÓÚÜÑ¿¡"), "es"),
+            (CharacterSet(charactersIn: "àèéìòùÀÈÉÌÒÙ"), "it"),
+            (CharacterSet(charactersIn: "ãõçÃÕÇ"), "pt"),
+        ]
+        
+        for (charset, code) in specificChars {
+            if text.rangeOfCharacter(from: charset) != nil {
+                return code
+            }
+        }
+        
+        // 🆕 Додаткова перевірка для польських слів без специфічних символів
+        let polishWords = ["dzień", "dobry", "cześć", "dziękuję", "proszę", "tak", "nie"]
+        let lowerText = text.lowercased()
+        for word in polishWords {
+            if lowerText.contains(word) {
+                return "pl"
+            }
+        }
+        
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        
+        if let dominant = recognizer.dominantLanguage {
+            let code = dominant.rawValue
+            let supported = ["uk", "en", "es", "de", "fr", "it", "pl", "pt"]
+            if supported.contains(code) {
+                return code
+            }
+        }
+        
+        let latinOnly = text.allSatisfy { char in
+            String(char).rangeOfCharacter(from: .letters) == nil ||
+            String(char).rangeOfCharacter(from: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-' ")) != nil
+        }
+        
+        return latinOnly ? "en" : nil
+    }
     private func detectLanguage(_ text: String) -> String? {
         let specificChars: [(CharacterSet, String)] = [
             (CharacterSet(charactersIn: "ґєіїҐЄІЇ"), "uk"),
@@ -503,6 +546,39 @@ class TranslationService {
     private func deeplLanguageCode(_ code: String) -> String {
         let mapping = ["uk": "UK", "en": "EN", "es": "ES", "de": "DE", "fr": "FR", "it": "IT", "pl": "PL", "pt": "PT"]
         return mapping[code] ?? "EN"
+    }
+    
+    // MARK: - New method with explicit from/to languages
+
+    func translate(word: String, fromLanguage: String, toLanguage: String, completion: @escaping (Result<TranslationResult, TranslationError>) -> Void) {
+        guard !word.isEmpty else {
+            completion(.failure(.noData))
+            return
+        }
+        
+        // Перевірка та конвертація мов
+        let sourceLang = languageNameToCode(fromLanguage)
+        let targetLang = languageNameToCode(toLanguage)
+        
+        guard !sourceLang.isEmpty, !targetLang.isEmpty else {
+            print("❌ Помилка: порожній код мови. source: '\(fromLanguage)'->'\(sourceLang)', target: '\(toLanguage)'->'\(targetLang)'")
+            completion(.failure(.invalidResponse))
+            return
+        }
+        
+        print("🔍 === ПЕРЕКЛАД ===")
+        print("   Слово: '\(word)'")
+        print("   Напрямок: \(sourceLang) → \(targetLang)")
+        
+        fetchEnrichedData(word: word, sourceLang: sourceLang, targetLang: targetLang) { [weak self] enrichedData in
+            self?.performDeepLTranslation(
+                word: word,
+                sourceLang: sourceLang,
+                targetLang: targetLang,
+                enrichedData: enrichedData,
+                completion: completion
+            )
+        }
     }
     
     private func languageNameToCode(_ name: String) -> String {

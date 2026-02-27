@@ -72,7 +72,7 @@ struct PaywallView: View {
             Button {
                 onClose?()
                     if !isFirstTime {
-                        dismiss()  // ✅ Закриваємо через dismiss
+                        dismiss()
                     }
             } label: {
                 Image(systemName: "xmark")
@@ -100,18 +100,31 @@ struct PaywallView: View {
                 .frame(height: 200)
                 .padding(.horizontal, 20)
             
-            Image(systemName: "sparkles")
-                .font(.system(size: 80))
-                .foregroundColor(accentColor)
+            // 🆕 Краща іконка для підписки
+            VStack(spacing: 16) {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 60))
+                    .foregroundColor(Color(hex: "#FFD700"))
+                
+                Image(systemName: "star.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(accentColor)
+            }
         }
         .padding(.top, 10)
     }
     
     private var titleSection: some View {
         VStack(spacing: 12) {
-            Text(localized(.try3DaysFree))
+            Text(localizationManager.string(.try3DaysFree))
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .multilineTextAlignment(.center)
+            
+            // 🆕 Підзаголовок що пробний період для обох тарифів
+            Text(localizationManager.string(.trialAppliesToBoth))
+                .font(.system(size: 14))
+                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 30)
@@ -120,12 +133,12 @@ struct PaywallView: View {
     
     private var featuresSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            FeatureRow(icon: "checkmark", text: localized(.feature1), isDarkMode: localizationManager.isDarkMode)
-            FeatureRow(icon: "checkmark", text: localized(.feature2), isDarkMode: localizationManager.isDarkMode)
-            FeatureRow(icon: "checkmark", text: localized(.feature3), isDarkMode: localizationManager.isDarkMode)
-            FeatureRow(icon: "checkmark", text: localized(.feature4), isDarkMode: localizationManager.isDarkMode)
-            FeatureRow(icon: "checkmark", text: localized(.feature5), isDarkMode: localizationManager.isDarkMode)
-            FeatureRow(icon: "checkmark", text: localized(.feature6), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature1), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature2), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature3), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature4), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature5), isDarkMode: localizationManager.isDarkMode)
+            FeatureRow(icon: "checkmark", text: localizationManager.string(.feature6), isDarkMode: localizationManager.isDarkMode)
         }
         .padding(.horizontal, 30)
     }
@@ -162,7 +175,7 @@ struct PaywallView: View {
                         .tint(.white)
                         .scaleEffect(0.8)
                 }
-                Text(localized(.startFreeTrial))
+                Text(localizationManager.string(.startFreeTrial))
                     .font(.system(size: 18, weight: .bold))
             }
             .foregroundColor(.white)
@@ -190,7 +203,7 @@ struct PaywallView: View {
     
     private var trialInfoSection: some View {
         VStack(spacing: 8) {
-            Text(localized(.trialPriceInfo))
+            Text(localizationManager.string(.trialPriceInfo))
                 .font(.system(size: 14))
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
                 .multilineTextAlignment(.center)
@@ -200,7 +213,7 @@ struct PaywallView: View {
                     .foregroundColor(accentColor)
                     .font(.system(size: 12))
                 
-                Text(localized(.noPaymentNow))
+                Text(localizationManager.string(.noPaymentNow))
                     .font(.system(size: 13))
                     .foregroundColor(accentColor)
             }
@@ -212,7 +225,7 @@ struct PaywallView: View {
         Button {
             showHowTrialWorks = true
         } label: {
-            Text(localized(.howTrialWorks))
+            Text(localizationManager.string(.howTrialWorks))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(accentColor)
                 .underline()
@@ -222,14 +235,14 @@ struct PaywallView: View {
     private var termsSection: some View {
         VStack(spacing: 8) {
             HStack(spacing: 4) {
-                Text(localized(.byContinuing))
+                Text(localizationManager.string(.byContinuing))
                     .font(.system(size: 12))
                     .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
                 
                 Button {
                     showTerms = true
                 } label: {
-                    Text(localized(.termsOfService))
+                    Text(localizationManager.string(.termsOfService))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(accentColor)
                 }
@@ -241,7 +254,7 @@ struct PaywallView: View {
                 Button {
                     showPrivacy = true
                 } label: {
-                    Text(localized(.privacyPolicy))
+                    Text(localizationManager.string(.privacyPolicy))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(accentColor)
                 }
@@ -263,7 +276,6 @@ struct PaywallView: View {
                 return
             }
         
-        // 🆕 Захист від подвійного натискання
             guard !isPurchasing else {
                 print("⚠️ Already purchasing, ignoring")
                 return
@@ -290,10 +302,6 @@ struct PaywallView: View {
                 }
             }
         }
-    
-    private func localized(_ key: PaywallKey) -> String {
-        PaywallLocalization.shared.string(key, for: localizationManager.currentLanguage)
-    }
 }
 
 struct FeatureRow: View {
@@ -335,15 +343,8 @@ struct PricingOptionCard: View {
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(isDarkMode ? .white : Color(hex: "#2C3E50"))
                         
-                        if isYearly {
-                            Text("3 days FREE")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(accentColor)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(accentColor.opacity(0.2))
-                                .cornerRadius(4)
-                        }
+                        // ❌ Видалено лейбу "3 days FREE" - тепер вона не потрібна
+                        // бо пробний період є для обох тарифів
                     }
                     
                     if isYearly {
@@ -477,6 +478,7 @@ struct HowTrialWorksView: View {
     }
 }
 
+// MARK: - HowTrialWorks Localization (залишаємо окремо бо це тільки для цього екрану)
 enum HowTrialWorksKey {
     case howItWorksTitle, today, todayDescription, in2Days, in2DaysDescription, in3Days, in3DaysDescription, done
 }
@@ -496,37 +498,6 @@ class HowTrialWorksLocalization {
     ]
     
     func string(_ key: HowTrialWorksKey, for language: Language) -> String {
-        translations[key]?[language] ?? ""
-    }
-}
-
-enum PaywallKey {
-    case try3DaysFree, feature1, feature2, feature3, feature4, feature5, feature6
-    case startFreeTrial, trialPriceInfo, noPaymentNow, howTrialWorks
-    case byContinuing, termsOfService, privacyPolicy
-}
-
-class PaywallLocalization {
-    static let shared = PaywallLocalization()
-    
-    private let translations: [PaywallKey: [Language: String]] = [
-        .try3DaysFree: [.ukrainian: "3 дні безкоштовно!", .english: "Try 3 Days Free!", .polish: "3 dni za darmo!"],
-        .feature1: [.ukrainian: "Покращуйте англійську з тисячами нових слів", .english: "Improve your English with thousands of new words", .polish: "Ulepszaj angielski z tysiącami nowych słów"],
-        .feature2: [.ukrainian: "Використовуйте речення від ChatGPT, колокації та переклади", .english: "Use ChatGPT-generated sentences, collocations and translations", .polish: "Używaj zdań od ChatGPT, kolokacji i tłumaczeń"],
-        .feature3: [.ukrainian: "Створюйте власний словник з Oxford Dictionary", .english: "Create your own vocabulary with Oxford Dictionary", .polish: "Twórz własny słownik z Oxford Dictionary"],
-        .feature4: [.ukrainian: "Групуйте слова, створюйте списки та колекції", .english: "Group words, craft lists, and tailor your collections", .polish: "Grupuj słowa, twórz listy i kolekcje"],
-        .feature5: [.ukrainian: "Необмежені вправи для запам'ятовування слів", .english: "Do unlimited practice exercises and make words stick", .polish: "Nieograniczone ćwiczenia do zapamiętywania słów"],
-        .feature6: [.ukrainian: "Приєднуйтесь до глобальних викликів та тестів", .english: "Join global challenges: take themed tests", .polish: "Dołącz do globalnych wyzwań i testów"],
-        .startFreeTrial: [.ukrainian: "Почати безкоштовно", .english: "Start Free Trial", .polish: "Rozpocznij za darmo"],
-        .trialPriceInfo: [.ukrainian: "3 дні безкоштовно, потім обраний тариф", .english: "3 days free, then selected plan", .polish: "3 dni za darmo, potem wybrany plan"],
-        .noPaymentNow: [.ukrainian: "Немає оплати зараз. Скасувати можна в будь-який момент.", .english: "No payment due now. Cancel anytime.", .polish: "Brak płatności teraz. Anuluj w każdej chwili."],
-        .howTrialWorks: [.ukrainian: "Як працює пробний період", .english: "How your free trial works", .polish: "Jak działa okres próbny"],
-        .byContinuing: [.ukrainian: "Продовжуючи, ви погоджуєтесь з", .english: "By continuing, you agree to", .polish: "Kontynuując, zgadzasz się na"],
-        .termsOfService: [.ukrainian: "Умовами", .english: "Terms", .polish: "Warunki"],
-        .privacyPolicy: [.ukrainian: "Політикою", .english: "Privacy", .polish: "Prywatność"]
-    ]
-    
-    func string(_ key: PaywallKey, for language: Language) -> String {
         translations[key]?[language] ?? ""
     }
 }

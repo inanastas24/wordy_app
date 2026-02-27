@@ -209,11 +209,28 @@ struct RootView: View {
     private func handleSuccessfulLogin() {
         print("🎯 Handling successful login")
         
-        // ✅ Відновлюємо збережені мовні налаштування
         restoreLanguageSettings()
         
-        // Завантажуємо дані підписки
-        loadSubscriptionData()
+        // 🆕 Спробуємо відновити покупки - якщо є активна підписка, вона відновиться
+        Task {
+            let restored = await subscriptionManager.restorePurchases()
+            
+            await MainActor.run {
+                if restored {
+                    print("✅ Subscription restored, going to main app")
+                    hasCompletedOnboarding = true
+                    hasSeenNotifications = true
+                    isSubscriptionLoaded = true
+                    
+                    withAnimation {
+                        currentFlow = .mainApp
+                    }
+                } else {
+                    print("📦 No subscription found, continuing with onboarding")
+                    loadSubscriptionData()
+                }
+            }
+        }
     }
     
     private func restoreLanguageSettings() {

@@ -143,6 +143,14 @@ enum LocalizableKey: String {
     case manageSubscription
     case restorePurchases
     case permissionNotificationTitle, permissionNotificationMessage
+    
+    case try3DaysFree, trialAppliesToBoth, feature1, feature2, feature3, feature4, feature5, feature6
+    case startFreeTrial, trialPriceInfo, noPaymentNow, howTrialWorks
+    case byContinuing
+    case selectLanguageToSpeak
+    case listeningIn
+    case recognitionError
+    case tapToCapture, tapWordToTranslateText, retakeText, doneText, startingCameraText, cameraNotFoundText, closeText
 }
 
 public class LocalizationManager: ObservableObject {
@@ -858,12 +866,124 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Додаток надсилатиме нагадування про навчання та повторення слів",
             .english: "The app will send reminders for learning and word reviews",
             .polish: "Aplikacja będzie wysyłać przypomnienia o nauce i powtórkach słów"
+        ],
+        .try3DaysFree: [
+            .ukrainian: "3 дні безкоштовно!",
+            .english: "Try 3 Days Free!",
+            .polish: "3 dni za darmo!"
+        ],
+        .trialAppliesToBoth: [
+            .ukrainian: "Пробний період діє для будь-якого тарифу",
+            .english: "Free trial available for both plans",
+            .polish: "Okres próbny dostępny dla obu planów"
+        ],
+        .feature1: [
+            .ukrainian: "Покращуйте англійську з тисячами нових слів",
+            .english: "Improve your English with thousands of new words",
+            .polish: "Ulepszaj angielski z tysiącami nowych słów"
+        ],
+        .feature2: [
+            .ukrainian: "Використовуйте речення від ChatGPT, колокації та переклади",
+            .english: "Use ChatGPT-generated sentences, collocations and translations",
+            .polish: "Używaj zdań od ChatGPT, kolokacji i tłumaczeń"
+        ],
+        .feature3: [
+            .ukrainian: "Створюйте власний словник з Oxford Dictionary",
+            .english: "Create your own vocabulary with Oxford Dictionary",
+            .polish: "Twórz własny słownik z Oxford Dictionary"
+        ],
+        .feature4: [
+            .ukrainian: "Групуйте слова, створюйте списки та колекції",
+            .english: "Group words, craft lists, and tailor your collections",
+            .polish: "Grupuj słowa, twórz listy i kolekcje"
+        ],
+        .feature5: [
+            .ukrainian: "Необмежені вправи для запам'ятовування слів",
+            .english: "Do unlimited practice exercises and make words stick",
+            .polish: "Nieograniczone ćwiczenia do zapamiętywania słów"
+        ],
+        .feature6: [
+            .ukrainian: "Приєднуйтесь до глобальних викликів та тестів",
+            .english: "Join global challenges: take themed tests",
+            .polish: "Dołącz do globalnych wyzwań i testów"
+        ],
+        .startFreeTrial: [
+            .ukrainian: "Почати безкоштовно",
+            .english: "Start Free Trial",
+            .polish: "Rozpocznij za darmo"],
+        .trialPriceInfo: [
+            .ukrainian: "3 дні безкоштовно, потім обраний тариф",
+            .english: "3 days free, then selected plan",
+            .polish: "3 dni za darmo, potem wybrany plan"
+        ],
+        .noPaymentNow: [
+            .ukrainian: "Немає оплати зараз. Скасувати можна в будь-який момент.",
+            .english: "No payment due now. Cancel anytime.",
+            .polish: "Brak płatności teraz. Anuluj w każdej chwili."
+        ],
+        .howTrialWorks: [
+            .ukrainian: "Як працює пробний період",
+            .english: "How your free trial works",
+            .polish: "Jak działa okres próbny"
+        ],
+        .byContinuing: [
+            .ukrainian: "Продовжуючи, ви погоджуєтесь з",
+            .english: "By continuing, you agree to",
+            .polish: "Kontynuując, zgadzasz się na"
+        ],
+        .selectLanguageToSpeak: [
+            .ukrainian: "Оберіть мову для розмови",
+            .english: "Select language to speak",
+            .polish: "Wybierz język do mówienia"
+        ],
+        .listeningIn: [
+            .ukrainian: "Слухаю:",
+            .english: "Listening in:",
+            .polish: "Słucham:"
+        ],
+        .recognitionError: [
+            .ukrainian: "Не вдалося розпізнати мову. Спробуйте ще раз.",
+            .english: "Could not recognize speech. Please try again.",
+            .polish: "Nie udało się rozpoznać mowy. Spróbuj ponownie."
+        ],
+        .tapToCapture: [
+            .ukrainian: "Натисніть кнопку, щоб зробити фото",
+            .english: "Tap the button to take a photo",
+            .polish: "Naciśnij przycisk, aby zrobić zdjęcie"
+        ],
+        .tapWordToTranslateText: [
+            .ukrainian: "Торкніться слова для перекладу",
+            .english: "Tap a word to translate",
+            .polish: "Dotknij słowa, aby przetłumaczyć"
+        ],
+        .retakeText: [
+            .ukrainian: "Ще раз",
+            .english: "Retake",
+            .polish: "Ponów"
+        ],
+        .doneText: [
+            .ukrainian: "Готово",
+            .english: "Done",
+            .polish: "Gotowe"
+        ],
+        .startingCameraText: [
+            .ukrainian: "Запуск камери...",
+            .english: "Starting camera...",
+            .polish: "Uruchamianie kamery..."
+        ],
+        .cameraNotFoundText: [
+            .ukrainian: "Камера не знайдена",
+            .english: "Camera not found",
+            .polish: "Nie znaleziono kamery"
+        ],
+        .closeText: [
+            .ukrainian: "Закрити",
+            .english: "Close",
+            .polish: "Zamknij"
         ]
-        
     ]
 }
 
 extension Notification.Name {
     static let languageChanged = Notification.Name("languageChanged")
 }
-

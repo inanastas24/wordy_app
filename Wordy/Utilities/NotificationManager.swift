@@ -5,7 +5,6 @@
 //  Created by Anastasiia Inzer on 23.02.2026.
 //
 
-
 import Foundation
 import UserNotifications
 import Combine
@@ -28,40 +27,57 @@ class NotificationManager: NSObject, ObservableObject {
         }
     }
     
-    func scheduleTrialReminder(daysLeft: Int) {
-        guard daysLeft > 0 else { return }
+    // MARK: - 🆕 Головний метод для планування нотифікацій
+    func scheduleTrialNotifications(expirationDate: Date) {
+        // Скасовуємо старі
+        removeAllNotifications()
         
-        // Скасовуємо старі сповіщення
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["trial_reminder"])
+        let calendar = Calendar.current
+        let now = Date()
         
-        let content = UNMutableNotificationContent()
-        content.title = localizedTitle()
-        content.body = localizedBody(daysLeft: daysLeft)
-        content.sound = .default
-        content.categoryIdentifier = "TRIAL_REMINDER"
+        // 1. Нагадування за 24 години до закінчення
+        let reminderDate = calendar.date(byAdding: .hour, value: -24, to: expirationDate)!
+        if reminderDate > now {
+            scheduleNotification(
+                identifier: "trial_reminder_24h",
+                title: localizedReminderTitle(),
+                body: localizedReminderBody(),
+                date: reminderDate
+            )
+        }
         
-        // Час сповіщення - за 24 години до закінчення (тобто через daysLeft-1 днів)
-        let triggerDays = max(daysLeft - 1, 0)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(triggerDays * 24 * 60 * 60), repeats: false)
+        // 2. Нагадування в день закінчення trial
+        if expirationDate > now {
+            scheduleNotification(
+                identifier: "trial_ended",
+                title: localizedEndTitle(),
+                body: localizedEndBody(),
+                date: expirationDate
+            )
+        }
         
-        let request = UNNotificationRequest(identifier: "trial_reminder", content: content, trigger: trigger)
-        
-        UNUserNotificationCenter.current().add(request)
+        print("✅ Scheduled trial notifications for: \(expirationDate)")
     }
     
-    func scheduleTrialEndNotification() {
+    // 🆕 ДОДАНО: Загальний метод планування нотифікацій
+    private func scheduleNotification(identifier: String, title: String, body: String, date: Date) {
         let content = UNMutableNotificationContent()
-        content.title = localizedEndTitle()
-        content.body = localizedEndBody()
+        content.title = title
+        content.body = body
         content.sound = .default
-        content.categoryIdentifier = "TRIAL_ENDED"
         
-        // Через 3 дні (коли trial закінчується)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3 * 24 * 60 * 60, repeats: false)
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         
-        let request = UNNotificationRequest(identifier: "trial_ended", content: content, trigger: trigger)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to schedule notification \(identifier): \(error)")
+            } else {
+                print("✅ Scheduled: \(identifier) at \(date)")
+            }
+        }
     }
     
     func removeAllNotifications() {
@@ -69,7 +85,7 @@ class NotificationManager: NSObject, ObservableObject {
     }
     
     // MARK: - Localization
-    private func localizedTitle() -> String {
+    private func localizedReminderTitle() -> String {
         let lang = LocalizationManager.shared.currentLanguage
         switch lang {
         case .ukrainian: return "⏰ Пробний період скоро закінчиться"
@@ -78,15 +94,12 @@ class NotificationManager: NSObject, ObservableObject {
         }
     }
     
-    private func localizedBody(daysLeft: Int) -> String {
+    private func localizedReminderBody() -> String {
         let lang = LocalizationManager.shared.currentLanguage
         switch lang {
-        case .ukrainian:
-            return daysLeft == 1 ? "Залишився 1 день безкоштовного користування. Оформіть підписку, щоб продовжити!" : "Залишилось \(daysLeft) дні безкоштовного користування. Оформіть підписку!"
-        case .polish:
-            return daysLeft == 1 ? "Pozostał 1 dzień bezpłatnego użytkowania. Kup subskrypcję, aby kontynuować!" : "Pozostało \(daysLeft) dni bezpłatnego użytkowania. Kup subskrypcję!"
-        case .english:
-            return daysLeft == 1 ? "1 day left of free trial. Subscribe to continue!" : "\(daysLeft) days left of free trial. Subscribe now!"
+        case .ukrainian: return "Залишився 1 день безкоштовного користування. Оформіть підписку, щоб продовжити!"
+        case .polish: return "Pozostał 1 dzień bezpłatnego użytkowania. Kup subskrypcję, aby kontynuować!"
+        case .english: return "1 day left of free trial. Subscribe to continue!"
         }
     }
     

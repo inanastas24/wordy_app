@@ -65,9 +65,24 @@ class FirebaseTTSManager: ObservableObject {
     private func checkCache(for text: String, language: String, completion: @escaping (URL?) -> Void) {
         let normalizedText = text.lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression) // Замінити множинні пробіли на один
-        let wordId = "\(normalizedText)_\(language)"
-        let docRef = db.collection("words_collection").document(wordId)
+        
+        // 🆕 Base64 кодування для безпечного ID
+        guard let textData = normalizedText.data(using: .utf8) else {
+            completion(nil)
+            return
+        }
+        
+        let wordHash = textData.base64EncodedString()
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "=", with: "")
+        
+        let wordId = "\(wordHash)_\(language)"
+        
+        // Обмеження довжини Firestore ID - 1500 символів
+        let finalWordId = String(wordId.prefix(1500))
+        
+        let docRef = db.collection("words_collection").document(finalWordId)
         
         docRef.getDocument { snapshot, error in
             if let error = error {
@@ -171,6 +186,7 @@ class FirebaseTTSManager: ObservableObject {
     
     private func playAudio(from url: URL, language: String) {
         print("🔊 Відтворюємо аудіо: \(url.lastPathComponent)")
+        print("🔊 URL для відтворення: \(url.absoluteString)")
         
         do {
             let session = AVAudioSession.sharedInstance()
@@ -182,6 +198,7 @@ class FirebaseTTSManager: ObservableObject {
         
         audioPlayer?.pause()
         
+        // ✅ Використовуємо URL як є, без додаткового кодування
         let playerItem = AVPlayerItem(url: url)
         audioPlayer = AVPlayer(playerItem: playerItem)
         
@@ -192,7 +209,7 @@ class FirebaseTTSManager: ObservableObject {
                     print("▶️ Починаємо відтворення")
                     self?.isPlaying = true
                 case .failed:
-                    print("❌ Помилка плеєра")
+                    print("❌ Помилка плеєра: \(item.error?.localizedDescription ?? "невідома")")
                     self?.isPlaying = false
                     self?.error = "Помилка відтворення"
                 default:

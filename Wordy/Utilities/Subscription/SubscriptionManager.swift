@@ -275,6 +275,13 @@ final class SubscriptionManager: ObservableObject {
                 currentProduct = products.first { $0.id == transaction.productID }
                 print("✅ Active subscription until: \(expirationDate)")
                 
+                // 🆕 Плануємо нотифікації тільки якщо це новий trial (перші 3 дні)
+                // Перевіряємо чи це перша підписка (purchaseDate близько до now)
+                let isNewTrial = isNewTrialPurchase(transaction)
+                if isNewTrial {
+                    NotificationManager.shared.scheduleTrialNotifications(expirationDate: expirationDate)
+                }
+                
             } else {
                 // Grace period перевірка
                 let calendar = Calendar.current
@@ -295,6 +302,13 @@ final class SubscriptionManager: ObservableObject {
             status = .premium(expiryDate: nil, isInGracePeriod: false)
             print("✅ Lifetime subscription")
         }
+    }
+    
+    private func isNewTrialPurchase(_ transaction: StoreKit.Transaction) -> Bool {
+        // Якщо покупка зроблена менше ніж годину тому - це нова
+        let purchaseDate = transaction.purchaseDate
+        let timeSincePurchase = Date().timeIntervalSince(purchaseDate)
+        return timeSincePurchase < 3600 // 1 година
     }
     
     // MARK: - Firestore
