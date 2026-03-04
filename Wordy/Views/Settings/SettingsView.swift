@@ -317,6 +317,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 20)
             
             VStack(spacing: 12) {
+                // Export
                 Button {
                     performExport()
                 } label: {
@@ -329,6 +330,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 
+                // Import
                 Button {
                     showImportPicker = true
                 } label: {
@@ -342,6 +344,32 @@ struct SettingsView: View {
                 .buttonStyle(PlainButtonStyle())
             }
             .padding(.horizontal, 20)
+        }
+        .sheet(isPresented: $showExportSheet) {
+            if let url = exportURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .fileImporter(
+            isPresented: $showImportPicker,
+            allowedContentTypes: [
+                .json,
+                .plainText,
+                UTType(filenameExtension: "csv") ?? .plainText
+            ],
+            allowsMultipleSelection: false
+        ) { result in
+            handleImport(result: result)
+        }
+        .alert(importCompletedTitle(), isPresented: $showImportSuccess) {
+            Button("OK") { }
+        } message: {
+            Text(importCompletedMessage(count: importedCount))
+        }
+        .alert(localizationManager.string(.error), isPresented: $showError) {
+            Button("OK") { }
+        } message: {
+            Text(errorMessage ?? "Unknown error")
         }
     }
     
@@ -444,54 +472,74 @@ struct SettingsView: View {
     }
     
     private func performExport() {
-        Task {
-            do {
-                let words = try await FirestoreService.shared.fetchWords()
-                let savedWords = words.map { model in
-                    SavedWord(
-                        original: model.original,
-                        translation: model.translation,
-                        transcription: model.transcription ?? "",
-                        exampleSentence: model.exampleSentence ?? "",
-                        languagePair: model.languagePair
-                    )
-                }
-                let fileURL = try DictionaryExportService.exportWords(savedWords)
-                exportURL = fileURL
-                showExportSheet = true
-            } catch {
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-        }
-    }
-    
-    private func handleImport(result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            
             Task {
                 do {
-                    let count = try await DictionaryExportService.importWords(from: url)
+                    let words = try await FirestoreService.shared.fetchWords()
+                    
+                    let format: ExportFormat = .json
+                    let url = try await DictionaryExportService.exportWords(
+                        words,
+                        format: format,
+                        language: localizationManager.currentLanguage
+                    )
                     
                     await MainActor.run {
-                        importedCount = count
-                        showImportSuccess = true
+                        exportURL = url
+                        showExportSheet = true
+                    }
+                } catch let error as ExportImportError {
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription(for: localizationManager.currentLanguage)
+                        showError = true
                     }
                 } catch {
                     await MainActor.run {
-                        errorMessage = error.localizedDescription
+                        errorMessage = ExportImportError.fileCreationFailed.localizedDescription(for: localizationManager.currentLanguage)
                         showError = true
                     }
                 }
             }
-            
-        case .failure(let error):
-            errorMessage = error.localizedDescription
-            showError = true
         }
-    }
+
+    private func handleImport(result: Result<[URL], Error>) {
+           switch result {
+           case .success(let urls):
+               guard let url = urls.first else { return }
+               
+               Task {
+                   do {
+                       let (count, _, words) = try await DictionaryExportService.importWords(
+                           from: url,
+                           language: localizationManager.currentLanguage
+                       )
+                       
+                       // Зберігаємо імпортовані слова
+                       for word in words {
+                           try? await FirestoreService.shared.saveWord(word)
+                       }
+                       
+                       await MainActor.run {
+                           importedCount = count
+                           showImportSuccess = true
+                       }
+                   } catch let error as ExportImportError {
+                       await MainActor.run {
+                           errorMessage = error.localizedDescription(for: localizationManager.currentLanguage)
+                           showError = true
+                       }
+                   } catch {
+                       await MainActor.run {
+                           errorMessage = ExportImportError.importFailed.localizedDescription(for: localizationManager.currentLanguage)
+                           showError = true
+                       }
+                   }
+               }
+               
+           case .failure(let error):
+               errorMessage = error.localizedDescription
+               showError = true
+           }
+       }
     
     private func importCompletedTitle() -> String {
         switch localizationManager.currentLanguage {
@@ -500,13 +548,44 @@ struct SettingsView: View {
         case .english: return "Import completed"
         }
     }
-    
+
     private func importCompletedMessage(count: Int) -> String {
         switch localizationManager.currentLanguage {
-        case .ukrainian: return "Імпортовано \(count) слів"
-        case .polish: return "Zaimportowano \(count) słów"
-        case .english: return "Imported \(count) words"
+        case .ukrainian:
+            let word = pluralizeUkrainian(count)
+            return "Імпортовано \(count) \(word)"
+        case .polish:
+            let word = pluralizePolish(count)
+            return "Zaimportowano \(count) \(word)"
+        case .english:
+            return "Imported \(count) \(count == 1 ? "word" : "words")"
         }
+    }
+
+    private func pluralizeUkrainian(_ count: Int) -> String {
+        let lastDigit = count % 10
+        let lastTwoDigits = count % 100
+        
+        if lastTwoDigits >= 11 && lastTwoDigits <= 19 {
+            return "слів"
+        }
+        
+        switch lastDigit {
+        case 1: return "слово"
+        case 2...4: return "слова"
+        default: return "слів"
+        }
+    }
+
+    private func pluralizePolish(_ count: Int) -> String {
+        if count == 1 { return "słowo" }
+        let lastDigit = count % 10
+        let lastTwoDigits = count % 100
+        
+        if lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 10 || lastTwoDigits >= 20) {
+            return "słowa"
+        }
+        return "słów"
     }
     
     private func logoutConfirmationTitle() -> String {

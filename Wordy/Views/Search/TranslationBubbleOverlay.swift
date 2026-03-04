@@ -1,4 +1,3 @@
-//1
 //  TranslationBubbleOverlay.swift
 //  Wordy
 //
@@ -16,6 +15,7 @@ struct TranslationBubbleOverlay: View {
     @Binding var translationResult: TranslationResult?
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var onboardingManager: OnboardingManager
     
     @State private var showingSynonymAlert = false
     @State private var selectedSynonym = ""
@@ -31,6 +31,8 @@ struct TranslationBubbleOverlay: View {
     @State private var synonymTranslations: [String: String] = [:]
     @State private var isLoadingSynonyms = false
     @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @State private var didSetContext = false
+    @State private var scrollViewProxy: ScrollViewProxy? = nil
     
     enum SaveState: Equatable {
         case idle, loading, success, error(String)
@@ -44,7 +46,6 @@ struct TranslationBubbleOverlay: View {
         if let informal = result.informalTranslation, !informal.isEmpty, informal != result.translation {
             syns.insert(informal, at: 0)
         }
-        // Видаляємо дублікати зберігаючи порядок, замість Set
         var seen = Set<String>()
         var unique: [String] = []
         for syn in syns {
@@ -70,94 +71,110 @@ struct TranslationBubbleOverlay: View {
                 .animation(.easeInOut(duration: 0.3), value: showingSynonymDetail)
             
             GeometryReader { geometry in
-                ScrollView {
-                    VStack {
-                        Spacer(minLength: geometry.size.height * 0.05)
-                        
-                        VStack(spacing: 20) {
-                            HStack {
-                                Spacer()
-                                Button(action: closeCard) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.6) : Color(hex: "#7F8C8D"))
-                                        .padding(8)
-                                        .background(Circle().fill(Color.gray.opacity(0.2)))
-                                }
-                            }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack {
+                            Spacer(minLength: geometry.size.height * 0.05)
                             
-                            wordSection(
-                                text: result.original,
-                                language: originalLanguage,
-                                isPrimary: true
-                            )
-                            
-                            if let ipa = result.ipaTranscription {
-                                Text(ipa)
-                                    .font(.system(size: 16, design: .serif))
-                                    .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-                            }
-                            
-                            Divider().opacity(0.5)
-                            
-                            wordSection(
-                                text: result.translation,
-                                language: translationLanguage,
-                                isPrimary: false
-                            )
-                            
-                            if let informal = result.informalTranslation, !informal.isEmpty {
-                                HStack(spacing: 8) {
-                                    Text("розмовне:")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                    Text(informal)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-                                        .italic()
-                                    
-                                    Button(action: { speak(text: informal, language: translationLanguage) }) {
-                                        Image(systemName: "speaker.wave.2")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(Color(hex: "#4ECDC4"))
+                            VStack(spacing: 20) {
+                                HStack {
+                                    Spacer()
+                                    Button(action: closeCard) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.6) : Color(hex: "#7F8C8D"))
+                                            .padding(8)
+                                            .background(Circle().fill(Color.gray.opacity(0.2)))
                                     }
                                 }
-                                .padding(.top, -10)
+                                
+                                wordSection(
+                                    text: result.original,
+                                    language: originalLanguage,
+                                    isPrimary: true
+                                )
+                                
+                                if let ipa = result.ipaTranscription {
+                                    Text(ipa)
+                                        .font(.system(size: 16, design: .serif))
+                                        .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                                }
+                                
+                                Divider().opacity(0.5)
+                                
+                                wordSection(
+                                    text: result.translation,
+                                    language: translationLanguage,
+                                    isPrimary: false
+                                )
+                                
+                                if let informal = result.informalTranslation, !informal.isEmpty {
+                                    HStack(spacing: 8) {
+                                        Text("розмовне:")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                        Text(informal)
+                                            .font(.system(size: 16))
+                                            .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
+                                            .italic()
+                                        
+                                        Button(action: { speak(text: informal, language: translationLanguage) }) {
+                                            Image(systemName: "speaker.wave.2")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(Color(hex: "#4ECDC4"))
+                                        }
+                                    }
+                                    .padding(.top, -10)
+                                }
+                                
+                                examplesSection
+                                
+                                if !filteredSynonyms.isEmpty {
+                                    synonymsSection
+                                }
+                                
+                                // Save Button з онбордингом - тільки тут!
+                                saveButton
+                                    .id("saveButton")
+                                    .onboardingStep(.addToDictionary)
+                                    .padding(.bottom, 120) // Великий відступ щоб уникнути перетину з меню
                             }
+                            .padding(24)
+                            .background(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .fill(.ultraThinMaterial)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 24)
+                                            .fill(localizationManager.isDarkMode ? Color.black.opacity(0.4) : Color.white.opacity(0.8))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 24)
+                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            .frame(maxWidth: min(geometry.size.width - 40, 380))
+                            .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
+                            .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+                            .padding(.horizontal, 20)
                             
-                            examplesSection
-                            
-                            if !filteredSynonyms.isEmpty {
-                                synonymsSection
-                            }
-                            
-                            saveButton
+                            Spacer(minLength: geometry.size.height * 0.05)
                         }
-                        .padding(24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 24)
-                                .fill(.ultraThinMaterial)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 24)
-                                        .fill(localizationManager.isDarkMode ? Color.black.opacity(0.4) : Color.white.opacity(0.8))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 24)
-                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                )
-                        )
-                        .frame(maxWidth: min(geometry.size.width - 40, 380))
-                        .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
-                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 20)
-                        
-                        Spacer(minLength: geometry.size.height * 0.05)
+                        .frame(minHeight: geometry.size.height)
                     }
-                    .frame(minHeight: geometry.size.height)
+                    .onAppear {
+                        // Автоматично скролимо до кнопки якщо це онбординг
+                        if onboardingManager.currentStep == .addToDictionary {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation {
+                                    proxy.scrollTo("saveButton", anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
                 }
+                .blur(radius: showingSynonymDetail ? 3 : 0)
+                .animation(.easeInOut(duration: 0.3), value: showingSynonymDetail)
             }
-            .blur(radius: showingSynonymDetail ? 3 : 0)
-            .animation(.easeInOut(duration: 0.3), value: showingSynonymDetail)
             
             if showingSynonymDetail, let detail = selectedSynonymDetail {
                 synonymDetailModal(detail: detail)
@@ -166,6 +183,9 @@ struct TranslationBubbleOverlay: View {
         .onAppear {
             loadSynonymTranslations()
         }
+        // Додати disabled модифікатор:
+        .disabled(onboardingManager.isBlockingInteraction &&
+                  onboardingManager.currentStep == .addToDictionary)
     }
     
     private var filteredSynonyms: [String] {
@@ -612,8 +632,8 @@ struct TranslationBubbleOverlay: View {
     
     private func fetchSynonymDetail(_ synonym: String) async {
         print("🔍 SYNONYM DEBUG: synonym='\(synonym)'")
-           print("🔍 SYNONYM DEBUG: originalLanguage='\(originalLanguage)'")  // fromLanguage результату
-           print("🔍 SYNONYM DEBUG: translationLanguage='\(translationLanguage)'")  // toLanguage результату
+        print("🔍 SYNONYM DEBUG: originalLanguage='\(originalLanguage)'")
+        print("🔍 SYNONYM DEBUG: translationLanguage='\(translationLanguage)'")
         await MainActor.run {
             synonymSaveState = .idle
             synonymScale = 0.9
@@ -650,13 +670,11 @@ struct TranslationBubbleOverlay: View {
             finalTranslation = cached
         } else {
             let translationService = TranslationService()
-            // Синонім - це слово мовою вивчення (originalLanguage/fromLanguage)
-            // Переклад - це мова додатка (translationLanguage/toLanguage)
             finalTranslation = await withCheckedContinuation { continuation in
                 translationService.translateSynonyms(
                     synonyms: [synonym],
                     sourceLang: originalLanguage,
-                    targetLang: translationLanguage    
+                    targetLang: translationLanguage
                 ) { details in
                     let translation = details.first?.translation ?? synonym
                     continuation.resume(returning: translation)
@@ -796,10 +814,10 @@ struct TranslationBubbleOverlay: View {
 
     private func speak(text: String, language: String) {
         print("🔊 DEBUG: speaking '\(text)' with language '\(language)'")
-            print("🔊 DEBUG: detail.language = '\(selectedSynonymDetail?.language ?? "nil")'")
-            print("🔊 DEBUG: originalLanguage = '\(originalLanguage)'")
-            print("🔊 DEBUG: result.fromLanguage = '\(result.fromLanguage)'")
-            print("🔊 DEBUG: result.toLanguage = '\(result.toLanguage)'")
-            ttsManager.speak(text: text, language: language)
+        print("🔊 DEBUG: detail.language = '\(selectedSynonymDetail?.language ?? "nil")'")
+        print("🔊 DEBUG: originalLanguage = '\(originalLanguage)'")
+        print("🔊 DEBUG: result.fromLanguage = '\(result.fromLanguage)'")
+        print("🔊 DEBUG: result.toLanguage = '\(result.toLanguage)'")
+        ttsManager.speak(text: text, language: language)
     }
 }

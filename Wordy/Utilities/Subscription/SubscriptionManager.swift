@@ -110,18 +110,139 @@ final class SubscriptionManager: ObservableObject {
         
         print("⏳ SubscriptionManager.loadSubscriptionData() started")
         
-        // 1. Завантажуємо продукти
-        await loadProductsWithTimeout()
+        // 🆕 Крок 0: Спочатку перевіряємо Firebase (для відновлених/перевстановлених додатків)
+        await checkFirebaseSubscription()
         
-        // 2. Перевіряємо активні підписки від Apple
+        // Якщо знайшли активну підписку в Firebase — синхронізуємо з StoreKit та виходимо
+        if isPremium || isTrialActive {
+            print("✅ Found active subscription in Firebase, skipping StoreKit check")
+            // Завантажуємо продукти для UI, але не перевіряємо entitlements
+            await loadProductsWithTimeout()
+            
+            // Запускаємо слухач для майбутніх оновлень
+            if transactionListener == nil {
+                transactionListener = listenForTransactions()
+            }
+            
+            print("✅ SubscriptionManager.loadSubscriptionData() completed (Firebase): \(status)")
+            return
+        }
+        
+        // Крок 1: Якщо в Firebase немає — перевіряємо StoreKit (нові користувачі)
+        print("📦 No Firebase subscription, checking StoreKit...")
+        await loadProductsWithTimeout()
         await checkStoreKitEntitlements()
         
-        // 3. Запускаємо слухач транзакцій
+        // 🆕 Якщо знайшли в StoreKit — синхронізуємо в Firebase
+        if isPremium || isTrialActive {
+            await syncCurrentSubscriptionToFirebase()
+        }
+        
+        // Крок 2: Запускаємо слухач транзакцій
         if transactionListener == nil {
             transactionListener = listenForTransactions()
         }
         
         print("✅ SubscriptionManager.loadSubscriptionData() completed: \(status)")
+    }
+
+    // MARK: - 🆕 Firebase Methods (НОВІ)
+
+    /// Перевіряє підписку в Firebase (для користувачів, які перевстановили додаток)
+    private func checkFirebaseSubscription() async {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("⚠️ No user ID, skipping Firebase check")
+            return
+        }
+        
+        print("🔥 Checking Firebase subscription for user: \(userId)")
+        
+        do {
+            let doc = try await db.collection("subscriptions").document(userId).getDocument()
+            
+            guard let data = doc.data() else {
+                print("ℹ️ No subscription document in Firebase")
+                return
+            }
+            
+            // Перевіряємо чи підписка активна
+            let isActive = data["isActive"] as? Bool ?? false
+            let expiryTimestamp = data["expiryDate"] as? Timestamp
+            let productId = data["productId"] as? String ?? ""
+            
+            guard isActive, let expiry = expiryTimestamp?.dateValue() else {
+                print("ℹ️ Firebase subscription inactive or no expiry")
+                return
+            }
+            
+            // Перевіряємо чи не протермінована
+            let now = Date()
+            if expiry > now {
+                // 🆕 Активна підписка в Firebase!
+                let isInGracePeriod = data["isInGracePeriod"] as? Bool ?? false
+                
+                status = .premium(expiryDate: expiry, isInGracePeriod: isInGracePeriod)
+                currentProduct = products.first { $0.id == productId }
+                
+                // Зберігаємо дати для UI
+                trialEndDate = expiry
+                
+                print("✅ Found active Firebase subscription: \(productId), expires: \(expiry)")
+            } else {
+                // Підписка протермінована — оновлюємо статус
+                print("⚠️ Firebase subscription expired on: \(expiry)")
+                status = .expired(expiryDate: expiry)
+                
+                // Оновлюємо Firebase що підписка неактивна
+                try? await db.collection("subscriptions").document(userId).updateData([
+                    "isActive": false,
+                    "updatedAt": Timestamp(date: Date())
+                ])
+            }
+            
+        } catch {
+            print("❌ Error fetching Firebase subscription: \(error.localizedDescription)")
+            // Не змінюємо статус — продовжимо з StoreKit
+        }
+    }
+
+    /// Синхронізує поточну StoreKit підписку в Firebase
+    private func syncCurrentSubscriptionToFirebase() async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        guard let userEmail = Auth.auth().currentUser?.email else { return }
+        
+        // Шукаємо активну транзакцію
+        for await result in Transaction.currentEntitlements {
+            do {
+                let transaction = try checkVerified(result)
+                
+                guard transaction.productType == .autoRenewable,
+                      transaction.revocationDate == nil,
+                      let expirationDate = transaction.expirationDate,
+                      expirationDate > Date() else { continue }
+                
+                let data: [String: Any] = [
+                    "userId": userId,
+                    "email": userEmail,
+                    "productId": transaction.productID,
+                    "expiryDate": Timestamp(date: expirationDate),
+                    "isActive": true,
+                    "purchaseDate": Timestamp(date: transaction.purchaseDate),
+                    "updatedAt": Timestamp(date: Date()),
+                    "transactionId": String(transaction.id),
+                    "environment": transaction.environment.rawValue,
+                    "originalTransactionId": transaction.originalID,
+                    "restoredAt": Timestamp(date: Date())  // 🆕 Позначаємо що відновлено
+                ]
+                
+                try await db.collection("subscriptions").document(userId).setData(data, merge: true)
+                print("🔄 Synced StoreKit subscription to Firebase")
+                return  // Беремо першу знайдену
+                
+            } catch {
+                continue
+            }
+        }
     }
     
     func refreshStatus() async {
@@ -182,13 +303,22 @@ final class SubscriptionManager: ObservableObject {
     }
 
     func restorePurchases() async -> Bool {
+        print("🔄 Restoring purchases...")
+        
         do {
             try await AppStore.sync()
+            
+            // 🆕 Спочатку перевіряємо StoreKit
             await checkStoreKitEntitlements()
             
-            if isPremium, let userId = Auth.auth().currentUser?.uid {
-                await updateFirestoreFromCurrentEntitlements(userId: userId)
+            // 🆕 Якщо знайшли — синхронізуємо в Firebase
+            if isPremium || isTrialActive {
+                await syncCurrentSubscriptionToFirebase()
+                return true
             }
+            
+            // 🆕 Якщо в StoreKit немає — перевіряємо Firebase (можливо підписка з іншого пристрою)
+            await checkFirebaseSubscription()
             
             return isPremium
             
@@ -279,7 +409,7 @@ final class SubscriptionManager: ObservableObject {
                 // Перевіряємо чи це перша підписка (purchaseDate близько до now)
                 let isNewTrial = isNewTrialPurchase(transaction)
                 if isNewTrial {
-                    NotificationManager.shared.scheduleTrialNotifications(expirationDate: expirationDate)
+                    NotificationManager.shared.scheduleTrialNotifications(trialStartDate: expirationDate)
                 }
                 
             } else {

@@ -3,6 +3,7 @@
 //  Wordy
 //
 
+
 import SwiftUI
 import WidgetKit
 import FirebaseAuth
@@ -76,10 +77,17 @@ struct RootView: View {
     
     // MARK: - AppStorage flags
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
-    @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
+    @AppStorage("hasSelectedLanguagePair") private var hasSelectedLanguagePair = false
     @AppStorage("hasSeenNotifications") private var hasSeenNotifications = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("appLanguage") private var appLanguage: String = ""
+    
+    // Для LanguagePair
+    @AppStorage("sourceLanguage") private var sourceLanguage: String = ""
+    @AppStorage("targetLanguage") private var targetLanguage: String = ""
+    
+    // ЗАСТАРІЛЕ: залишаємо для зворотної сумісності
+    @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
     @AppStorage("learningLanguage") private var learningLanguage: String = ""
     
     var body: some View {
@@ -139,7 +147,7 @@ struct RootView: View {
             })
             
         case .appLanguage:
-            LanguageSelectionView(onComplete: {_ in 
+            LanguageSelectionView(onComplete: {_ in
                 hasSelectedLanguage = true
                 withAnimation {
                     determineNextFlow()
@@ -147,10 +155,9 @@ struct RootView: View {
             })
             
         case .learningLanguage:
-            LearningLanguageSelectionView(onComplete: { selectedLearningLang in
-                // ✅ Отримуємо вибрану мову вивчення і зберігаємо
-                learningLanguage = selectedLearningLang
-                appState.learningLanguage = selectedLearningLang
+            LearningLanguageSelectionView(onComplete: {
+                hasSelectedLanguagePair = true
+                // Для зворотної сумісності
                 hasSelectedLearningLanguage = true
                 withAnimation {
                     determineNextFlow()
@@ -202,8 +209,29 @@ struct RootView: View {
         isAuthChecked = false
         isSubscriptionLoaded = false
         hasCompletedOnboarding = false
-        // НЕ скидаємо: hasSelectedLanguage, hasSelectedLearningLanguage,
-        // appLanguage, learningLanguage
+        
+        UserDefaults.standard.removeObject(forKey: "hasSelectedLanguage")
+        UserDefaults.standard.removeObject(forKey: "appLanguage")
+        UserDefaults.standard.removeObject(forKey: "hasSelectedLanguagePair")
+        UserDefaults.standard.removeObject(forKey: "sourceLanguage")
+        UserDefaults.standard.removeObject(forKey: "targetLanguage")
+        UserDefaults.standard.removeObject(forKey: "hasSelectedLearningLanguage")
+        UserDefaults.standard.removeObject(forKey: "learningLanguage")
+        UserDefaults.standard.removeObject(forKey: "hasSeenNotifications")
+        UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.removeObject(forKey: "hasRequestedPermissions")
+        UserDefaults.standard.removeObject(forKey: "hasSeenOnboarding")
+        
+        // Скидаємо й локальні @AppStorage змінні
+        hasSelectedLanguage = false
+        hasSelectedLanguagePair = false
+        hasSeenNotifications = false
+        hasCompletedOnboarding = false
+        appLanguage = ""
+        sourceLanguage = ""
+        targetLanguage = ""
+        
+        print("🧹 All onboarding flags reset")
     }
     
     private func handleSuccessfulLogin() {
@@ -211,24 +239,16 @@ struct RootView: View {
         
         restoreLanguageSettings()
         
-        // 🆕 Спробуємо відновити покупки - якщо є активна підписка, вона відновиться
         Task {
-            let restored = await subscriptionManager.restorePurchases()
+            // 🆕 Спочатку завантажуємо дані підписки (не відновлюємо, а просто перевіряємо)
+            await subscriptionManager.loadSubscriptionData()
             
             await MainActor.run {
-                if restored {
-                    print("✅ Subscription restored, going to main app")
-                    hasCompletedOnboarding = true
-                    hasSeenNotifications = true
-                    isSubscriptionLoaded = true
-                    
-                    withAnimation {
-                        currentFlow = .mainApp
-                    }
-                } else {
-                    print("📦 No subscription found, continuing with onboarding")
-                    loadSubscriptionData()
-                }
+                isSubscriptionLoaded = true
+                
+                // 🆕 Тепер determineNextFlow() вирішить куди йти
+                // Він перевірить hasSelectedLanguagePair і покаже learningLanguage якщо треба
+                determineNextFlow()
             }
         }
     }
@@ -241,14 +261,30 @@ struct RootView: View {
             hasSelectedLanguage = true
         }
         
-        // Відновлюємо мову вивчення
-        if !learningLanguage.isEmpty {
-            print("📚 Restoring learning language: \(learningLanguage)")
-            appState.learningLanguage = learningLanguage
-            hasSelectedLearningLanguage = true
+        // Відновлюємо LanguagePair (новий формат)
+        if !sourceLanguage.isEmpty && !targetLanguage.isEmpty {
+            print("🌍 Restoring language pair: \(sourceLanguage) ↔️ \(targetLanguage)")
+            if let source = TranslationLanguage(rawValue: sourceLanguage),
+               let target = TranslationLanguage(rawValue: targetLanguage) {
+                appState.languagePair = LanguagePair(source: source, target: target)
+                hasSelectedLanguagePair = true
+            }
+        }
+        // Зворотна сумісність: якщо є старий формат
+        else if !learningLanguage.isEmpty {
+            print("📚 Restoring learning language (legacy): \(learningLanguage)")
+            // Конвертуємо стару мову в пару (наприклад, en ↔️ uk за замовчуванням)
+            if let lang = TranslationLanguage(rawValue: learningLanguage) {
+                let defaultPair = LanguagePair(source: .english, target: lang)
+                appState.languagePair = defaultPair
+                // Зберігаємо в новому форматі
+                sourceLanguage = defaultPair.source.rawValue
+                targetLanguage = defaultPair.target.rawValue
+                hasSelectedLanguagePair = true
+            }
         } else {
-            // Якщо learningLanguage порожній, скидаємо флаг
-            print("📚 No learning language saved, resetting flag")
+            print("📚 No language pair saved, resetting flag")
+            hasSelectedLanguagePair = false
             hasSelectedLearningLanguage = false
         }
     }
@@ -294,11 +330,12 @@ struct RootView: View {
         print("🔄 Determining next flow...")
         print("   - isAuthenticated: \(authViewModel.isAuthenticated)")
         print("   - hasSelectedLanguage: \(hasSelectedLanguage)")
-        print("   - hasSelectedLearningLanguage: \(hasSelectedLearningLanguage)")
+        print("   - hasSelectedLanguagePair: \(hasSelectedLanguagePair)")
         print("   - hasSeenNotifications: \(hasSeenNotifications)")
         print("   - hasCompletedOnboarding: \(hasCompletedOnboarding)")
         print("   - appLanguage: \(appLanguage)")
-        print("   - learningLanguage: \(learningLanguage)")
+        print("   - sourceLanguage: \(sourceLanguage)")
+        print("   - targetLanguage: \(targetLanguage)")
         print("   - status: \(subscriptionManager.status)")
         
         let nextFlow: AppFlow
@@ -307,8 +344,8 @@ struct RootView: View {
             nextFlow = .login
         } else if !hasSelectedLanguage || appLanguage.isEmpty {
             nextFlow = .appLanguage
-        } else if !hasSelectedLearningLanguage || learningLanguage.isEmpty {
-            // ✅ Тепер правильно перевіряємо І флаг І значення
+        } else if !hasSelectedLanguagePair || sourceLanguage.isEmpty || targetLanguage.isEmpty {
+            // ✅ Перевіряємо LanguagePair (обидві мови)
             nextFlow = .learningLanguage
         } else if !hasCompletedOnboarding {
             hasSeenNotifications = true
@@ -321,6 +358,7 @@ struct RootView: View {
             }
         } else {
             nextFlow = .mainApp
+            selectedTab = 0 
         }
         
         print("➡️ Next flow: \(nextFlow)")

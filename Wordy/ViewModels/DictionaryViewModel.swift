@@ -63,6 +63,17 @@ class DictionaryViewModel: ObservableObject {
         setupAuthStateListener()
     }
     
+    func deleteWord(_ word: SavedWordModel) {
+        // Видалення з Firebase/Firestore
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        guard let wordId = word.id else { return }
+        let db = Firestore.firestore()
+        db.collection("users").document(userId).collection("words").document(wordId).delete()
+        
+        // Оновлення локального списку
+        savedWords.removeAll { $0.id == word.id }
+    }
+    
     // MARK: - Auth State Listener
     private func setupAuthStateListener() {
         authStateListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
@@ -498,3 +509,4 @@ class DictionaryViewModel: ObservableObject {
 extension Notification.Name {
     static let wordsImported = Notification.Name("wordsImported") // НОВЕ
 }
+

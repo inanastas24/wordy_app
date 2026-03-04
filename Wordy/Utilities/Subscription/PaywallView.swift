@@ -20,6 +20,7 @@ struct PaywallView: View {
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showHowTrialWorks = false
+    @State private var showLegalSheet = false
     
     private let accentColor = Color(hex: "#4ECDC4")
     
@@ -48,7 +49,8 @@ struct PaywallView: View {
                     .padding(.top, 16)
                     howTrialWorksButton
                     .padding(.top, 12)
-                    termsSection
+                    legalButton
+                    //termsSection
                     .padding(.top, 20)
                     .padding(.bottom, 40)
                 }
@@ -64,7 +66,21 @@ struct PaywallView: View {
             HowTrialWorksView()
                 .environmentObject(localizationManager)
         }
+        .sheet(isPresented: $showLegalSheet) {
+                    LegalDocumentsSheet()
+                        .environmentObject(localizationManager)
+        }
     }
+    private var legalButton: some View {
+            Button {
+                showLegalSheet = true
+            } label: {
+                Text(localizationManager.currentLanguage == .ukrainian ? "Юридичні документи" : "Legal Documents")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(accentColor)
+                    .underline()
+            }
+        }
     
     private var closeButton: some View {
         HStack {
@@ -271,37 +287,27 @@ struct PaywallView: View {
     }
     
     private func purchaseSelected() {
-        guard let product = selectedProduct else {
-                print("❌ No product selected")
-                return
-            }
+        guard let product = selectedProduct else { return }
         
-            guard !isPurchasing else {
-                print("⚠️ Already purchasing, ignoring")
-                return
-            }
+        isPurchasing = true
+        
+        Task {
+            let success = await subscriptionManager.purchase(product: product)
             
-            isPurchasing = true
-            print("🛒 Starting purchase task for: \(product.id)")
-            
-            Task {
-                defer {
-                    Task { @MainActor in
-                        isPurchasing = false
-                    }
-                }
+            if success {
+                // 🆕 Плануємо нотифікації ПІСЛЯ успішної покупки
+                let trialStartDate = Date()
+                NotificationManager.shared.scheduleTrialNotifications(trialStartDate: trialStartDate)
                 
-                let success = await subscriptionManager.purchase(product: product)
-                print("🛒 Purchase result: \(success)")
-                
-                if success {
-                    await MainActor.run {
-                        onSubscribe?()
-                        dismiss()
-                    }
+                await MainActor.run {
+                    onSubscribe?()
+                    dismiss()
                 }
             }
+            
+            isPurchasing = false
         }
+    }
 }
 
 struct FeatureRow: View {

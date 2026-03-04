@@ -132,7 +132,7 @@ enum LocalizableKey: String {
     case freeTrial, daysLeft, upgrade
     case termsOfService
     case privacyPolicy
-    case upgradeToPremium, trialExplanation
+    case upgradeToPremium, trialExplanation, noPaymentNow, trialWelcomeTitle, trialWelcomeBody, trialReminderBody, trialEndedBody, subscriptionConfirmed
     
     // MARK: - Subscription Keys
     case subscriptionExpired
@@ -145,12 +145,29 @@ enum LocalizableKey: String {
     case permissionNotificationTitle, permissionNotificationMessage
     
     case try3DaysFree, trialAppliesToBoth, feature1, feature2, feature3, feature4, feature5, feature6
-    case startFreeTrial, trialPriceInfo, noPaymentNow, howTrialWorks
+    case startFreeTrial, howTrialWorks
+    case trialPriceInfo
     case byContinuing
     case selectLanguageToSpeak
     case listeningIn
     case recognitionError
     case tapToCapture, tapWordToTranslateText, retakeText, doneText, startingCameraText, cameraNotFoundText, closeText
+    
+    // MARK: - Language Pair Selection (NEW)
+    case selectLanguagesForTranslation
+    case translationWorksBothWays
+    case tapFlagToChangeLanguage
+    case searchInLanguage
+    case translatesTo
+    case language1
+    case language2
+    case popularLanguages
+    case otherLanguages
+    
+    case originalWord, enterTranslation, transcription, optional, example, enterExample, preview
+    case wordAdded, wordUpdated, wordAddedMessage, wordUpdatedMessage, addAnother, done
+    case selectLanguagePair, sourceLanguage, targetLanguage, changesSaved, unknownError
+    case languagePair, translation, permissionPermissionNotificationTitle
 }
 
 public class LocalizationManager: ObservableObject {
@@ -818,9 +835,34 @@ public class LocalizationManager: ObservableObject {
             .polish: "Premium"
         ],
         .trialExplanation: [
-            .ukrainian: "Після 3 днів автоматичне списання. Скасувати можна будь-коли.",
-            .english: "Auto-renews after 3 days. Cancel anytime.",
-            .polish: "Automatyczne odnowienie po 3 dniach. Anuluj w dowolnym momencie."
+            .ukrainian: "3 дні безкоштовно, потім підписка активується автоматично. Скасувати можна будь-коли.",
+            .english: "3 days free, then subscription activates automatically. Cancel anytime.",
+            .polish: "3 dni za darmo, potem subskrypcja aktywuje się automatycznie. Anuluj w dowolnym momencie."
+        ],
+        .trialWelcomeTitle: [
+            .ukrainian: "🎉 Пробний період активовано!",
+            .english: "🎉 Trial period activated!",
+            .polish: "🎉 Okres próbny aktywowany!"
+        ],
+        .trialWelcomeBody: [
+            .ukrainian: "У вас є 3 дні безкоштовного користування. Насолоджуйтесь!",
+            .english: "You have 3 days of free usage. Enjoy!",
+            .polish: "Masz 3 dni bezpłatnego użytkowania. Korzystaj!"
+        ],
+        .trialReminderBody: [
+            .ukrainian: "Залишився 1 день. Підписка почнеться автоматично завтра. Можна скасувати в налаштуваннях.",
+            .english: "1 day left. Subscription starts automatically tomorrow. Cancel in settings.",
+            .polish: "Pozostał 1 dzień. Subskrypcja rozpocznie się automatycznie jutro. Anuluj w ustawieniach."
+        ],
+        .trialEndedBody: [
+            .ukrainian: "Ваша підписка активована! Дякуємо. Можна скасувати будь-коли.",
+            .english: "Your subscription is active! Thank you. Cancel anytime.",
+            .polish: "Twoja subskrypcja jest aktywna! Dziękujemy. Anuluj w dowolnym momencie."
+        ],
+        .subscriptionConfirmed: [
+            .ukrainian: "✅ Підписку оформлено",
+            .english: "✅ Subscribed successfully",
+            .polish: "✅ Subskrypcja aktywowana"
         ],
         .subscriptionExpired: [
             .ukrainian: "Підписка закінчилась",
@@ -831,6 +873,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Підписка активна",
             .english: "Subscription Active",
             .polish: "Subskrypcja aktywna"
+        ],
+        .trialPriceInfo: [
+            .ukrainian: "3 дні безкоштовно, потім обраний тариф",
+            .english: "3 days free, then selected plan",
+            .polish: "3 dni za darmo, potem wybrany plan"
         ],
         .renewSubscription: [
             .ukrainian: "Поновити підписку",
@@ -866,6 +913,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Додаток надсилатиме нагадування про навчання та повторення слів",
             .english: "The app will send reminders for learning and word reviews",
             .polish: "Aplikacja będzie wysyłać przypomnienia o nauce i powtórkach słów"
+        ],
+        .permissionPermissionNotificationTitle: [
+            .ukrainian: "Дозвіл на відправку повідомлень",
+            .english: "Permission to send messages",
+            .polish: "Zgoda na wysyłanie wiadomości"
         ],
         .try3DaysFree: [
             .ukrainian: "3 дні безкоштовно!",
@@ -910,11 +962,7 @@ public class LocalizationManager: ObservableObject {
         .startFreeTrial: [
             .ukrainian: "Почати безкоштовно",
             .english: "Start Free Trial",
-            .polish: "Rozpocznij za darmo"],
-        .trialPriceInfo: [
-            .ukrainian: "3 дні безкоштовно, потім обраний тариф",
-            .english: "3 days free, then selected plan",
-            .polish: "3 dni za darmo, potem wybrany plan"
+            .polish: "Rozpocznij za darmo"
         ],
         .noPaymentNow: [
             .ukrainian: "Немає оплати зараз. Скасувати можна в будь-який момент.",
@@ -980,6 +1028,151 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Закрити",
             .english: "Close",
             .polish: "Zamknij"
+        ],
+        .selectLanguagesForTranslation: [
+            .ukrainian: "Оберіть мови для перекладу",
+            .english: "Select languages for translation",
+            .polish: "Wybierz języki do tłumaczenia"
+        ],
+        .translationWorksBothWays: [
+            .ukrainian: "Переклад працюватиме в обидві сторони",
+            .english: "Translation works both ways",
+            .polish: "Tłumaczenie działa w obie strony"
+        ],
+        .tapFlagToChangeLanguage: [
+            .ukrainian: "Торкніться прапору, щоб змінити мову",
+            .english: "Tap flag to change language",
+            .polish: "Dotknij flagi, aby zmienić język"
+        ],
+        .searchInLanguage: [
+            .ukrainian: "Шукаєте слово мовою",
+            .english: "Search in",
+            .polish: "Szukaj w"
+        ],
+        .translatesTo: [
+            .ukrainian: "→ переклад",
+            .english: "→ translates to",
+            .polish: "→ tłumaczy się na"
+        ],
+        .language1: [
+            .ukrainian: "Мова 1",
+            .english: "Language 1",
+            .polish: "Język 1"
+        ],
+        .language2: [
+            .ukrainian: "Мова 2",
+            .english: "Language 2",
+            .polish: "Język 2"
+        ],
+        .popularLanguages: [
+            .ukrainian: "Популярні мови",
+            .english: "Popular languages",
+            .polish: "Popularne języki"
+        ],
+        .otherLanguages: [
+            .ukrainian: "Інші мови",
+            .english: "Other languages",
+            .polish: "Inne języki"
+        ],
+        .originalWord: [
+            .ukrainian: "Слово",
+            .polish: "Słowo",
+            .english: "Word"
+        ],
+        .enterTranslation: [
+            .ukrainian: "Введіть переклад",
+            .polish: "Wpisz tłumaczenie",
+            .english: "Enter translation"
+        ],
+        .transcription: [
+            .ukrainian: "Транскрипція",
+            .english: "Transcription",
+            .polish: "Transkrypcja"
+        ],
+        .optional: [
+            .ukrainian: "необов'язково",
+            .english: "opcjonalnie",
+            .polish: "optional"
+        ],
+        .example: [
+            .ukrainian: "Приклад",
+            .english: "Example",
+            .polish: "Przykład"
+        ],
+        .enterExample: [
+            .ukrainian: "Введіть приклад речення",
+            .english: "Enter example sentence",
+            .polish: "Wpisz przykładowe zdanie"
+        ],
+        .preview: [
+            .ukrainian: "Попередній перегляд",
+            .english: "Preview",
+            .polish: "Podgląd"
+        ],
+        .wordAdded: [
+            .ukrainian: "Слово додано!",
+            .english: "Word added!",
+            .polish: "Słowo dodane!"
+        ],
+        .wordUpdated: [
+            .ukrainian: "Слово оновлено!",
+            .english: "Word updated!",
+            .polish: "Słowo zaktualizowane!"
+        ],
+        .wordAddedMessage: [
+            .ukrainian: "Слово успішно додано до вашого словника",
+            .english: "Word successfully added to your dictionary",
+            .polish: "Słowo zostało pomyślnie dodane do słownika"
+        ],
+        .wordUpdatedMessage: [
+            .ukrainian: "Зміни успішно збережено",
+            .english: "Changes saved successfully",
+            .polish: "Zmiany zostały pomyślnie zapisane"
+        ],
+        .addAnother: [
+            .ukrainian: "Додати ще",
+            .polish: "Dodaj kolejne",
+            .english: "Add another"
+        ],
+        .done: [
+            .ukrainian: "Готово",
+            .english: "Done",
+            .polish: "Gotowe"
+        ],
+        .selectLanguagePair: [
+            .ukrainian: "Оберіть пару мов",
+            .polish: "Wybierz parę języków",
+            .english: "Select language pair"
+        ],
+        .sourceLanguage: [
+            .ukrainian: "Мова оригіналу",
+            .polish: "Język źródłowy",
+            .english: "Source language"
+        ],
+        .targetLanguage: [
+            .ukrainian: "Мова перекладу",
+            .polish: "Język docelowy",
+            .english: "Target language"
+        ],
+        .changesSaved: [
+            .ukrainian: "Зміни збережено",
+            .polish: "Zmiany zapisane",
+            .english: "Changes saved"
+        ],
+        .unknownError: [
+            .ukrainian: "Невідома помилка",
+            .polish: "Nieznany błąd",
+            .english: "Unknown error"
+        ],
+        .languagePair: [
+            .ukrainian: "Мови для перекладу",
+            .polish: "Języki tłumaczenia",
+            .english: "Languages for translation"
+        ],
+        .translation: [
+            .ukrainian: "Переклад",
+            .english: "Translation",
+            .polish: "Tłumaczenie"
         ]
     ]
 }
@@ -987,3 +1180,4 @@ public class LocalizationManager: ObservableObject {
 extension Notification.Name {
     static let languageChanged = Notification.Name("languageChanged")
 }
+

@@ -10,37 +10,11 @@ struct VoiceSearchView: View {
     @State private var translationResult: TranslationResult?
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var selectedLanguage: String = "uk"
     
-    var onResult: ((String, String) -> Void)?
+    // Callback returns recognized text only - language is determined by AppState
+    var onResult: ((String) -> Void)?
     
     private let voiceColor = Color(hex: "#FFD93D")
-    
-    // 🆕 Мови для вибору
-    private var languageOptions: [(code: String, name: String, flag: String)] {
-        let appLang = appState.appLanguage
-        let learningLang = appState.learningLanguage
-        
-        // Показуємо спочатку мову додатка і мову вивчення
-        var options: [(code: String, name: String, flag: String)] = []
-        
-        if let appOption = speechService.availableLanguages.first(where: { $0.code == appLang }) {
-            options.append(appOption)
-        }
-        if let learningOption = speechService.availableLanguages.first(where: { $0.code == learningLang }),
-           !options.contains(where: { $0.code == learningOption.code }) {
-            options.append(learningOption)
-        }
-        
-        // Додаємо решту мов
-        for lang in speechService.availableLanguages {
-            if !options.contains(where: { $0.code == lang.code }) {
-                options.append(lang)
-            }
-        }
-        
-        return options
-    }
     
     var body: some View {
         NavigationStack {
@@ -52,14 +26,14 @@ struct VoiceSearchView: View {
                     if !showResult {
                         Spacer()
                         
-                        // 🆕 Селектор мови
-                        languageSelector
+                        // 🆕 Спрощений Language Pair Indicator (без "Мова 1 / Мова 2")
+                            //languagePairIndicator
                         
                         Text(localizationManager.string(.holdToSpeak))
                             .font(.system(size: 18))
                             .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                         
-                        // Анімація запису
+                        // Recording Animation
                         ZStack {
                             ForEach(0..<3) { i in
                                 Circle()
@@ -85,7 +59,7 @@ struct VoiceSearchView: View {
                                 .foregroundColor(.white)
                         }
                         
-                        // Розпізнаний текст
+                        // Recognized Text
                         if !speechService.recognizedText.isEmpty {
                             Text(speechService.recognizedText)
                                 .font(.system(size: 20, weight: .medium))
@@ -94,13 +68,18 @@ struct VoiceSearchView: View {
                                 .padding()
                         }
                         
-                        // 🆕 Показуємо вибрану мову
-                        HStack {
-                            Text(localizationManager.string(.listeningIn))
+                        // 🆕 Спрощений текст — просто показуємо пари без "Мова 1/2"
+                        HStack(spacing: 8) {
+                            Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
+                            
+                            Image(systemName: "arrow.left.arrow.right")
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
-                            Text(languageName(selectedLanguage))
-                                .font(.system(size: 12, weight: .semibold))
+                            
+                            Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(Color(hex: "#4ECDC4"))
                         }
                         
@@ -115,10 +94,11 @@ struct VoiceSearchView: View {
                         LongPressRecordButton(
                             isRecording: $speechService.isRecording,
                             onPressBegan: {
-                                print("🎤 Starting recording in \(selectedLanguage)")
+                                print("🎤 Starting recording...")
                                 errorMessage = nil
                                 
-                                speechService.startRecording(language: selectedLanguage) { text in
+                                // Використовуємо source мову для розпізнавання
+                                speechService.startRecording(language: appState.languagePair.source.rawValue) { text in
                                     guard let text = text, !text.isEmpty else {
                                         DispatchQueue.main.async {
                                             errorMessage = localizationManager.string(.recognitionError)
@@ -126,10 +106,11 @@ struct VoiceSearchView: View {
                                         return
                                     }
                                     
-                                    print("🎤 Recognized: '\(text)' in language: \(selectedLanguage)")
+                                    print("🎤 Recognized: '\(text)'")
                                     
                                     DispatchQueue.main.async {
-                                        performSearch(text: text, language: selectedLanguage)
+                                        self.onResult?(text)
+                                        self.dismiss()
                                     }
                                 }
                             },
@@ -160,73 +141,45 @@ struct VoiceSearchView: View {
         }
     }
     
-    // MARK: - UI Components
-    
-    private var languageSelector: some View {
-        VStack(spacing: 12) {
-            Text(localizationManager.string(.selectLanguageToSpeak))
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
-            
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(languageOptions, id: \.code) { lang in
-                        VoiceLanguageButton(
-                            flag: lang.flag,
-                            name: lang.name,
-                            isSelected: selectedLanguage == lang.code,
-                            action: {
-                                withAnimation(.spring(response: 0.3)) {
-                                    selectedLanguage = lang.code
-                                }
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal)
+    // MARK: - 🆕 Спрощений Language Pair Indicator
+    private var languagePairIndicator: some View {
+        HStack(spacing: 16) {
+            // Source Language
+            HStack(spacing: 6) {
+                Text(appState.languagePair.source.flag)
+                    .font(.system(size: 20))
+                Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
             }
-        }
-    }
-    
-    private func languageName(_ code: String) -> String {
-        languageOptions.first(where: { $0.code == code })?.name ?? code.uppercased()
-    }
-    
-    private func performSearch(text: String, language: String) {
-            DispatchQueue.main.async {
-                self.onResult?(text, language)
-                self.dismiss()
-            }
-        }
-    }
-
-// MARK: - Language Button
-struct VoiceLanguageButton: View {
-    let flag: String
-    let name: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Text(flag)
-                    .font(.system(size: 32))
-                Text(name)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .white : .primary)
-            }
-            .frame(width: 70, height: 70)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(hex: "#4ECDC4") : Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color(hex: "#4ECDC4") : Color.clear, lineWidth: 2)
+            
+            // Swap icon (не кнопка, просто індикатор)
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 14))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+            
+            // Target Language
+            HStack(spacing: 6) {
+                Text(appState.languagePair.target.flag)
+                    .font(.system(size: 20))
+                Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.bottom, 10)
     }
 }
 

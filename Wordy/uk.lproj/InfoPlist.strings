@@ -9,3 +9,6 @@ NSSpeechRecognitionUsageDescription = "Дозволяє перетворюват
 
 /* User tracking permission */
 NSUserTrackingUsageDescription = "Це допомагає показувати релевантну рекламу та підтримувати безкоштовність додатку";
+
+/* Face ID permission */
+NSFaceIDUsageDescription = "Wordy використовує Face ID для швидкого та безпечного доступу до облікового запису";

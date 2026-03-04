@@ -23,45 +23,61 @@ struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
+    @StateObject private var onboardingManager = OnboardingManager.shared
+    
     @State private var showPaywallFromNotification = false
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            SearchView(
-                selectedTab: $selectedTab,
-                deepLinkAction: $deepLinkAction
-            )
-            .environmentObject(appState)
-            .environmentObject(localizationManager)
-            .environmentObject(authViewModel)
-            .environmentObject(subscriptionManager)
-            .tabItem {
-                Image(systemName: "magnifyingglass")
-                Text(localizationManager.string(.search))
-            }
-            .tag(0)
-            
-            DictionaryView()
-                .environmentObject(appState)
-                .environmentObject(localizationManager)
-                .tabItem {
-                    Image(systemName: "book.fill")
-                    Text(localizationManager.string(.dictionary))
-                }
-                .tag(1)
-            
-            ProfileView()
+        ZStack {  // ← ДОДАТИ ZStack
+            TabView(selection: $selectedTab) {
+                SearchView(
+                    selectedTab: $selectedTab,
+                    deepLinkAction: $deepLinkAction
+                )
                 .environmentObject(appState)
                 .environmentObject(localizationManager)
                 .environmentObject(authViewModel)
                 .environmentObject(subscriptionManager)
+                .environmentObject(onboardingManager)
                 .tabItem {
-                    Image(systemName: "person.fill")
-                    Text(localizationManager.string(.profile))
+                    Image(systemName: "magnifyingglass")
+                    Text(localizationManager.string(.search))
                 }
-                .tag(2)
-        }
-        .accentColor(Color(hex: "#4ECDC4"))
+                .tag(0)
+                
+                DictionaryView()
+                    .environmentObject(appState)
+                    .environmentObject(localizationManager)
+                    .environmentObject(onboardingManager)
+                    .tabItem {
+                        Image(systemName: "book.fill")
+                        Text(localizationManager.string(.dictionary))
+                    }
+                    .tag(1)
+                
+                ProfileView()
+                    .environmentObject(appState)
+                    .environmentObject(localizationManager)
+                    .environmentObject(authViewModel)
+                    .environmentObject(subscriptionManager)
+                    .tabItem {
+                        Image(systemName: "person.fill")
+                        Text(localizationManager.string(.profile))
+                    }
+                    .tag(2)
+            }
+            .accentColor(Color(hex: "#4ECDC4"))
+            
+            // ← ПЕРЕМІСТИТИ сюди, всередину ZStack
+            if onboardingManager.isShowingOverlay {
+                OnboardingContainerView()
+                    .environmentObject(onboardingManager)
+                    .environmentObject(localizationManager)
+                    .zIndex(1000)
+                    .transition(.opacity)
+                    .ignoresSafeArea() 
+            }
+        }  // ← ЗАКРИТИ ZStack
         .onAppear {
             setupTabBarAppearance()
             lockOrientationToPortrait()
@@ -72,8 +88,8 @@ struct MainTabView: View {
         .sheet(isPresented: $showPaywallFromNotification) {
             PaywallView(
                 isFirstTime: false,
-                onClose: nil,  // Не потрібен, бо dismiss() закриє
-                onSubscribe: nil  // Не потрібен, бо dismiss() закриє
+                onClose: nil,
+                onSubscribe: nil
             )
             .environmentObject(subscriptionManager)
             .environmentObject(localizationManager)

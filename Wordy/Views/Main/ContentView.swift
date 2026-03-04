@@ -13,13 +13,14 @@ struct ContentView: View {
     
     @State private var onboardingStep: OnboardingStep = .appLanguage
     @State private var selectedAppLanguage: Language = .english
-    @State private var selectedLearningLanguage: LearningLanguage = .english
+
+    
     @State private var showPaywall = false
     @State private var showMainApp = false
     
     enum OnboardingStep {
         case appLanguage
-        case learningLanguage
+        case learningLanguage  // Це тепер LanguagePair, не LearningLanguage
         case paywall
         case permissions
         case mainApp
@@ -40,15 +41,16 @@ struct ContentView: View {
                 )
                 
             case .learningLanguage:
-                OnboardingLearningLanguageSelectionView(
-                    selectedLanguage: $selectedLearningLanguage,
-                    onContinue: {
-                        appState.learningLanguage = selectedLearningLanguage.rawValue
+                // ВИКОРИСТОВУЄМО LearningLanguageSelectionView замість OnboardingLearningLanguageSelectionView
+                LearningLanguageSelectionView(
+                    onComplete: {
                         withAnimation {
                             onboardingStep = .paywall
                         }
                     }
                 )
+                .environmentObject(appState)
+                .environmentObject(localizationManager)
                 
             case .paywall:
                 PaywallView(
@@ -64,32 +66,32 @@ struct ContentView: View {
                         }
                     }
                 )
-                    .environmentObject(subscriptionManager)
-                    .environmentObject(localizationManager)
-                    .onChange(of: subscriptionManager.isPremium) { _, isPremium in
-                        if isPremium {
-                            withAnimation {
-                                onboardingStep = .permissions
+                .environmentObject(subscriptionManager)
+                .environmentObject(localizationManager)
+                .onChange(of: subscriptionManager.isPremium) { _, isPremium in
+                    if isPremium {
+                        withAnimation {
+                            onboardingStep = .permissions
+                        }
+                    }
+                }
+                .overlay(
+                    VStack {
+                        Spacer()
+                        if subscriptionManager.isTrialActive {
+                            Button {
+                                withAnimation {
+                                    onboardingStep = .permissions
+                                }
+                            } label: {
+                                Text("Продовжити з тріалом")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(Color(hex: "#4ECDC4"))
+                                    .padding()
                             }
                         }
                     }
-                    .overlay(
-                        VStack {
-                            Spacer()
-                            if subscriptionManager.isTrialActive {
-                                Button {
-                                    withAnimation {
-                                        onboardingStep = .permissions
-                                    }
-                                } label: {
-                                    Text("Продовжити з тріалом")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(Color(hex: "#4ECDC4"))
-                                        .padding()
-                                }
-                            }
-                        }
-                    )
+                )
                 
             case .permissions:
                 OnboardingPermissionsRequestView {
@@ -100,10 +102,10 @@ struct ContentView: View {
                 
             case .mainApp:
                 MainTabView(selectedTab: .constant(0), deepLinkAction: .constant(nil), isFirstTime: false)
-                .environmentObject(appState)
-                .environmentObject(localizationManager)
-                .environmentObject(authViewModel)
-                .environmentObject(subscriptionManager)
+                    .environmentObject(appState)
+                    .environmentObject(localizationManager)
+                    .environmentObject(authViewModel)
+                    .environmentObject(subscriptionManager)
             }
         }
     }
@@ -137,77 +139,16 @@ struct OnboardingAppLanguageSelectionView: View {
                 
                 VStack(spacing: 12) {
                     ForEach(Language.allCases) { language in
-                        LanguageSelectionCard(
-                            flag: language.flag,
-                            name: language.displayName,
-                            isSelected: selectedLanguage == language,
-                            action: {
-                                selectedLanguage = language
-                            }
-                        )
+                        // ВИКОРИСТОВУЄМО LanguageButton замість LanguageSelectionCard
+                        LanguageButton(
+                            language: language,
+                            isSelected: selectedLanguage == language
+                        ) {
+                            selectedLanguage = language
+                        }
                     }
                 }
                 .padding(.horizontal, 30)
-                
-                Spacer()
-                
-                Button(action: onContinue) {
-                    HStack {
-                        Text("Продовжити")
-                            .font(.system(size: 18, weight: .semibold))
-                        Image(systemName: "arrow.right")
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color(hex: "#4ECDC4"))
-                    .cornerRadius(25)
-                }
-                .padding(.horizontal, 30)
-                .padding(.bottom, 40)
-            }
-        }
-    }
-}
-
-// MARK: - Learning Language Selection
-struct OnboardingLearningLanguageSelectionView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
-    @Binding var selectedLanguage: LearningLanguage
-    let onContinue: () -> Void
-    
-    var body: some View {
-        ZStack {
-            Color(hex: "#FFFDF5")
-                .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
-                Spacer()
-                
-                Text("Яку мову хочете вивчати?")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(hex: "#2C3E50"))
-                    .multilineTextAlignment(.center)
-                
-                Text("Можна змінити пізніше в налаштуваннях")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
-                
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(LearningLanguage.allCases) { language in
-                        LearningLanguageCard(
-                            flag: language.flag,
-                            nameLocal: language.localDisplayName,
-                            isSelected: selectedLanguage == language,
-                            isDarkMode: colorScheme == .dark,  // ← додайте це
-                            action: {
-                                selectedLanguage = language
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, 20)
                 
                 Spacer()
                 
@@ -290,7 +231,8 @@ struct OnboardingPermissionsRequestView: View {
 }
 
 // MARK: - Supporting Views
-// LanguageSelectionCard та LearningLanguageCard видалено - вони вже існують в окремих файлах
+
+// ВИДАЛЕНО: OnboardingLearningLanguageSelectionView - використовуємо LearningLanguageSelectionView з окремого файлу
 
 struct OnboardingPermissionRow: View {
     let icon: String
@@ -324,4 +266,3 @@ struct OnboardingPermissionRow: View {
         )
     }
 }
-

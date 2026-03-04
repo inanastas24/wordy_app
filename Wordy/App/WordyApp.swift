@@ -62,6 +62,7 @@ struct WordyApp: App {
     @StateObject private var profileViewModel = UserProfileViewModel.shared
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var subscriptionManager = SubscriptionManager()
+    @StateObject private var onboardingManager = OnboardingManager.shared
     
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage: Bool = false
@@ -81,6 +82,7 @@ struct WordyApp: App {
         WindowGroup {
             ZStack {
                 RootView()
+                    .environmentObject(onboardingManager)
                     .environmentObject(authViewModel)
                     .environmentObject(localizationManager)
                     .environmentObject(appState)

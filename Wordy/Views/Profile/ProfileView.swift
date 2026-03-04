@@ -7,7 +7,7 @@ import SwiftUI
 import FirebaseAuth
 
 struct ProfileView: View {
-    @AppStorage("learningLanguage") private var learningLanguage: LearningLanguage = .english
+    @AppStorage("TranslationLanguage") private var learningLanguage: TranslationLanguage = .english
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -74,9 +74,8 @@ struct ProfileView: View {
 
             .navigationDestination(isPresented: $showLanguageSelection) {
                 LearningLanguageSelectionView(
-                    onComplete: { selectedLanguage in
-                        // Зберігаємо вибрану мову
-                        learningLanguage = LearningLanguage(rawValue: selectedLanguage) ?? .english
+                    onComplete: {
+                        // Completed language selection
                     },
                     isChangeMode: true,
                     onLanguageChanged: {}
@@ -84,6 +83,7 @@ struct ProfileView: View {
                 .navigationBarBackButtonHidden(true)
             }
             .onAppear {
+                selectedTab = 0
                 dictionaryVM.fetchSavedWords()
                 updateStreak()
             }

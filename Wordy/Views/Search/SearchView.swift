@@ -16,8 +16,7 @@ struct SearchView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var authViewModel: AuthViewModel
-    
-    @AppStorage("learningLanguage") private var learningLanguage: LearningLanguage = .english
+    @EnvironmentObject var onboardingManager: OnboardingManager
     
     @State private var searchText = ""
     @State private var showMenu = false
@@ -32,23 +31,21 @@ struct SearchView: View {
     @State private var errorTitle = ""
     @State private var showSettings = false
     @State private var showTranslationCard = false
-    @State private var showLanguagePicker = false
     @State private var showVoiceSearch = false
     @State private var showPaywall = false
+    
+    @State private var showSourcePicker = false
+    @State private var showTargetPicker = false
     
     @FocusState private var isSearchFocused: Bool
     
     private let translationService = TranslationService()
-    private let voiceColor = Color(hex: "#FFD93D")
-    
-    private var currentLearningLanguage: String {
-        learningLanguage.rawValue
-    }
+    private let voiceColor = Color(hexString: "#FFD93D")
     
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
+                Color(hexString: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                     .ignoresSafeArea()
                     .onTapGesture {
                         isSearchFocused = false
@@ -59,9 +56,10 @@ struct SearchView: View {
                         .environmentObject(localizationManager)
                     
                     ScrollView {
-                        VStack(spacing: 25) {
-                            
-                            languageSelector
+                        VStack(spacing: 20) {
+                            // Мови з онбордингом
+                            languagePairContainer
+                                .padding(.top, 5)
                             
                             SearchBar(text: $searchText, onSubmit: performSearch)
                                 .focused($isSearchFocused)
@@ -76,38 +74,57 @@ struct SearchView: View {
                                     .padding()
                             }
                             
+                            // Кнопки сканування/голосу з онбордингом
                             HStack(spacing: 15) {
-                                ActionButton(
-                                    icon: "camera.fill",
-                                    title: localizationManager.string(.scan),
-                                    subtitle: localizationManager.string(.scanText),
-                                    color: Color(hex: "#A8D8EA"),
-                                    isDarkMode: localizationManager.isDarkMode
-                                ) {
-                                    isSearchFocused = false
-                                    checkCameraPermission()
-                                }
-                                
-                                // 🆕 СПРОЩЕНО: Просто відкриваємо VoiceSearchView по тапу
-                                ActionButton(
-                                    icon: "mic.fill",
-                                    title: localizationManager.string(.voice),
-                                    subtitle: localizationManager.string(.holdToSpeak),
-                                    color: voiceColor,
-                                    isDarkMode: localizationManager.isDarkMode
-                                ) {
-                                    isSearchFocused = false
-                                    showVoiceSearch = true
-                                }
+                                scanButtonContainer
+                                voiceButtonContainer
                             }
                             .padding(.horizontal, 20)
+                            .padding(.top, 5)
                             
                             historySection
                             
-                            Spacer(minLength: 30)
+                            Spacer(minLength: 20)
                         }
                     }
                     .scrollDismissesKeyboard(.interactively)
+                }
+                
+                // Language Pickers
+                if showSourcePicker {
+                    languagePicker(
+                        title: localizationManager.string(.language1),
+                        selectedLanguage: appState.languagePair.source,
+                        onSelect: { language in
+                            appState.setSourceLanguage(language)
+                            withAnimation(.spring(response: 0.35)) {
+                                showSourcePicker = false
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.35)) {
+                                showSourcePicker = false
+                            }
+                        }
+                    )
+                }
+                
+                if showTargetPicker {
+                    languagePicker(
+                        title: localizationManager.string(.language2),
+                        selectedLanguage: appState.languagePair.target,
+                        onSelect: { language in
+                            appState.setTargetLanguage(language)
+                            withAnimation(.spring(response: 0.35)) {
+                                showTargetPicker = false
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.35)) {
+                                showTargetPicker = false
+                            }
+                        }
+                    )
                 }
                 
                 if let result = translationResult, showTranslationCard {
@@ -119,6 +136,8 @@ struct SearchView: View {
                     .environmentObject(localizationManager)
                     .environmentObject(appState)
                     .environmentObject(authViewModel)
+                    .environmentObject(onboardingManager)
+                    // Онбординг для кнопки "Зберегти" - додаємо через overlay на кнопці всередині TranslationBubbleOverlay
                 }
                 
                 if showMenu {
@@ -129,10 +148,6 @@ struct SearchView: View {
                             isSearchFocused = false
                         }
                 }
-                
-                if showLanguagePicker {
-                    languagePickerOverlay
-                }
             }
             .sheet(isPresented: $showScanner) {
                 TextScannerView(
@@ -141,11 +156,9 @@ struct SearchView: View {
                     onTextRecognized: { text in }
                 )
             }
-            // 🆕 ОНОВЛЕНО: VoiceSearchView з callback
             .sheet(isPresented: $showVoiceSearch) {
-                VoiceSearchView { text, language in
-                    print("🎤 SearchView received callback: '\(text)', language: \(language)")
-                    self.performVoiceSearch(text: text, spokenLanguage: language)
+                VoiceSearchView { text in
+                    self.performVoiceSearch(text: text)
                 }
                 .environmentObject(localizationManager)
                 .environmentObject(appState)
@@ -160,12 +173,20 @@ struct SearchView: View {
             .onChange(of: deepLinkAction) { _, newAction in
                 handleDeepLinkAction(newAction)
             }
-            .onAppear {
-                syncLanguageSettings()
-                handleDeepLinkAction(deepLinkAction)
+            .onChange(of: showTranslationCard) { _, isShowing in
+                if isShowing {
+                    print("🎯 Setting hasTranslationResult = true")
+                    onboardingManager.hasTranslationResult = true
+                } else {
+                    // Скидаємо коли картка закривається
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        print("🎯 Setting hasTranslationResult = false")
+                        onboardingManager.hasTranslationResult = false
+                    }
+                }
             }
-            .onChange(of: learningLanguage) { _, newLang in
-                appState.learningLanguage = newLang.rawValue
+            .onAppear {
+                handleDeepLinkAction(deepLinkAction)
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -189,7 +210,232 @@ struct SearchView: View {
                 isSearchFocused = false
             }
         }
-        .modifier(SubscriptionPaywallModifier())
+    }
+    
+    // MARK: - Контейнери з онбордингом
+    
+    private var languagePairContainer: some View {
+        editableLanguagePairIndicator
+            .padding(.top, 5)
+            .onboardingStep(.languagePair)
+    }
+    
+    private var scanButtonContainer: some View {
+        ActionButton(
+            icon: "camera.fill",
+            title: localizationManager.string(.scan),
+            subtitle: localizationManager.string(.scanText),
+            color: Color(hexString: "#A8D8EA"),
+            isDarkMode: localizationManager.isDarkMode
+        ) {
+            isSearchFocused = false
+            checkCameraPermission()
+        }
+        .onboardingStep(.scanButton)
+    }
+    
+    private var voiceButtonContainer: some View {
+        ActionButton(
+            icon: "mic.fill",
+            title: localizationManager.string(.voice),
+            subtitle: localizationManager.string(.holdToSpeak),
+            color: voiceColor,
+            isDarkMode: localizationManager.isDarkMode
+        ) {
+            isSearchFocused = false
+            showVoiceSearch = true
+        }
+        .onboardingStep(.voiceButton)
+    }
+    
+    // MARK: - Language Pair Indicator
+    
+    private var editableLanguagePairIndicator: some View {
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(.spring(response: 0.35)) {
+                    showSourcePicker = true
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(appState.languagePair.source.flag)
+                        .font(.system(size: 20))
+                    Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(hexString: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Button {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    appState.swapLanguages()
+                }
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
+            } label: {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hexString: "#4ECDC4"))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Button {
+                withAnimation(.spring(response: 0.35)) {
+                    showTargetPicker = true
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(appState.languagePair.target.flag)
+                        .font(.system(size: 20))
+                    Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(hexString: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Language Picker
+    
+    private func languagePicker(
+        title: String,
+        selectedLanguage: TranslationLanguage,
+        onSelect: @escaping (TranslationLanguage) -> Void,
+        onClose: @escaping () -> Void
+    ) -> some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onClose)
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                    
+                    Spacer()
+                    
+                    Button(action: onClose) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 10)
+                
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(localizationManager.string(.popularLanguages))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(hexString: "#4ECDC4"))
+                                .padding(.horizontal, 4)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(TranslationLanguage.primaryLanguages) { language in
+                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(localizationManager.string(.otherLanguages))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 4)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(TranslationLanguage.otherLanguages) { language in
+                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(localizationManager.isDarkMode ? Color(hexString: "#1C1C1E") : Color(hexString: "#FFFDF5"))
+                    .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
+            )
+            .padding(.horizontal, 20)
+            .frame(maxHeight: 500)
+        }
+    }
+    
+    private func languageGridItem(
+        language: TranslationLanguage,
+        isSelected: Bool,
+        onSelect: @escaping (TranslationLanguage) -> Void
+    ) -> some View {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            onSelect(language)
+        } label: {
+            VStack(spacing: 6) {
+                Text(language.flag)
+                    .font(.system(size: 32))
+                
+                Text(language.localizedName(in: localizationManager.currentLanguage))
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50")))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 70)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color(hexString: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hexString: "#E0E0E0")), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
     
     // MARK: - UI Components
@@ -212,111 +458,6 @@ struct SearchView: View {
         .padding(.top, 10)
     }
     
-    private var languageSelector: some View {
-        Button {
-            withAnimation(.spring(response: 0.35)) {
-                showLanguagePicker = true
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Text(learningLanguage.flag)
-                    .font(.system(size: 32))
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(localizationManager.string(.selectLearningLanguage))
-                        .font(.system(size: 12))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                    
-                    Text(learningLanguage.displayName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-            }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
-            )
-            .padding(.horizontal, 20)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    private var languagePickerOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.35)) {
-                        showLanguagePicker = false
-                    }
-                }
-            
-            VStack(spacing: 20) {
-                Text(localizationManager.string(.selectLearningLanguage))
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    ForEach(LearningLanguage.allCases) { language in
-                        Button {
-                            withAnimation(.spring(response: 0.35)) {
-                                learningLanguage = language
-                                appState.learningLanguage = language.rawValue
-                                showLanguagePicker = false
-                            }
-                        } label: {
-                            VStack(spacing: 8) {
-                                Text(language.flag)
-                                    .font(.system(size: 40))
-                                
-                                Text(language.displayName)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(learningLanguage == language ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 80)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(learningLanguage == language ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(learningLanguage == language ? Color.clear : Color(hex: "#E0E0E0"), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                
-                Button {
-                    withAnimation(.spring(response: 0.35)) {
-                        showLanguagePicker = false
-                    }
-                } label: {
-                    Text(localizationManager.currentLanguage == .ukrainian ? "Скасувати" :
-                         localizationManager.currentLanguage == .polish ? "Anuluj" : "Cancel")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#7F8C8D"))
-                        .padding(.vertical, 12)
-                }
-            }
-            .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
-                    .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
-            )
-            .padding(.horizontal, 40)
-        }
-    }
-    
     private var historySection: some View {
         Group {
             if !appState.searchHistory.isEmpty {
@@ -324,7 +465,7 @@ struct SearchView: View {
                     HStack {
                         Text(localizationManager.string(.recent))
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
                         
                         Spacer()
                         
@@ -332,7 +473,7 @@ struct SearchView: View {
                             appState.searchHistory.removeAll()
                         }
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .foregroundColor(Color(hexString: "#4ECDC4"))
                     }
                     .padding(.horizontal, 20)
                     
@@ -348,15 +489,15 @@ struct SearchView: View {
                 VStack(spacing: 15) {
                     Image(systemName: "text.magnifyingglass")
                         .font(.system(size: 60))
-                        .foregroundColor(Color(hex: "#A8D8EA"))
+                        .foregroundColor(Color(hexString: "#A8D8EA"))
                     
                     Text(localizationManager.string(.search))
                         .font(.system(size: 18))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hexString: "#7F8C8D"))
                     
                     Text(localizationManager.string(.searchPlaceholder))
                         .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hexString: "#7F8C8D"))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
@@ -365,11 +506,6 @@ struct SearchView: View {
     }
     
     // MARK: - Methods
-    
-    private func syncLanguageSettings() {
-        let lang = learningLanguage.rawValue
-        appState.learningLanguage = lang
-    }
     
     private func handleDeepLinkAction(_ action: DeepLinkAction?) {
         guard let action = action else { return }
@@ -429,7 +565,7 @@ struct SearchView: View {
             title = localizationManager.string(.trackingPermission)
             message = localizationManager.string(.permissionMessage)
         case .notification:
-            title = localizationManager.string(.permissionNotificationTitle)
+            title = localizationManager.string(.permissionPermissionNotificationTitle)
             message = localizationManager.string(.permissionNotificationMessage)
         }
         
@@ -438,122 +574,81 @@ struct SearchView: View {
         showErrorAlert = true
     }
     
-    // MARK: - Search Methods
-    
     private func performSearch() {
         guard !searchText.isEmpty else { return }
         
-        // Визначаємо напрямок перекладу для текстового пошуку
         let detectedLang = translationService.detectLanguageSync(searchText)
-        let fromLang: String
-        let toLang: String
         
-        if let detected = detectedLang {
-            if detected == appState.appLanguage {
-                fromLang = appState.appLanguage
-                toLang = currentLearningLanguage
+        let fromLang: TranslationLanguage
+        let toLang: TranslationLanguage
+        
+        if let detected = detectedLang,
+           let detectedLanguage = TranslationLanguage(rawValue: detected) {
+            if detectedLanguage == appState.languagePair.source {
+                fromLang = appState.languagePair.source
+                toLang = appState.languagePair.target
+            } else if detectedLanguage == appState.languagePair.target {
+                fromLang = appState.languagePair.target
+                toLang = appState.languagePair.source
             } else {
-                fromLang = currentLearningLanguage
-                toLang = appState.appLanguage
+                fromLang = appState.languagePair.source
+                toLang = appState.languagePair.target
             }
         } else {
-            fromLang = currentLearningLanguage
-            toLang = appState.appLanguage
+            fromLang = appState.languagePair.source
+            toLang = appState.languagePair.target
         }
         
         executeTranslation(word: searchText, fromLang: fromLang, toLang: toLang)
     }
     
-    // 🆕 ОНОВЛЕНИЙ МЕТОД: З явною мовою
-    private func performVoiceSearch(text: String, spokenLanguage: String) {
+    private func performVoiceSearch(text: String) {
+        guard !text.isEmpty else { return }
+        
+        if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
+            showPaywall = true
+            return
+        }
+        
         let detectedLang = translationService.detectLanguageSync(text)
-           let actualLanguage = detectedLang ?? spokenLanguage
-        print("🎤 performVoiceSearch called with: '\(text)', spokenLanguage: \(spokenLanguage)")
-        print("🎤 App language: \(appState.appLanguage), Learning: \(currentLearningLanguage)")
         
-        guard !text.isEmpty else {
-            print("🎤 Text is empty, returning")
-            return
-        }
+        let fromLang: TranslationLanguage
+        let toLang: TranslationLanguage
         
-        if subscriptionManager.isSubscriptionExpired {
-            showPaywall = true
-            return
-        }
-        
-        if !subscriptionManager.canUseApp {
-            showPaywall = true
-            return
-        }
-        
-        // 🆕 ПРАВИЛЬНА ЛОГІКА:
-        // Якщо spokenLanguage == мова додатка (uk) → перекладаємо на мову вивчення (pl)
-        // Якщо spokenLanguage == мова вивчення (pl) → перекладаємо на мову додатка (uk)
-        
-        let fromLang: String
-        let toLang: String
-        
-        if spokenLanguage == appState.appLanguage {
-            // Користувач говорить мовою додатка (українською)
-            // uk → pl
-            fromLang = appState.appLanguage      // uk
-            toLang = currentLearningLanguage      // pl
-            print("🎤 User spoke APP language (\(spokenLanguage)): \(fromLang) → \(toLang)")
-        } else if spokenLanguage == currentLearningLanguage {
-            // Користувач говорить мовою вивчення (польською)
-            // pl → uk
-            fromLang = currentLearningLanguage    // pl
-            toLang = appState.appLanguage         // uk
-            print("🎤 User spoke LEARNING language (\(spokenLanguage)): \(fromLang) → \(toLang)")
+        if let detected = detectedLang,
+           let detectedLanguage = TranslationLanguage(rawValue: detected) {
+            if detectedLanguage == appState.languagePair.source {
+                fromLang = appState.languagePair.source
+                toLang = appState.languagePair.target
+            } else if detectedLanguage == appState.languagePair.target {
+                fromLang = appState.languagePair.target
+                toLang = appState.languagePair.source
+            } else {
+                fromLang = appState.languagePair.source
+                toLang = appState.languagePair.target
+            }
         } else {
-            // Інша мова → перекладаємо на мову додатка
-            fromLang = spokenLanguage
-            toLang = appState.appLanguage
-            print("🎤 User spoke OTHER language (\(spokenLanguage)): \(fromLang) → \(toLang)")
+            fromLang = appState.languagePair.source
+            toLang = appState.languagePair.target
         }
         
-        print("🎤 Final direction: \(fromLang) → \(toLang)")
-        
-        // Оновлюємо поле пошуку
         self.searchText = text
-        
         executeTranslation(word: text, fromLang: fromLang, toLang: toLang)
     }
     
-    // 🆕 УНІВЕРСАЛЬНИЙ МЕТОД: Виконання перекладу
-    private func executeTranslation(word: String, fromLang: String, toLang: String) {
-        print("🎤 executeTranslation: \(word), \(fromLang) → \(toLang)")
-        
+    private func executeTranslation(word: String, fromLang: TranslationLanguage, toLang: TranslationLanguage) {
         isSearchFocused = false
         isLoading = true
         
-        Task {
-            do {
-                try await FirestoreService.shared.logSearch(query: word, result: "searching")
-            } catch {
-                print("Помилка логування: \(error)")
-            }
-        }
-        
         translationService.translate(
             word: word,
-            fromLanguage: fromLang,
-            toLanguage: toLang
+            fromLanguage: fromLang.rawValue,
+            toLanguage: toLang.rawValue
         ) { result in
             isLoading = false
             
             switch result {
             case .success(let translation):
-                print("🎤 Translation success: \(translation.original) → \(translation.translation)")
-                
-                Task {
-                    do {
-                        try await FirestoreService.shared.logSearch(query: word, result: translation.translation)
-                    } catch {
-                        print("Помилка логування: \(error)")
-                    }
-                }
-                
                 translationResult = translation
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     showTranslationCard = true
@@ -563,16 +658,6 @@ struct SearchView: View {
                 searchText = ""
                 
             case .failure(let error):
-                print("🎤 Translation error: \(error)")
-                
-                Task {
-                    do {
-                        try await FirestoreService.shared.logSearch(query: word, result: "error: \(error.localizedDescription)")
-                    } catch {
-                        print("Помилка логування: \(error)")
-                    }
-                }
-                
                 errorTitle = localizationManager.string(.error)
                 errorMessage = error.localizedDescription
                 showErrorAlert = true
@@ -581,7 +666,32 @@ struct SearchView: View {
     }
 }
 
-// MARK: - Permission Type
 enum PermissionType {
     case camera, microphone, speech, tracking, notification
 }
+extension Color {
+    /// Initializes a Color from a hex string like "#RRGGBB" or "#RRGGBBAA".
+    init(hexString: String) {
+        var hex = hexString.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b, a: UInt64
+        switch hex.count {
+        case 6:
+            (r, g, b, a) = ((int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF, 0xFF)
+        case 8:
+            (r, g, b, a) = ((int >> 24) & 0xFF, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        default:
+            (r, g, b, a) = (0x00, 0x00, 0x00, 0xFF)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255.0,
+            green: Double(g) / 255.0,
+            blue: Double(b) / 255.0,
+            opacity: Double(a) / 255.0
+        )
+    }
+}
+
