@@ -32,6 +32,8 @@ class OnboardingManager: ObservableObject {
     @Published var hasLearningWords: Bool = false
     @Published var isBlockingInteraction: Bool = false
     
+    @Published var userHasVisitedDictionary: Bool = false
+    
     // Чекаємо поки з'явиться UI елемент
     @Published var isWaitingForUI: Bool = false
     
@@ -96,7 +98,7 @@ class OnboardingManager: ObservableObject {
     }
     
     func shouldShow(_ step: OnboardingStep) -> Bool {
-        if currentStep == step && isWaitingForUI {
+            if currentStep == step && isWaitingForUI {
                 return true
             }
             
@@ -104,11 +106,18 @@ class OnboardingManager: ObservableObject {
                 print("🔍 shouldShow(\(step.rawValue)): false (busy with \(currentStep?.rawValue ?? "nil"))")
                 return false
             }
-        if step == .addToDictionary {
-                // Показуємо тільки якщо є результат перекладу І ми на сторінці пошуку
-                // (перевіряємо що hasTranslationResult true)
+            
+            if step == .addToDictionary {
                 guard hasTranslationResult else {
                     print("🔍 shouldShow(addToDictionary): false (no translation result)")
+                    return false
+                }
+            }
+            
+            if step == .flashcards {
+                // КЛЮЧОВА ЗМІНА: Перевіряємо що користувач ВІДВІДАВ словник
+                guard hasLearningWords && userHasVisitedDictionary else {
+                    print("🔍 shouldShow(flashcards): false (hasWords=\(hasLearningWords), visited=\(userHasVisitedDictionary))")
                     return false
                 }
             }

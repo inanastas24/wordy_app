@@ -202,6 +202,18 @@ struct DictionaryView: View {
                     print("🎯 Initial hasLearningWords = \(hasWords) (count: \(viewModel.learningCount))")
                 }
             }
+            .onAppear {
+                viewModel.fetchSavedWords()
+                onboardingManager.userHasVisitedDictionary = true
+                    print("📖 User visited Dictionary")
+                    
+                    // Встановлюємо hasLearningWords з затримкою щоб дані завантажились
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        let hasWords = viewModel.learningCount > 0
+                        onboardingManager.hasLearningWords = hasWords
+                        print("🎯 Initial hasLearningWords = \(hasWords) (count: \(viewModel.learningCount))")
+                    }
+                }
             .onDisappear {
                 viewModel.stopListening()
             }
