@@ -17,6 +17,7 @@ enum ExportImportError: Error, LocalizedError {
     case invalidFileFormat
     case noWordsImported
     case invalidCSVFormat
+    case duplicateWordsFound(Int) // НОВЕ: знайдено дублікати
     
     func localizedDescription(for language: AppLanguage) -> String {
         switch self {
@@ -62,12 +63,27 @@ enum ExportImportError: Error, LocalizedError {
             case .polish: return "Nieprawidłowy format CSV. Sprawdź separatory."
             case .english: return "Invalid CSV format. Check separators."
             }
+        case .duplicateWordsFound(let count):
+            switch language {
+            case .ukrainian: return "Пропущено \(count) дублікатів слів, які вже існують у словнику."
+            case .polish: return "Pominięto \(count) duplikatów słów, które już istnieją w słowniku."
+            case .english: return "Skipped \(count) duplicate words that already exist in the dictionary."
+            }
         }
     }
     
     var errorDescription: String? {
         return localizedDescription(for: .english)
     }
+}
+
+// MARK: - Import Result (НОВЕ)
+struct ImportResult {
+    let importedCount: Int
+    let duplicateCount: Int
+    let skippedCount: Int
+    let format: ExportFormat
+    let words: [SavedWordModel]
 }
 
 // MARK: - Export Format
@@ -128,6 +144,14 @@ enum ExportFormat: String, CaseIterable, Identifiable {
         case .txt: return "text/plain"
         }
     }
+    
+    var contentType: UTType {
+        switch self {
+        case .json: return .json
+        case .csv: return .commaSeparatedText
+        case .txt: return .plainText
+        }
+    }
 }
 
 // MARK: - Import Word Model
@@ -157,7 +181,7 @@ actor DictionaryExportService {
         _ words: [SavedWordModel],
         format: ExportFormat = .json,
         language: AppLanguage = .english
-    ) throws -> URL {
+    ) async throws -> URL {
         guard !words.isEmpty else {
             throw ExportImportError.noWordsToExport
         }
@@ -236,11 +260,11 @@ actor DictionaryExportService {
         let header: String
         switch language {
         case .ukrainian:
-            header = "Слово;Транскрипція;Переклад;Приклад;Переклад прикладу"
+            header = "Слово;Транскрипція;Переклад;Приклад;Переклад прикладу;Мова"
         case .polish:
-            header = "Słowo;Transkrypcja;Tłumaczenie;Przykład;Tłumaczenie przykładu"
+            header = "Słowo;Transkrypcja;Tłumaczenie;Przykład;Tłumaczenie przykładu;Język"
         case .english:
-            header = "Word;Transcription;Translation;Example;Example Translation"
+            header = "Word;Transcription;Translation;Example;Example Translation;Language"
         }
         lines.append(header)
         
@@ -252,13 +276,13 @@ actor DictionaryExportService {
             let examples = parseExamples(word.exampleSentence ?? "")
             
             if examples.isEmpty {
-                lines.append("\(original);\(transcription);\(translation);;")
+                lines.append("\(original);\(transcription);\(translation);;;\(word.languagePair)")
             } else {
                 let first = examples[0]
-                lines.append("\(original);\(transcription);\(translation);\(escapeCSV(first.original));\(escapeCSV(first.translation))")
+                lines.append("\(original);\(transcription);\(translation);\(escapeCSV(first.original));\(escapeCSV(first.translation));\(word.languagePair)")
                 
                 for i in 1..<examples.count {
-                    lines.append(";;; \(escapeCSV(examples[i].original));\(escapeCSV(examples[i].translation))")
+                    lines.append(";;; \(escapeCSV(examples[i].original));\(escapeCSV(examples[i].translation));")
                 }
             }
         }
@@ -311,6 +335,9 @@ actor DictionaryExportService {
         for (index, word) in words.enumerated() {
             let transcription = (word.transcription ?? "").isEmpty ? "" : " [\(word.transcription!)]"
             lines.append("\(index + 1). \(word.original)\(transcription) - \(word.translation)")
+            
+            // Додаємо languagePair для можливості відновлення
+            lines.append("   [\(word.languagePair)]")
             
             if let exampleSentence = word.exampleSentence, !exampleSentence.isEmpty {
                 let examples = exampleSentence.components(separatedBy: "; ")
@@ -368,8 +395,9 @@ actor DictionaryExportService {
     
     static func importWords(
         from url: URL,
+        existingWords: [SavedWordModel] = [], // НОВЕ: для перевірки дублікатів
         language: AppLanguage = .english
-    ) async throws -> (count: Int, format: ExportFormat, words: [SavedWordModel]) {
+    ) async throws -> ImportResult {
         let shouldStopAccessing = url.startAccessingSecurityScopedResource()
         
         defer {
@@ -421,7 +449,26 @@ actor DictionaryExportService {
             throw ExportImportError.noWordsImported
         }
         
-        return (words.count, format, words)
+        // НОВЕ: Фільтрація дублікатів
+        let existingOriginals = Set(existingWords.map { $0.original.lowercased() })
+        var uniqueWords: [SavedWordModel] = []
+        var duplicateCount = 0
+        
+        for word in words {
+            if existingOriginals.contains(word.original.lowercased()) {
+                duplicateCount += 1
+            } else {
+                uniqueWords.append(word)
+            }
+        }
+        
+        return ImportResult(
+            importedCount: uniqueWords.count,
+            duplicateCount: duplicateCount,
+            skippedCount: 0,
+            format: format,
+            words: uniqueWords
+        )
     }
     
     // MARK: - JSON Import
@@ -486,6 +533,7 @@ actor DictionaryExportService {
         var currentOriginal = ""
         var currentTranslation = ""
         var currentTranscription: String?
+        var currentLanguagePair = "en-uk"
         var currentExamples: [(String, String)] = []
         
         func saveCurrentWord() {
@@ -500,7 +548,7 @@ actor DictionaryExportService {
                 translation: currentTranslation,
                 transcription: currentTranscription,
                 exampleSentence: exampleSentence,
-                languagePair: "en-uk",
+                languagePair: currentLanguagePair,
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -527,6 +575,7 @@ actor DictionaryExportService {
                 currentOriginal = columns[0]
                 currentTranslation = columns.count > 2 ? columns[2] : columns[1]
                 currentTranscription = columns.count > 1 && !columns[1].isEmpty ? columns[1] : nil
+                currentLanguagePair = columns.count > 5 && !columns[5].isEmpty ? columns[5] : "en-uk"
                 currentExamples = []
                 
                 if columns.count > 3 && !columns[3].isEmpty {
@@ -604,10 +653,20 @@ actor DictionaryExportService {
                 continue
             }
             
+            var languagePair = "en-uk"
             var examples: [String] = []
+            
             i += 1
             while i < lines.count {
                 let nextLine = lines[i]
+                
+                // Перевіряємо чи це рядок з languagePair
+                if nextLine.hasPrefix("[") && nextLine.hasSuffix("]") && nextLine.count < 10 {
+                    languagePair = String(nextLine.dropFirst().dropLast())
+                    i += 1
+                    continue
+                }
+                
                 if nextLine.hasPrefix("•") || nextLine.hasPrefix("   ") {
                     let example = nextLine.trimmingCharacters(in: .whitespaces)
                         .replacingOccurrences(of: "•", with: "")
@@ -627,7 +686,7 @@ actor DictionaryExportService {
                 translation: translation,
                 transcription: transcription,
                 exampleSentence: examples.isEmpty ? nil : examples.joined(separator: "; "),
-                languagePair: "en-uk",
+                languagePair: languagePair,
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,

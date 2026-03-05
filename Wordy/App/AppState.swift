@@ -11,6 +11,7 @@ import Combine
 class AppState: ObservableObject {
     @Published var appLanguage: String
     @Published var searchHistory: [SearchItem]
+    @Published var savedWords: [SavedWordModel] = []
     
     // MARK: - Language Pair
     @Published var languagePair: LanguagePair {
@@ -35,7 +36,22 @@ class AppState: ObservableObject {
         
         // Синхронізуємо з індивідуальними ключами при старті
         syncToUserDefaults()
+        loadSavedWords()
     }
+    private func loadSavedWords() {
+           self.savedWords = LocalStorageService.shared.fetchLocalWords()
+       }
+       
+       // НОВЕ: Метод для збереження слів з повною інтеграцією
+       func saveWords(_ words: [SavedWordModel]) {
+           // Використовуємо shared ViewModel для збереження
+           DictionaryViewModel.shared.saveWords(words)
+           
+           // Оновлюємо локальний масив
+           DispatchQueue.main.async {
+               self.savedWords = LocalStorageService.shared.fetchLocalWords()
+           }
+       }
     
     // MARK: - Persistence
     
