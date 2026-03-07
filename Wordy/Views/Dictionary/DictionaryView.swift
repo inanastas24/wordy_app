@@ -4,7 +4,6 @@
 //  Created by Anastasiia Inzer on 29.01.2026.
 //
 
-
 import FirebaseFirestore
 import FirebaseAuth
 import SwiftUI
@@ -23,12 +22,11 @@ struct DictionaryView: View {
     @State private var showAddWord = false
     @State private var wordToEdit: SavedWordModel?
     
-    @State private var showSourcePicker = false
-    @State private var showTargetPicker = false
+    @StateObject private var ttsManager = FirebaseTTSManager.shared
     
-    // MARK: - Нові стани для детального перегляду
     @State private var selectedWord: SavedWordModel?
     @State private var showWordDetail = false
+    @State private var swipedWordId: String? = nil
     
     private var studyButtonTitle: String {
         switch localizationManager.currentLanguage {
@@ -80,9 +78,12 @@ struct DictionaryView: View {
                     HeaderView(showMenu: $showMenu, title: localizationManager.string(.dictionary))
                         .environmentObject(localizationManager)
                     
-                    languagePairSelector
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
+                    HStack {
+                        Spacer()
+                        addWordButton
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                    }
                     
                     if viewModel.savedWords.isEmpty && !viewModel.isLoading {
                         emptyStateView
@@ -93,49 +94,12 @@ struct DictionaryView: View {
                     Spacer(minLength: 0)
                 }
                 
-                if showSourcePicker {
-                    languagePicker(
-                        title: localizationManager.string(.language1),
-                        selectedLanguage: appState.languagePair.source,
-                        onSelect: { language in
-                            appState.setSourceLanguage(language)
-                            withAnimation(.spring(response: 0.35)) {
-                                showSourcePicker = false
-                            }
-                        },
-                        onClose: {
-                            withAnimation(.spring(response: 0.35)) {
-                                showSourcePicker = false
-                            }
-                        }
-                    )
-                }
-                
-                if showTargetPicker {
-                    languagePicker(
-                        title: localizationManager.string(.language2),
-                        selectedLanguage: appState.languagePair.target,
-                        onSelect: { language in
-                            appState.setTargetLanguage(language)
-                            withAnimation(.spring(response: 0.35)) {
-                                showTargetPicker = false
-                            }
-                        },
-                        onClose: {
-                            withAnimation(.spring(response: 0.35)) {
-                                showTargetPicker = false
-                            }
-                        }
-                    )
-                }
-                
                 if showMenu {
                     MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
                         .transition(.move(edge: .leading))
                         .zIndex(100)
                 }
                 
-                // MARK: - Детальний перегляд слова
                 if showWordDetail, let word = selectedWord {
                     WordDetailOverlay(
                         word: word,
@@ -154,10 +118,7 @@ struct DictionaryView: View {
                     .transition(.opacity)
                     .zIndex(200)
                 }
-                
-                // Онбординг флешкарток тепер на studyButton
-                
-            } // <-- закриваюча дужка ZStack
+            }
             .navigationTitle("")
             .navigationBarHidden(true)
             .fullScreenCover(isPresented: $showSettings) {
@@ -190,261 +151,42 @@ struct DictionaryView: View {
                 }
             }
             .onChange(of: viewModel.learningCount) { _, count in
-                print("📚 learningCount changed to: \(count)")
                 onboardingManager.hasLearningWords = count > 0
             }
             .onAppear {
                 viewModel.fetchSavedWords()
-                // Встановлюємо hasLearningWords з затримкою щоб дані завантажились
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let hasWords = viewModel.learningCount > 0
-                    onboardingManager.hasLearningWords = hasWords
-                    print("🎯 Initial hasLearningWords = \(hasWords) (count: \(viewModel.learningCount))")
+                    onboardingManager.hasLearningWords = viewModel.learningCount > 0
                 }
-            }
-            .onAppear {
-                viewModel.fetchSavedWords()
                 onboardingManager.userHasVisitedDictionary = true
-                    print("📖 User visited Dictionary")
-                    
-                    // Встановлюємо hasLearningWords з затримкою щоб дані завантажились
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        let hasWords = viewModel.learningCount > 0
-                        onboardingManager.hasLearningWords = hasWords
-                        print("🎯 Initial hasLearningWords = \(hasWords) (count: \(viewModel.learningCount))")
-                    }
-                }
+            }
             .onDisappear {
                 viewModel.stopListening()
             }
         }
     }
     
-    // MARK: - Language Pair Selector
-    
-    private var languagePairSelector: some View {
-        HStack(spacing: 12) {
-            Button {
-                withAnimation(.spring(response: 0.35)) {
-                    showSourcePicker = true
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(appState.languagePair.source.flag)
-                        .font(.system(size: 20))
-                    Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            Button {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                    appState.swapLanguages()
-                }
-                let impact = UIImpactFeedbackGenerator(style: .medium)
-                impact.impactOccurred()
-            } label: {
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle()
-                            .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                    )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            Button {
-                withAnimation(.spring(response: 0.35)) {
-                    showTargetPicker = true
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(appState.languagePair.target.flag)
-                        .font(.system(size: 20))
-                    Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-    
-    // MARK: - Language Picker
-    
-    private func languagePicker(
-        title: String,
-        selectedLanguage: TranslationLanguage,
-        onSelect: @escaping (TranslationLanguage) -> Void,
-        onClose: @escaping () -> Void
-    ) -> some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onClose)
-            
-            VStack(spacing: 0) {
-                HStack {
-                    Text(title)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    
-                    Spacer()
-                    
-                    Button(action: onClose) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.gray)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 10)
-                
-                ScrollView {
-                    VStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(localizationManager.string(.popularLanguages))
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color(hex: "#4ECDC4"))
-                                .padding(.horizontal, 4)
-                            
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(TranslationLanguage.primaryLanguages) { language in
-                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
-                                }
-                            }
-                        }
-                        
-                        Divider()
-                            .padding(.vertical, 8)
-                        
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(localizationManager.string(.otherLanguages))
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.gray)
-                                .padding(.horizontal, 4)
-                            
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(TranslationLanguage.otherLanguages) { language in
-                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
-                    .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
-            )
-            .padding(.horizontal, 20)
-            .frame(maxHeight: 500)
-        }
-    }
-    
-    private func languageGridItem(
-        language: TranslationLanguage,
-        isSelected: Bool,
-        onSelect: @escaping (TranslationLanguage) -> Void
-    ) -> some View {
-        Button {
-            let impact = UIImpactFeedbackGenerator(style: .light)
-            impact.impactOccurred()
-            onSelect(language)
-        } label: {
-            VStack(spacing: 6) {
-                Text(language.flag)
-                    .font(.system(size: 32))
-                
-                Text(language.localizedName(in: localizationManager.currentLanguage))
-                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity, minHeight: 70)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hex: "#E0E0E0")), lineWidth: 1)
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    // MARK: - UI Components
-    
     private var addWordButton: some View {
         Button {
             wordToEdit = nil
             showAddWord = true
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 18))
-                
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 14, weight: .semibold))
                 Text(addWordButtonTitle)
                     .font(.system(size: 14, weight: .semibold))
-                
-                Spacer()
             }
             .foregroundColor(Color(hex: "#4ECDC4"))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: "#4ECDC4").opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-            )
         }
         .buttonStyle(PlainButtonStyle())
     }
     
     private var addWordButtonTitle: String {
         switch localizationManager.currentLanguage {
-        case .ukrainian: return "Додати слово"
-        case .polish: return "Dodaj słowo"
-        case .english: return "Add word"
+        case .ukrainian: return "Додати"
+        case .polish: return "Dodaj"
+        case .english: return "Add"
         }
     }
     
@@ -453,10 +195,7 @@ struct DictionaryView: View {
             if viewModel.learningCount > 0 {
                 studyButton
                     .onboardingStep(.flashcards)
-                    .allowsHitTesting(!(onboardingManager.isBlockingInteraction &&
-                                       onboardingManager.currentStep == .flashcards))
-            } else {
-                EmptyView()
+                    .allowsHitTesting(!(onboardingManager.isBlockingInteraction && onboardingManager.currentStep == .flashcards))
             }
         }
     }
@@ -469,7 +208,6 @@ struct DictionaryView: View {
             
             Text(emptyTitle)
                 .font(.system(size: 20, weight: .bold))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
             
             Text(emptySubtitle)
                 .font(.system(size: 16))
@@ -486,10 +224,7 @@ struct DictionaryView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
-                .background(
-                    Capsule()
-                        .fill(Color(hex: "#4ECDC4"))
-                )
+                .background(Capsule().fill(Color(hex: "#4ECDC4")))
             }
             .padding(.top, 20)
         }
@@ -497,63 +232,115 @@ struct DictionaryView: View {
     }
     
     private var listView: some View {
-        List {
-            Section {
-                addWordButton
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-            }
-            
-            if !viewModel.learningWords.isEmpty {
-                Section {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                if !viewModel.learningWords.isEmpty {
+                    sectionHeader(title: localizationManager.string(.learning) + " (\(viewModel.learningCount))")
+                    
                     ForEach(viewModel.learningWords) { word in
-                        WordRow(word: word, isDarkMode: localizationManager.isDarkMode)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
+                        CompactWordRow(
+                            word: word,
+                            isDarkMode: localizationManager.isDarkMode,
+                            isSwiped: swipedWordId == word.id,
+                            onSwipeRight: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    swipedWordId = word.id
+                                }
+                            },
+                            onSwipeLeft: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    swipedWordId = word.id
+                                }
+                            },
+                            onMarkLearned: {
+                                viewModel.markAsLearned(word)
+                                withAnimation { swipedWordId = nil }
+                            },
+                            onDelete: {
+                                viewModel.deleteWord(word)
+                                withAnimation { swipedWordId = nil }
+                            },
+                            onTap: {
                                 let impact = UIImpactFeedbackGenerator(style: .light)
                                 impact.impactOccurred()
                                 selectedWord = word
                                 withAnimation(.spring(response: 0.35)) {
                                     showWordDetail = true
                                 }
+                            },
+                            onSpeak: {
+                                speakWord(word)
                             }
-                            .listRowBackground(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                        )
+                        .padding(.horizontal, 16)
                     }
-                } header: {
-                    Text(localizationManager.string(.learning) + " (\(viewModel.learningCount))")
                 }
-            }
-            
-            if !viewModel.learnedWords.isEmpty {
-                Section {
+                
+                if !viewModel.learnedWords.isEmpty {
+                    sectionHeader(title: localizationManager.string(.learned) + " ✅ (\(viewModel.learnedCount))")
+                    
                     ForEach(viewModel.learnedWords) { word in
-                        WordRow(word: word, isDarkMode: localizationManager.isDarkMode)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
+                        CompactWordRow(
+                            word: word,
+                            isDarkMode: localizationManager.isDarkMode,
+                            isSwiped: swipedWordId == word.id,
+                            onSwipeRight: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    swipedWordId = word.id
+                                }
+                            },
+                            onSwipeLeft: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    swipedWordId = word.id
+                                }
+                            },
+                            onMarkLearned: {
+                                viewModel.markAsLearning(word)
+                                withAnimation { swipedWordId = nil }
+                            },
+                            onDelete: {
+                                viewModel.deleteWord(word)
+                                withAnimation { swipedWordId = nil }
+                            },
+                            onTap: {
                                 let impact = UIImpactFeedbackGenerator(style: .light)
                                 impact.impactOccurred()
                                 selectedWord = word
                                 withAnimation(.spring(response: 0.35)) {
                                     showWordDetail = true
                                 }
+                            },
+                            onSpeak: {
+                                speakWord(word)
                             }
-                            .listRowBackground(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                        )
+                        .padding(.horizontal, 16)
                     }
-                } header: {
-                    Text(localizationManager.string(.learned) + " ✅ (\(viewModel.learnedCount))")
                 }
             }
+            .padding(.vertical, 8)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
+    }
+    
+    private func sectionHeader(title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+    }
+    
+    private func speakWord(_ word: SavedWordModel) {
+        let components = word.languagePair.components(separatedBy: "-")
+        let sourceLang = components.first ?? "en"
+        ttsManager.speak(text: word.original, language: sourceLang)
     }
     
     private var studyButton: some View {
-        NavigationLink(destination:
-            FlashcardsView()
-                .environmentObject(localizationManager)
-                .navigationBarHidden(true)) {
+        NavigationLink(destination: FlashcardsView().environmentObject(localizationManager).navigationBarHidden(true)) {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -568,8 +355,6 @@ struct DictionaryView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(studyButtonTitle)
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
-                    
                     Text(studyButtonSubtitle)
                         .font(.system(size: 14))
                         .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
@@ -595,94 +380,195 @@ struct DictionaryView: View {
     }
 }
 
-// MARK: - WordRow (оновлений для кращого вигляду)
-struct WordRow: View {
+// MARK: - Compact Word Row з покращеними жестами
+struct CompactWordRow: View {
     let word: SavedWordModel
     let isDarkMode: Bool
+    let isSwiped: Bool
+    let onSwipeRight: () -> Void
+    let onSwipeLeft: () -> Void
+    let onMarkLearned: () -> Void
+    let onDelete: () -> Void
+    let onTap: () -> Void
+    let onSpeak: () -> Void
+    
+    @State private var offset: CGFloat = 0
+    private let buttonWidth: CGFloat = 80
+    private let swipeThreshold: CGFloat = 50
+    private let rowHeight: CGFloat = 76
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(word.original)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .lineLimit(2)
+        ZStack {
+            HStack(spacing: 0) {
+                Button(action: onMarkLearned) {
+                    VStack(spacing: 4) {
+                        Image(systemName: word.isLearned ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
+                            .font(.system(size: 22))
+                        Text(word.isLearned ? "Назад" : "Вивчено")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: buttonWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(word.isLearned ? Color.orange : Color(hex: "#4ECDC4"))
+                }
+                
+                Spacer()
+                
+                Button(action: onDelete) {
+                    VStack(spacing: 4) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 22))
+                        Text("Видалити")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.white)
+                    .frame(width: buttonWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.red)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                Button(action: onSpeak) {
+                    Image(systemName: "speaker.wave.2")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .frame(width: 32, height: 32)
+                        .background(Color(hex: "#4ECDC4").opacity(0.15))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(word.original)
+                            .font(.system(size: 17, weight: .semibold))
+                            .lineLimit(1)
+                        
+                        if word.isDueForReview && !word.isLearned {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                    
+                    Text(word.translation)
+                        .font(.system(size: 15))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 8) {
+                        if !word.languagePair.isEmpty {
+                            let components = word.languagePair.components(separatedBy: "-")
+                            if let source = components.first, let target = components.count > 1 ? components[1] : nil {
+                                HStack(spacing: 2) {
+                                    Text(TranslationLanguage(rawValue: source)?.flag ?? "🏳️")
+                                        .font(.system(size: 11))
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.gray)
+                                    Text(TranslationLanguage(rawValue: target)?.flag ?? "🏳️")
+                                        .font(.system(size: 11))
+                                }
+                            }
+                        }
+                        
+                        if word.reviewCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 9))
+                                Text("\(word.reviewCount)")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                        }
+                    }
+                }
                 
                 Spacer()
                 
                 if word.isLearned {
                     Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 18))
                         .foregroundColor(Color(hex: "#4ECDC4"))
-                } else if word.isDueForReview {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.orange)
                 }
             }
-            
-            Text(word.translation)
-                .font(.system(size: 16))
-                .foregroundColor(Color(hex: "#4ECDC4"))
-                .lineLimit(2)
-            
-            // Показуємо транскрипцію якщо є
-            if let transcription = word.transcription, !transcription.isEmpty {
-                Text(transcription)
-                    .font(.system(size: 14, design: .serif))
-                    .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-            }
-            
-            // Показуємо приклад якщо є
-            if let example = word.exampleSentence, !example.isEmpty {
-                Text("„\(example)\"")
-                    .font(.system(size: 13))
-                    .italic()
-                    .foregroundColor(isDarkMode ? Color.white.opacity(0.7) : Color(hex: "#7F8C8D"))
-                    .lineLimit(1)
-            }
-            
-            HStack {
-                if !word.languagePair.isEmpty {
-                    let components = word.languagePair.components(separatedBy: "-")
-                    if let source = components.first, let target = components.count > 1 ? components[1] : nil {
-                        HStack(spacing: 4) {
-                            Text(TranslationLanguage(rawValue: source)?.flag ?? "🏳️")
-                                .font(.system(size: 12))
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 8))
-                                .foregroundColor(.gray)
-                            Text(TranslationLanguage(rawValue: target)?.flag ?? "🏳️")
-                                .font(.system(size: 12))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(height: rowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color(hex: "#E0E0E0").opacity(isDarkMode ? 0.2 : 0.5), lineWidth: 0.5)
+            )
+            .offset(x: offset)
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                    .onChanged { gesture in
+                        let translation = gesture.translation.width
+                        let velocity = gesture.velocity.width
+                        
+                        // Якщо швидкість велика по вертикалі - дозволяємо скролу працювати
+                        let verticalVelocity = abs(gesture.velocity.height)
+                        if verticalVelocity > abs(velocity) * 2 {
+                            return
                         }
-                        .foregroundColor(.gray)
+                        
+                        // Горизонтальний свайп
+                        if abs(translation) > abs(gesture.translation.height) * 2 {
+                            if translation > 0 {
+                                offset = min(translation, buttonWidth)
+                            } else {
+                                offset = max(translation, -buttonWidth)
+                            }
+                        }
                     }
-                }
-                
-                Spacer()
-                
-                // Індикатор прогресу вивчення
-                if word.reviewCount > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10))
-                        Text("\(word.reviewCount)")
-                            .font(.system(size: 12))
+                    .onEnded { gesture in
+                        let translation = gesture.translation.width
+                        
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if translation > swipeThreshold {
+                                offset = buttonWidth
+                                onSwipeRight()
+                            } else if translation < -swipeThreshold {
+                                offset = -buttonWidth
+                                onSwipeLeft()
+                            } else {
+                                offset = 0
+                            }
+                        }
                     }
-                    .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+            )
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded {
+                        if offset != 0 {
+                            withAnimation(.spring(response: 0.3)) {
+                                offset = 0
+                            }
+                        } else {
+                            onTap()
+                        }
+                    }
+            )
+            .onChange(of: isSwiped) { _, newValue in
+                if !newValue {
+                    withAnimation(.spring(response: 0.3)) {
+                        offset = 0
+                    }
                 }
             }
         }
-        .padding(.vertical, 8)
-    }
-    
-    private var timeUntilReview: String {
-        guard let nextReview = word.nextReviewDate else { return "зараз" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: nextReview, relativeTo: Date())
+        .frame(height: rowHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
-// MARK: - WordDetailOverlay (новий компонент)
+// MARK: - Word Detail Overlay з локалізацією
 struct WordDetailOverlay: View {
     let word: SavedWordModel
     @Binding var isShowing: Bool
@@ -692,7 +578,6 @@ struct WordDetailOverlay: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
     @StateObject private var ttsManager = FirebaseTTSManager.shared
-    
     @State private var showingDeleteConfirm = false
     
     private var sourceLanguage: String {
@@ -702,21 +587,103 @@ struct WordDetailOverlay: View {
     
     private var targetLanguage: String {
         let components = word.languagePair.components(separatedBy: "-")
-        if components.count > 1 {
-            return components[1]
-        } else {
-            return "uk"
+        return components.count > 1 ? components[1] : "uk"
+    }
+    
+    // MARK: - Localized Strings
+    private var examplesTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Приклади використання"
+        case .polish: return "Przykłady użycia"
+        case .english: return "Usage examples"
+        }
+    }
+    
+    private var progressTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Прогрес вивчення"
+        case .polish: return "Postęp nauki"
+        case .english: return "Learning progress"
+        }
+    }
+    
+    private var statusTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Статус"
+        case .polish: return "Status"
+        case .english: return "Status"
+        }
+    }
+    
+    private var statusLearning: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "В процесі"
+        case .polish: return "W trakcie"
+        case .english: return "In progress"
+        }
+    }
+    
+    private var statusLearned: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вивчено"
+        case .polish: return "Nauczone"
+        case .english: return "Learned"
+        }
+    }
+    
+    private var reviewsTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Повторень"
+        case .polish: return "Powtórzeń"
+        case .english: return "Reviews"
+        }
+    }
+    
+    private var nextReviewTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Наступне повторення"
+        case .polish: return "Następna powtórka"
+        case .english: return "Next review"
+        }
+    }
+    
+    private var deleteAlertTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Видалити слово?"
+        case .polish: return "Usunąć słowo?"
+        case .english: return "Delete word?"
+        }
+    }
+    
+    private var deleteAlertMessage: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Це слово буде назавжди видалено з вашого словника"
+        case .polish: return "To słowo zостanie trwale usunięte ze słownika"
+        case .english: return "This word will be permanently deleted from your dictionary"
+        }
+    }
+    
+    private var cancelTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Скасувати"
+        case .polish: return "Anuluj"
+        case .english: return "Cancel"
+        }
+    }
+    
+    private var deleteTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Видалити"
+        case .polish: return "Usuń"
+        case .english: return "Delete"
         }
     }
     
     var body: some View {
         ZStack {
-            // Фон
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    closeOverlay()
-                }
+                .onTapGesture { closeOverlay() }
             
             GeometryReader { geometry in
                 ScrollView {
@@ -724,18 +691,22 @@ struct WordDetailOverlay: View {
                         Spacer(minLength: geometry.size.height * 0.05)
                         
                         VStack(spacing: 20) {
-                            // Шапка з кнопками
-                            HStack {
-                                // Кнопка редагування
+                            // Header з кнопками редагування та видалення поруч
+                            HStack(spacing: 16) {
                                 Button(action: onEdit) {
                                     Image(systemName: "pencil.circle.fill")
                                         .font(.system(size: 28))
                                         .foregroundColor(Color(hex: "#4ECDC4"))
                                 }
                                 
+                                Button(action: { showingDeleteConfirm = true }) {
+                                    Image(systemName: "trash.circle.fill")
+                                        .font(.system(size: 28))
+                                        .foregroundColor(.red.opacity(0.8))
+                                }
+                                
                                 Spacer()
                                 
-                                // Кнопка закриття
                                 Button(action: closeOverlay) {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 16, weight: .bold))
@@ -743,23 +714,10 @@ struct WordDetailOverlay: View {
                                         .padding(8)
                                         .background(Circle().fill(Color.gray.opacity(0.2)))
                                 }
-                                
-                                // Кнопка видалення
-                                Button(action: { showingDeleteConfirm = true }) {
-                                    Image(systemName: "trash.circle.fill")
-                                        .font(.system(size: 28))
-                                        .foregroundColor(.red.opacity(0.8))
-                                }
                             }
                             
-                            // Оригінальне слово
-                            wordSection(
-                                text: word.original,
-                                language: sourceLanguage,
-                                isPrimary: true
-                            )
+                            wordSection(text: word.original, language: sourceLanguage, isPrimary: true)
                             
-                            // Транскрипція IPA
                             if let ipa = word.transcription, !ipa.isEmpty {
                                 Text(ipa)
                                     .font(.system(size: 18, design: .serif))
@@ -772,24 +730,12 @@ struct WordDetailOverlay: View {
                             
                             Divider().opacity(0.5)
                             
-                            // Переклад
-                            wordSection(
-                                text: word.translation,
-                                language: targetLanguage,
-                                isPrimary: false
-                            )
+                            wordSection(text: word.translation, language: targetLanguage, isPrimary: false)
                             
-                            // Приклади речень
                             if let example = word.exampleSentence, !example.isEmpty {
-                                examplesSection(
-                                    original: example,
-                                    translation: "",
-                                    originalLang: sourceLanguage,
-                                    transLang: targetLanguage
-                                )
+                                examplesSection(original: example, originalLang: sourceLanguage)
                             }
                             
-                            // Інформація про вивчення
                             learningInfoSection
                             
                             Spacer(minLength: 20)
@@ -807,11 +753,11 @@ struct WordDetailOverlay: View {
                 }
             }
         }
-        .alert("Видалити слово?", isPresented: $showingDeleteConfirm) {
-            Button("Скасувати", role: .cancel) { }
-            Button("Видалити", role: .destructive, action: onDelete)
+        .alert(deleteAlertTitle, isPresented: $showingDeleteConfirm) {
+            Button(cancelTitle, role: .cancel) { }
+            Button(deleteTitle, role: .destructive, action: onDelete)
         } message: {
-            Text("Це слово буде назавжди видалено з вашого словника")
+            Text(deleteAlertMessage)
         }
     }
     
@@ -820,12 +766,8 @@ struct WordDetailOverlay: View {
         let fillColor = localizationManager.isDarkMode ? Color.black.opacity(0.4) : Color.white.opacity(0.8)
         return base
             .fill(.ultraThinMaterial)
-            .background(
-                base.fill(fillColor)
-            )
-            .overlay(
-                base.stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
+            .background(base.fill(fillColor))
+            .overlay(base.stroke(Color.white.opacity(0.3), lineWidth: 1))
     }
     
     private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
@@ -837,8 +779,8 @@ struct WordDetailOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
                 
                 Button(action: { speak(text: text, language: language) }) {
-                    let isSpeakingThisLanguage = ttsManager.isPlaying && ttsManager.currentLanguage == language
-                    Image(systemName: isSpeakingThisLanguage ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    let isSpeaking = ttsManager.isPlaying && ttsManager.currentLanguage == language
+                    Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .font(.system(size: 16))
                         .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
                         .frame(width: 36, height: 36)
@@ -849,18 +791,24 @@ struct WordDetailOverlay: View {
         }
     }
     
-    private func examplesSection(original: String, translation: String, originalLang: String, transLang: String) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Приклади використання")
+    private func examplesSection(original: String, originalLang: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(examplesTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             
-            VStack(spacing: 12) {
-                exampleRow(text: original, language: originalLang, isOriginal: true)
+            HStack(spacing: 12) {
+                Text("„\(original)\"")
+                    .font(.system(size: 16))
+                    .italic()
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                 
-                if !translation.isEmpty && translation != original {
-                    Divider().opacity(0.3)
-                    exampleRow(text: translation, language: transLang, isOriginal: false)
+                Spacer()
+                
+                Button(action: { speak(text: original, language: originalLang) }) {
+                    Image(systemName: "speaker.wave.1")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                 }
             }
             .padding()
@@ -871,52 +819,30 @@ struct WordDetailOverlay: View {
         }
     }
     
-    private func exampleRow(text: String, language: String, isOriginal: Bool) -> some View {
-        HStack {
-            Text(text)
-                .font(.system(size: isOriginal ? 16 : 14))
-                .italic(isOriginal)
-                .foregroundColor(isOriginal
-                    ? (localizationManager.isDarkMode ? Color.white.opacity(0.9) : Color(hex: "#2C3E50"))
-                    : Color(hex: "#4ECDC4"))
-            
-            Spacer()
-            
-            Button(action: { speak(text: text, language: language) }) {
-                Image(systemName: "speaker.wave.1")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-            }
-        }
-    }
-    
     private var learningInfoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Прогрес вивчення")
+            Text(progressTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
             
             HStack(spacing: 16) {
-                // Статус
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Статус")
+                    Text(statusTitle)
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                     
                     HStack(spacing: 6) {
                         Image(systemName: word.isLearned ? "checkmark.seal.fill" : "graduationcap.fill")
                             .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : .orange)
-                        Text(word.isLearned ? "Вивчено" : "В процесі")
+                        Text(word.isLearned ? statusLearned : statusLearning)
                             .font(.system(size: 14, weight: .medium))
                     }
                 }
                 
-                Divider()
-                    .frame(height: 40)
+                Divider().frame(height: 40)
                 
-                // Кількість повторень
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Повторень")
+                    Text(reviewsTitle)
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                     
@@ -929,11 +855,10 @@ struct WordDetailOverlay: View {
                 }
                 
                 if let nextReview = word.nextReviewDate {
-                    Divider()
-                        .frame(height: 40)
+                    Divider().frame(height: 40)
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Наступне повторення")
+                        Text(nextReviewTitle)
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
                         

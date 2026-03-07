@@ -24,7 +24,8 @@ struct AddWordView: View {
     @State private var exampleSentence: String = ""
     @State private var selectedLanguagePair: String = ""
     
-    @State private var showLanguagePairPicker = false
+    @State private var showSourcePicker = false
+    @State private var showTargetPicker = false
     @State private var showConfirmation = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -71,7 +72,7 @@ struct AddWordView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Language Pair Selector
+                        // Language Pair Selector (новий дизайн як у DictionaryView)
                         languagePairSection
                             .padding(.top, 10)
                         
@@ -121,6 +122,48 @@ struct AddWordView: View {
                     }
                     .padding(.horizontal, 20)
                 }
+                
+                // Source Language Picker
+                if showSourcePicker {
+                    languagePicker(
+                        title: localizationManager.string(.language1),
+                        selectedLanguage: currentSourceLanguage,
+                        onSelect: { language in
+                            // Оновлюємо selectedLanguagePair при зміні source
+                            let target = currentTargetLanguage
+                            selectedLanguagePair = "\(language.rawValue)-\(target.rawValue)"
+                            withAnimation(.spring(response: 0.35)) {
+                                showSourcePicker = false
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.35)) {
+                                showSourcePicker = false
+                            }
+                        }
+                    )
+                }
+                
+                // Target Language Picker
+                if showTargetPicker {
+                    languagePicker(
+                        title: localizationManager.string(.language2),
+                        selectedLanguage: currentTargetLanguage,
+                        onSelect: { language in
+                            // Оновлюємо selectedLanguagePair при зміні target
+                            let source = currentSourceLanguage
+                            selectedLanguagePair = "\(source.rawValue)-\(language.rawValue)"
+                            withAnimation(.spring(response: 0.35)) {
+                                showTargetPicker = false
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.35)) {
+                                showTargetPicker = false
+                            }
+                        }
+                    )
+                }
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -160,15 +203,21 @@ struct AddWordView: View {
             .onAppear {
                 loadExistingWord()
             }
-            .sheet(isPresented: $showLanguagePairPicker) {
-                LanguagePairPickerView(
-                    selectedPair: $selectedLanguagePair,
-                    isPresented: $showLanguagePairPicker
-                )
-                .environmentObject(localizationManager)
-                .environmentObject(appState)
-            }
         }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var currentSourceLanguage: TranslationLanguage {
+        let pair = currentLanguagePair
+        let components = pair.components(separatedBy: "-")
+        return TranslationLanguage(rawValue: components.first ?? "en") ?? .english
+    }
+    
+    private var currentTargetLanguage: TranslationLanguage {
+        let pair = currentLanguagePair
+        let components = pair.components(separatedBy: "-")
+        return TranslationLanguage(rawValue: components.count > 1 ? components[1] : "uk") ?? .ukrainian
     }
     
     private var isValid: Bool {
@@ -182,6 +231,8 @@ struct AddWordView: View {
         }
         return appState.languagePair.languagePairString
     }
+    
+    // MARK: - Data Loading
     
     private func loadExistingWord() {
         guard let word = existingWord else {
@@ -242,58 +293,195 @@ struct AddWordView: View {
     // MARK: - UI Components
     
     private var languagePairSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(localizationManager.string(.languagePair))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-            
+        HStack(spacing: 12) {
+            // Source Language Button
             Button {
-                showLanguagePairPicker = true
-            } label: {
-                HStack(spacing: 12) {
-                    let components = currentLanguagePair.components(separatedBy: "-")
-                    let source = TranslationLanguage(rawValue: components.first ?? "en") ?? .english
-                    let target = TranslationLanguage(rawValue: components.count > 1 ? components[1] : "uk") ?? .ukrainian
-                    
-                    HStack(spacing: 6) {
-                        Text(source.flag)
-                            .font(.system(size: 20))
-                        Text(source.localizedName(in: localizationManager.currentLanguage))
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    }
-                    
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                    
-                    HStack(spacing: 6) {
-                        Text(target.flag)
-                            .font(.system(size: 20))
-                        Text(target.localizedName(in: localizationManager.currentLanguage))
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#7F8C8D"))
+                withAnimation(.spring(response: 0.35)) {
+                    showSourcePicker = true
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(currentSourceLanguage.flag)
+                        .font(.system(size: 20))
+                    Text(currentSourceLanguage.localizedName(in: localizationManager.currentLanguage))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Swap Button
+            Button {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    let source = currentSourceLanguage
+                    let target = currentTargetLanguage
+                    selectedLanguagePair = "\(target.rawValue)-\(source.rawValue)"
+                }
+                let impact = UIImpactFeedbackGenerator(style: .medium)
+                impact.impactOccurred()
+            } label: {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(Color(hex: "#4ECDC4").opacity(0.15))
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // Target Language Button
+            Button {
+                withAnimation(.spring(response: 0.35)) {
+                    showTargetPicker = true
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(currentTargetLanguage.flag)
+                        .font(.system(size: 20))
+                    Text(currentTargetLanguage.localizedName(in: localizationManager.currentLanguage))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
                         .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())
         }
+    }
+    
+    // MARK: - Language Picker (скопійовано з DictionaryView)
+    
+    private func languagePicker(
+        title: String,
+        selectedLanguage: TranslationLanguage,
+        onSelect: @escaping (TranslationLanguage) -> Void,
+        onClose: @escaping () -> Void
+    ) -> some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onClose)
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    
+                    Spacer()
+                    
+                    Button(action: onClose) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 10)
+                
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(localizationManager.string(.popularLanguages))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
+                                .padding(.horizontal, 4)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(TranslationLanguage.primaryLanguages) { language in
+                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(localizationManager.string(.otherLanguages))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 4)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(TranslationLanguage.otherLanguages) { language in
+                                    languageGridItem(language: language, isSelected: selectedLanguage == language, onSelect: onSelect)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
+                    .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
+            )
+            .padding(.horizontal, 20)
+            .frame(maxHeight: 500)
+        }
+    }
+    
+    private func languageGridItem(
+        language: TranslationLanguage,
+        isSelected: Bool,
+        onSelect: @escaping (TranslationLanguage) -> Void
+    ) -> some View {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            onSelect(language)
+        } label: {
+            VStack(spacing: 6) {
+                Text(language.flag)
+                    .font(.system(size: 32))
+                
+                Text(language.localizedName(in: localizationManager.currentLanguage))
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 70)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hex: "#E0E0E0")), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
     
     private func inputSection(
@@ -396,168 +584,5 @@ struct AddWordView: View {
                     .stroke(Color(hex: "#4ECDC4").opacity(0.2), lineWidth: 1)
             )
         }
-    }
-}
-
-// MARK: - Language Pair Picker
-struct LanguagePairPickerView: View {
-    @Binding var selectedPair: String
-    @Binding var isPresented: Bool
-    
-    @EnvironmentObject var localizationManager: LocalizationManager
-    @EnvironmentObject var appState: AppState
-    
-    @State private var tempSource: TranslationLanguage
-    @State private var tempTarget: TranslationLanguage
-    
-    init(selectedPair: Binding<String>, isPresented: Binding<Bool>) {
-        self._selectedPair = selectedPair
-        self._isPresented = isPresented
-        
-        let components = selectedPair.wrappedValue.components(separatedBy: "-")
-        let source = TranslationLanguage(rawValue: components.first ?? "en") ?? .english
-        let target = TranslationLanguage(rawValue: components.count > 1 ? components[1] : "uk") ?? .ukrainian
-        
-        _tempSource = State(initialValue: source)
-        _tempTarget = State(initialValue: target)
-    }
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 20) {
-                    // Preview of selected pair
-                    HStack(spacing: 20) {
-                        languageCircle(language: tempSource, isSource: true)
-                        
-                        Button {
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                                let temp = tempSource
-                                tempSource = tempTarget
-                                tempTarget = temp
-                            }
-                        } label: {
-                            Image(systemName: "arrow.left.arrow.right")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(Color(hex: "#4ECDC4"))
-                                .frame(width: 44, height: 44)
-                                .background(
-                                    Circle()
-                                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                                )
-                        }
-                        
-                        languageCircle(language: tempTarget, isSource: false)
-                    }
-                    .padding(.top, 20)
-                    
-                    Divider()
-                        .padding(.vertical, 10)
-                    
-                    // Source selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(localizationManager.string(.sourceLanguage))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ForEach(TranslationLanguage.allCases.sorted { $0.displayName < $1.displayName }) { language in
-                                languageButton(language: language, isSelected: tempSource == language, isSource: true)
-                            }
-                        }
-                    }
-                    
-                    Divider()
-                        .padding(.vertical, 10)
-                    
-                    // Target selection
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(localizationManager.string(.targetLanguage))
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            ForEach(TranslationLanguage.allCases.sorted { $0.displayName < $1.displayName }) { language in
-                                languageButton(language: language, isSelected: tempTarget == language, isSource: false)
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-            }
-            .navigationTitle(localizationManager.string(.selectLanguagePair))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(localizationManager.string(.cancel)) {
-                        isPresented = false
-                    }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(localizationManager.string(.done)) {
-                        selectedPair = "\(tempSource.rawValue)-\(tempTarget.rawValue)"
-                        isPresented = false
-                    }
-                    .font(.system(size: 17, weight: .semibold))
-                }
-            }
-        }
-    }
-    
-    private func languageCircle(language: TranslationLanguage, isSource: Bool) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                    .frame(width: 70, height: 70)
-                
-                Text(language.flag)
-                    .font(.system(size: 36))
-            }
-            
-            Text(language.localizedName(in: localizationManager.currentLanguage))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-        }
-    }
-    
-    private func languageButton(language: TranslationLanguage, isSelected: Bool, isSource: Bool) -> some View {
-        Button {
-            let impact = UIImpactFeedbackGenerator(style: .light)
-            impact.impactOccurred()
-            
-            if isSource {
-                tempSource = language
-            } else {
-                tempTarget = language
-            }
-        } label: {
-            VStack(spacing: 6) {
-                Text(language.flag)
-                    .font(.system(size: 28))
-                
-                Text(language.localizedName(in: localizationManager.currentLanguage))
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity, minHeight: 70)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hex: "#E0E0E0")), lineWidth: 1)
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }

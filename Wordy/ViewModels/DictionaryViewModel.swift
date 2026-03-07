@@ -54,6 +54,19 @@ class DictionaryViewModel: ObservableObject {
         }
     }
     
+    func markAsLearned(_ word: SavedWordModel) {
+        var updated = word
+        updated.isLearned = true
+        updated.reviewCount += 1
+        saveWord(updated)
+    }
+
+    func markAsLearning(_ word: SavedWordModel) {
+        var updated = word
+        updated.isLearned = false
+        saveWord(updated)
+    }
+    
     var newWords: [SavedWordModel] {
         savedWords.filter { $0.srsRepetition == 0 && $0.reviewCount == 0 }
     }
