@@ -159,6 +159,10 @@ struct DictionaryView: View {
                     onboardingManager.hasLearningWords = viewModel.learningCount > 0
                 }
                 onboardingManager.userHasVisitedDictionary = true
+                
+                // Скидаємо прапорець justAddedWord, бо користувач вже на словнику
+                // (онбординг флешкарток вже мав шанс показатися)
+                OnboardingContext.justAddedWord = false
             }
             .onDisappear {
                 viewModel.stopListening()

@@ -20,6 +20,14 @@ enum OnboardingStep: String, CaseIterable, Equatable {
     }
 }
 
+// Контекст для умовних кроків онбордингу
+enum OnboardingContext {
+    // Для addToDictionary: чи відкрито екран зі словами (категорія чи пошук)
+    static var isWordListVisible: Bool = false
+    // Для flashcards: чи щойно додано слово і перейшли на словник
+    static var justAddedWord: Bool = false
+}
+
 class OnboardingManager: ObservableObject {
     static let shared = OnboardingManager()
     
@@ -98,29 +106,31 @@ class OnboardingManager: ObservableObject {
     }
     
     func shouldShow(_ step: OnboardingStep) -> Bool {
-            if currentStep == step && isWaitingForUI {
-                return true
-            }
-            
-            guard currentStep == nil, !isStartingStep else {
-                print("🔍 shouldShow(\(step.rawValue)): false (busy with \(currentStep?.rawValue ?? "nil"))")
+        if currentStep == step && isWaitingForUI {
+            return true
+        }
+        
+        guard currentStep == nil, !isStartingStep else {
+            print("🔍 shouldShow(\(step.rawValue)): false (busy with \(currentStep?.rawValue ?? "nil"))")
+            return false
+        }
+        
+        // КЛЮЧОВА ЗМІНА: addToDictionary показується ТІЛЬКИ коли відкрито список слів
+        if step == .addToDictionary {
+            guard OnboardingContext.isWordListVisible else {
+                print("🔍 shouldShow(addToDictionary): false (word list not visible)")
                 return false
             }
-            
-            if step == .addToDictionary {
-                guard hasTranslationResult else {
-                    print("🔍 shouldShow(addToDictionary): false (no translation result)")
-                    return false
-                }
+        }
+        
+        // КЛЮЧОВА ЗМІНА: flashcards показується ТІЛЬКИ після додавання слова і переходу на словник
+        if step == .flashcards {
+            guard OnboardingContext.justAddedWord && hasLearningWords else {
+                print("🔍 shouldShow(flashcards): false (justAdded=\(OnboardingContext.justAddedWord), hasWords=\(hasLearningWords))")
+                return false
             }
-            
-            if step == .flashcards {
-                // КЛЮЧОВА ЗМІНА: Перевіряємо що користувач ВІДВІДАВ словник
-                guard hasLearningWords && userHasVisitedDictionary else {
-                    print("🔍 shouldShow(flashcards): false (hasWords=\(hasLearningWords), visited=\(userHasVisitedDictionary))")
-                    return false
-                }
-            }
+        }
+        
         let ordered = OnboardingStep.orderedSteps
         guard let stepIndex = ordered.firstIndex(of: step) else { return false }
         
@@ -136,9 +146,9 @@ class OnboardingManager: ObservableObject {
         let contextReady: Bool
         switch step {
         case .addToDictionary:
-            contextReady = hasTranslationResult
+            contextReady = OnboardingContext.isWordListVisible
         case .flashcards:
-            contextReady = hasLearningWords
+            contextReady = OnboardingContext.justAddedWord && hasLearningWords
         default:
             contextReady = true
         }
@@ -240,4 +250,3 @@ class OnboardingManager: ObservableObject {
         finishOnboarding()
     }
 }
-
