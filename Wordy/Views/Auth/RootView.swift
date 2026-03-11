@@ -86,7 +86,6 @@ struct RootView: View {
     @AppStorage("sourceLanguage") private var sourceLanguage: String = ""
     @AppStorage("targetLanguage") private var targetLanguage: String = ""
     
-    // ЗАСТАРІЛЕ: залишаємо для зворотної сумісності
     @AppStorage("hasSelectedLearningLanguage") private var hasSelectedLearningLanguage = false
     @AppStorage("learningLanguage") private var learningLanguage: String = ""
     

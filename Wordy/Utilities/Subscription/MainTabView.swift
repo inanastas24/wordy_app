@@ -28,8 +28,9 @@ struct MainTabView: View {
     @State private var showPaywallFromNotification = false
     
     var body: some View {
-        ZStack {  // ← ДОДАТИ ZStack
+        ZStack {
             TabView(selection: $selectedTab) {
+                // MARK: - Search (Пошук)
                 SearchView(
                     selectedTab: $selectedTab,
                     deepLinkAction: $deepLinkAction
@@ -45,16 +46,29 @@ struct MainTabView: View {
                 }
                 .tag(0)
                 
+                // MARK: - Sets (Набори слів)
+                SetsView()
+                    .environmentObject(appState)
+                    .environmentObject(localizationManager)
+                    .environmentObject(onboardingManager)
+                    .tabItem {
+                        Image(systemName: "square.stack.3d.up.fill")
+                        Text(localizationManager.string(.sets))
+                    }
+                    .tag(1)
+                
+                // MARK: - My Dictionary (Мій словник)
                 DictionaryView()
                     .environmentObject(appState)
                     .environmentObject(localizationManager)
                     .environmentObject(onboardingManager)
                     .tabItem {
                         Image(systemName: "book.fill")
-                        Text(localizationManager.string(.dictionary))
+                        Text(localizationManager.string(.myDictionary))
                     }
-                    .tag(1)
+                    .tag(2)
                 
+                // MARK: - Profile (Профіль)
                 ProfileView()
                     .environmentObject(appState)
                     .environmentObject(localizationManager)
@@ -64,20 +78,20 @@ struct MainTabView: View {
                         Image(systemName: "person.fill")
                         Text(localizationManager.string(.profile))
                     }
-                    .tag(2)
+                    .tag(3)
             }
             .accentColor(Color(hex: "#4ECDC4"))
             
-            // ← ПЕРЕМІСТИТИ сюди, всередину ZStack
+            // Onboarding overlay
             if onboardingManager.isShowingOverlay {
                 OnboardingContainerView()
                     .environmentObject(onboardingManager)
                     .environmentObject(localizationManager)
                     .zIndex(1000)
                     .transition(.opacity)
-                    .ignoresSafeArea() 
+                    .ignoresSafeArea()
             }
-        }  // ← ЗАКРИТИ ZStack
+        }
         .onAppear {
             setupTabBarAppearance()
             lockOrientationToPortrait()
@@ -108,15 +122,12 @@ struct MainTabView: View {
     }
     
     private func lockOrientationToPortrait() {
-        // Для iOS 16+
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
         }
         
-        // Для iOS 15 та нижче
         UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
         
-        // Використовуємо новий API для iOS 16+
         if #available(iOS 16.0, *) {
             UIViewController.attemptRotationToDeviceOrientation()
         } else {

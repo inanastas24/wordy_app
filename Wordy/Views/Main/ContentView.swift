@@ -20,7 +20,7 @@ struct ContentView: View {
     
     enum OnboardingStep {
         case appLanguage
-        case learningLanguage  // Це тепер LanguagePair, не LearningLanguage
+        case learningLanguage
         case paywall
         case permissions
         case mainApp
@@ -41,7 +41,6 @@ struct ContentView: View {
                 )
                 
             case .learningLanguage:
-                // ВИКОРИСТОВУЄМО LearningLanguageSelectionView замість OnboardingLearningLanguageSelectionView
                 LearningLanguageSelectionView(
                     onComplete: {
                         withAnimation {
@@ -231,8 +230,6 @@ struct OnboardingPermissionsRequestView: View {
 }
 
 // MARK: - Supporting Views
-
-// ВИДАЛЕНО: OnboardingLearningLanguageSelectionView - використовуємо LearningLanguageSelectionView з окремого файлу
 
 struct OnboardingPermissionRow: View {
     let icon: String

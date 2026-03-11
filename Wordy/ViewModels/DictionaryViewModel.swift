@@ -85,8 +85,33 @@ class DictionaryViewModel: ObservableObject {
         
         // Оновлення локального списку
         savedWords.removeAll { $0.id == word.id }
+        
+        // Видаляємо з WordSetStore, щоб можна було додати знову з наборів
+        WordSetStore.shared.removeWordId(wordId: wordId)
+
+        // Оновлюємо віджет після видалення
+        updateWidgetAfterChange()
     }
     
+    // MARK: - Widget Update Helper
+    private func updateWidgetAfterChange() {
+        Task {
+            await MainActor.run {
+                let items = savedWords.map { word in
+                    WidgetDataService.WidgetWordItem(
+                        id: word.id,
+                        original: word.original,
+                        translation: word.translation,
+                        transcription: word.transcription,
+                        exampleSentence: word.exampleSentence,
+                        languagePair: word.languagePair
+                    )
+                }
+                WidgetDataService.shared.updateWidgetWords(words: items)
+            }
+        }
+    }
+
     // MARK: - Auth State Listener
     private func setupAuthStateListener() {
         authStateListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
@@ -522,4 +547,3 @@ class DictionaryViewModel: ObservableObject {
 extension Notification.Name {
     static let wordsImported = Notification.Name("wordsImported") // НОВЕ
 }
-

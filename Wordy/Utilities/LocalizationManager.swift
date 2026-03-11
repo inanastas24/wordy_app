@@ -115,7 +115,7 @@ enum LocalizableKey: String {
     case notAuthenticated
     case messageSent
 
-    case tapWordToTranslate  
+    case tapWordToTranslate
 
     // PermissionType
     case permissionCameraTitle
@@ -168,6 +168,133 @@ enum LocalizableKey: String {
     case wordAdded, wordUpdated, wordAddedMessage, wordUpdatedMessage, addAnother, done
     case selectLanguagePair, sourceLanguage, targetLanguage, changesSaved, unknownError
     case languagePair, translation, permissionPermissionNotificationTitle
+    
+    case wordSets
+    case wordSetsSubtitle
+    case sets // для таб-бару
+    case words
+    case wordsInCategory
+
+    // MARK: - Category Keys
+    case categoryBasics
+    case categoryTravel
+    case categoryFood
+    case categoryWork
+    case categoryEmotions
+    case categoryFamily
+    case categoryShopping
+    case categoryHealth
+    case categoryTechnology
+    case categoryNature
+    case categoryEducation
+    case categoryBusiness
+    case categoryHobbies
+    case categorySocial
+    case categoryHome
+    case categoryVerbs
+    case categoryIrregularVerbs
+    case filterBy
+    case verbForms
+    case wordAlreadyExists
+    case wordAlreadyInDictionary
+    case ok
+    case searchSets
+    case searchInSet
+    case addAll
+    case addAllWords
+    case addAllWordsMessage
+    case sortBy
+    case addedToDictionary
+    case addToDictionary
+    case synonyms
+    case generatingWords
+    case aiGenerating
+    case regenerate
+    case useLocal
+    case aiError
+    
+    // Filters
+    case filterAll
+    case filterBeginner
+    case filterIntermediate
+    case filterAdvanced
+    case filterPremium
+    case filterFree
+    
+    // Sort
+    case sortOriginal
+    case sortTranslation
+    case sortAlphabetical
+    
+    // Tips
+    case tipLearning
+    case tipExamples
+    case tipRepetition
+    case tipContext
+    
+    // Word Set Titles (AI-generated categories)
+    case wordsetBasicWords
+    case wordsetVerbs
+    case wordsetNouns
+    case wordsetAdjectives
+    case wordsetTravel
+    case wordsetFood
+    case wordsetWork
+    case wordsetHobbies
+    case wordsetEmotions
+    case wordsetFamily
+    case wordsetTime
+    case wordsetShopping
+    case wordsetHealth
+    case wordsetTechnology
+    case wordsetNature
+    case wordsetEducation
+    case wordsetBusiness
+    case wordsetScience
+    case wordsetArt
+    case wordsetSports
+    case wordsetCulture
+    
+    case createCustomSet
+    case createYourOwnSet
+    case aiWillGenerate
+    case setTitle
+    case titlePlaceholder
+    case whatTopic
+    case describeTopic
+    case difficultyLevel
+    case wordCount
+    case focusAreas
+    case advancedOptions
+    case customPrompt
+    case promptTips
+    case generateSet
+    case generating
+    case createSet
+    case pleaseLogin
+    case howIsThisTranslation
+    case howCanBeBetter
+    case submitRating
+    case thankYou
+    case feedbackReceived
+    case exchangeSets
+    case export
+    case importTitle
+    case community
+    case selectSetToExport
+    case importFromFile
+    case importJSONDescription
+    case scanQRCode
+    case scanQRDescription
+    case pasteFromClipboard
+    case pasteJSONDescription
+    case popular
+    case recentWord
+    case trending
+    case following
+    case invalidFileFormat
+    case unsupportedFormat, tipSpecific, tipLevel
+    case seeAll
 }
 
 public class LocalizationManager: ObservableObject {
@@ -1173,11 +1300,610 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Переклад",
             .english: "Translation",
             .polish: "Tłumaczenie"
+        ],
+        .wordSets: [
+                .ukrainian: "Набори слів",
+                .english: "Word Sets",
+                .polish: "Zestawy słów"
+            ],
+            .wordSetsSubtitle: [
+                .ukrainian: "Вивчайте слова за темами",
+                .english: "Learn words by topics",
+                .polish: "Ucz się słów według tematów"
+            ],
+            .sets: [
+                .ukrainian: "Набори",
+                .english: "Sets",
+                .polish: "Zestawy"
+            ],
+            .words: [
+                .ukrainian: "слів",
+                .english: "words",
+                .polish: "słów"
+            ],
+            .filterBy: [
+                .ukrainian: "Фільтрувати за",
+                .english: "Filter by",
+                .polish: "Filtruj według"
+            ],
+            .verbForms: [
+                .ukrainian: "Форми дієслова",
+                .english: "Verb forms",
+                .polish: "Formy czasownika"
+            ],
+            .wordAlreadyExists: [
+                .ukrainian: "Слово вже існує",
+                .english: "Word already exists",
+                .polish: "Słowo już istnieje"
+            ],
+            .wordAlreadyInDictionary: [
+                .ukrainian: "Це слово вже є у вашому словнику",
+                .english: "This word is already in your dictionary",
+                .polish: "To słowo jest już w twoim słowniku"
+            ],
+            .ok: [
+                .ukrainian: "OK",
+                .english: "OK",
+                .polish: "OK"
+            ],
+            .wordsInCategory: [
+                .ukrainian: "Слова в категорії",
+                .english: "Words in category",
+                .polish: "Słowa w kategorii"
+            ],
+            // MARK: - Category Translations
+            .categoryBasics: [
+                .ukrainian: "Основи",
+                .english: "Basics",
+                .polish: "Podstawy"
+            ],
+            .categoryTravel: [
+                .ukrainian: "Подорожі",
+                .english: "Travel",
+                .polish: "Podróże"
+            ],
+            .categoryFood: [
+                .ukrainian: "Їжа",
+                .english: "Food",
+                .polish: "Jedzenie"
+            ],
+            .categoryWork: [
+                .ukrainian: "Робота",
+                .english: "Work",
+                .polish: "Praca"
+            ],
+            .categoryEmotions: [
+                .ukrainian: "Емоції",
+                .english: "Emotions",
+                .polish: "Emocje"
+            ],
+            .categoryFamily: [
+                .ukrainian: "Сім'я",
+                .english: "Family",
+                .polish: "Rodzina"
+            ],
+            .categoryShopping: [
+                .ukrainian: "Шопінг",
+                .english: "Shopping",
+                .polish: "Zakupy"
+            ],
+            .categoryHealth: [
+                .ukrainian: "Здоров'я",
+                .english: "Health",
+                .polish: "Zdrowie"
+            ],
+            .categoryTechnology: [
+                .ukrainian: "Технології",
+                .english: "Technology",
+                .polish: "Technologia"
+            ],
+            .categoryNature: [
+                .ukrainian: "Природа",
+                .english: "Nature",
+                .polish: "Natura"
+            ],
+            .categoryEducation: [
+                .ukrainian: "Освіта",
+                .english: "Education",
+                .polish: "Edukacja"
+            ],
+            .categoryBusiness: [
+                .ukrainian: "Бізнес",
+                .english: "Business",
+                .polish: "Biznes"
+            ],
+            .categoryHobbies: [
+                .ukrainian: "Хобі",
+                .english: "Hobbies",
+                .polish: "Hobby"
+            ],
+            .categorySocial: [
+                .ukrainian: "Спілкування",
+                .english: "Social",
+                .polish: "Społeczność"
+            ],
+            .categoryHome: [
+                .ukrainian: "Дім",
+                .english: "Home",
+                .polish: "Dom"
+            ],
+            .categoryVerbs: [
+                .ukrainian: "Дієслова",
+                .english: "Verbs",
+                .polish: "Czasowniki"
+            ],
+            .categoryIrregularVerbs: [
+                .ukrainian: "Неправильні дієслова",
+                .english: "Irregular Verbs",
+                .polish: "Czasowniki Nieregularne"
+            ],
+            .searchSets: [
+                .ukrainian: "Пошук наборів...",
+                .english: "Search sets...",
+                .polish: "Szukaj zestawów..."
+            ],
+            .searchInSet: [
+                .ukrainian: "Пошук у наборі...",
+                .english: "Search in set...",
+                .polish: "Szukaj w zestawie..."
+            ],
+            .addAll: [
+                .ukrainian: "Додати всі",
+                .english: "Add All",
+                .polish: "Dodaj wszystkie"
+            ],
+            .addAllWords: [
+                .ukrainian: "Додати всі слова?",
+                .english: "Add all words?",
+                .polish: "Dodać wszystkie słowa?"
+            ],
+            .addAllWordsMessage: [
+                .ukrainian: "Всі слова з цього набору будуть додані до вашого словника",
+                .english: "All words from this set will be added to your dictionary",
+                .polish: "Wszystkie słowa z tego zestawu zostaną dodane do słownika"
+            ],
+            .sortBy: [
+                .ukrainian: "Сортувати:",
+                .english: "Sort by:",
+                .polish: "Sortuj:"
+            ],
+            .addedToDictionary: [
+                .ukrainian: "Додано до словника",
+                .english: "Added to Dictionary",
+                .polish: "Dodano do słownika"
+            ],
+            .addToDictionary: [
+                .ukrainian: "Додати до словника",
+                .english: "Add to Dictionary",
+                .polish: "Dodaj do słownika"
+            ],
+            .synonyms: [
+                .ukrainian: "Синоніми",
+                .english: "Synonyms",
+                .polish: "Synonimy"
+            ],
+            .generatingWords: [
+                .ukrainian: "Генеруємо слова...",
+                .english: "Generating words...",
+                .polish: "Generowanie słów..."
+            ],
+            .aiGenerating: [
+                .ukrainian: "ШІ підбирає найкращі слова та приклади для вас",
+                .english: "AI is selecting the best words and examples for you",
+                .polish: "AI dobiera najlepsze słowa i przykłady dla Ciebie"
+            ],
+            .regenerate: [
+                .ukrainian: "Згенерувати нові",
+                .english: "Regenerate",
+                .polish: "Wygeneruj nowe"
+            ],
+            .useLocal: [
+                .ukrainian: "Використати офлайн-версію",
+                .english: "Use offline version",
+                .polish: "Użyj wersji offline"
+            ],
+            .aiError: [
+                .ukrainian: "Не вдалося згенерувати. Спробуємо офлайн-версію?",
+                .english: "Failed to generate. Try offline version?",
+                .polish: "Nie udało się wygenerować. Spróbować wersji offline?"
+            ],
+            
+            // Filters
+            .filterAll: [
+                .ukrainian: "Всі",
+                .english: "All",
+                .polish: "Wszystkie"
+            ],
+            .filterBeginner: [
+                .ukrainian: "Початковий",
+                .english: "Beginner",
+                .polish: "Początkujący"
+            ],
+            .filterIntermediate: [
+                .ukrainian: "Середній",
+                .english: "Intermediate",
+                .polish: "Średni"
+            ],
+            .filterAdvanced: [
+                .ukrainian: "Просунутий",
+                .english: "Advanced",
+                .polish: "Zaawansowany"
+            ],
+            .filterPremium: [
+                .ukrainian: "Premium",
+                .english: "Premium",
+                .polish: "Premium"
+            ],
+            .filterFree: [
+                .ukrainian: "Безкоштовні",
+                .english: "Free",
+                .polish: "Darmowe"
+            ],
+            
+            // Sort
+            .sortOriginal: [
+                .ukrainian: "За замовчуванням",
+                .english: "Default",
+                .polish: "Domyślnie"
+            ],
+            .sortTranslation: [
+                .ukrainian: "За перекладом",
+                .english: "By Translation",
+                .polish: "Według tłumaczenia"
+            ],
+            .sortAlphabetical: [
+                .ukrainian: "А-Я",
+                .english: "A-Z",
+                .polish: "A-Z"
+            ],
+            
+            // Tips
+            .tipLearning: [
+                .ukrainian: "💡 Порада: Вивчайте 5-10 слів на день",
+                .english: "💡 Tip: Learn 5-10 words per day",
+                .polish: "💡 Wskazówka: Ucz się 5-10 słów dziennie"
+            ],
+            .tipExamples: [
+                .ukrainian: "💡 Порада: Приклади допомагають зрозуміти контекст",
+                .english: "💡 Tip: Examples help understand context",
+                .polish: "💡 Wskazówka: Przykłady pomagają zrozumieć kontekst"
+            ],
+            .tipRepetition: [
+                .ukrainian: "💡 Порада: Повторення через інтервали — ключ до пам'яті",
+                .english: "💡 Tip: Spaced repetition is key to memory",
+                .polish: "💡 Wskazówka: Powtórki w interwałach — klucz do pamięci"
+            ],
+            .tipContext: [
+                .ukrainian: "💡 Порада: Вивчайте слова в контексті",
+                .english: "💡 Tip: Learn words in context",
+                .polish: "💡 Wskazówka: Ucz się słów w kontekście"
+            ],
+            
+            // Word Set Titles (AI categories)
+            .wordsetBasicWords: [
+                .ukrainian: "Базові слова",
+                .english: "Basic Words",
+                .polish: "Podstawowe słowa"
+            ],
+            .wordsetVerbs: [
+                .ukrainian: "Дієслова",
+                .english: "Verbs",
+                .polish: "Czasowniki"
+            ],
+            .wordsetNouns: [
+                .ukrainian: "Іменники",
+                .english: "Nouns",
+                .polish: "Rzeczowniki"
+            ],
+            .wordsetAdjectives: [
+                .ukrainian: "Прикметники",
+                .english: "Adjectives",
+                .polish: "Przymiotniki"
+            ],
+            .wordsetTravel: [
+                .ukrainian: "Для подорожей",
+                .english: "Travel",
+                .polish: "Podróże"
+            ],
+            .wordsetFood: [
+                .ukrainian: "Їжа та ресторани",
+                .english: "Food & Dining",
+                .polish: "Jedzenie i restauracje"
+            ],
+            .wordsetWork: [
+                .ukrainian: "Робота та бізнес",
+                .english: "Work & Business",
+                .polish: "Praca i biznes"
+            ],
+            .wordsetHobbies: [
+                .ukrainian: "Хобі та дозвілля",
+                .english: "Hobbies & Leisure",
+                .polish: "Hobby i wypoczynek"
+            ],
+            .wordsetEmotions: [
+                .ukrainian: "Емоції та почуття",
+                .english: "Emotions & Feelings",
+                .polish: "Emocje i uczucia"
+            ],
+            .wordsetFamily: [
+                .ukrainian: "Сім'я та люди",
+                .english: "Family & People",
+                .polish: "Rodzina i ludzie"
+            ],
+            .wordsetTime: [
+                .ukrainian: "Час та дати",
+                .english: "Time & Dates",
+                .polish: "Czas i daty"
+            ],
+            .wordsetShopping: [
+                .ukrainian: "Шопінг",
+                .english: "Shopping",
+                .polish: "Zakupy"
+            ],
+            .wordsetHealth: [
+                .ukrainian: "Здоров'я",
+                .english: "Health",
+                .polish: "Zdrowie"
+            ],
+            .wordsetTechnology: [
+                .ukrainian: "Технології",
+                .english: "Technology",
+                .polish: "Technologia"
+            ],
+            .wordsetNature: [
+                .ukrainian: "Природа",
+                .english: "Nature",
+                .polish: "Natura"
+            ],
+            .wordsetEducation: [
+                .ukrainian: "Навчання",
+                .english: "Education",
+                .polish: "Edukacja"
+            ],
+            .wordsetBusiness: [
+                .ukrainian: "Бізнес",
+                .english: "Business",
+                .polish: "Biznes"
+            ],
+            .wordsetScience: [
+                .ukrainian: "Наука",
+                .english: "Science",
+                .polish: "Nauka"
+            ],
+            .wordsetArt: [
+                .ukrainian: "Мистецтво",
+                .english: "Art",
+                .polish: "Sztuka"
+            ],
+            .wordsetSports: [
+                .ukrainian: "Спорт",
+                .english: "Sports",
+                .polish: "Sport"
+            ],
+            .wordsetCulture: [
+                .ukrainian: "Культура",
+                .english: "Culture",
+                .polish: "Kultura"
+            ],
+        .createCustomSet: [
+                .ukrainian: "Створити набір",
+                .english: "Create Set",
+                .polish: "Utwórz zestaw"
+            ],
+            .createYourOwnSet: [
+                .ukrainian: "Створіть свій набір слів",
+                .english: "Create your own word set",
+                .polish: "Utwórz własny zestaw słów"
+            ],
+            .aiWillGenerate: [
+                .ukrainian: "ШІ згенерує слова на основі вашого опису",
+                .english: "AI will generate words based on your description",
+                .polish: "AI wygeneruje słowa na podstawie Twojego opisu"
+            ],
+            .setTitle: [
+                .ukrainian: "Назва набору",
+                .english: "Set title",
+                .polish: "Tytuł zestawu"
+            ],
+            .titlePlaceholder: [
+                .ukrainian: "Наприклад: Для подорожі в Париж",
+                .english: "E.g., Travel to Paris",
+                .polish: "Np. Podróż do Paryża"
+            ],
+            .whatTopic: [
+                .ukrainian: "Яка тема?",
+                .english: "What topic?",
+                .polish: "Jaki temat?"
+            ],
+            .describeTopic: [
+                .ukrainian: "Опишіть детальніше: що вивчатимемо, в якому контексті...",
+                .english: "Describe in detail: what we'll learn, in what context...",
+                .polish: "Opisz szczegółowo: czego się nauczymy, w jakim kontekście..."
+            ],
+            .difficultyLevel: [
+                .ukrainian: "Рівень складності",
+                .english: "Difficulty level",
+                .polish: "Poziom trudności"
+            ],
+            .wordCount: [
+                .ukrainian: "Кількість слів",
+                .english: "Word count",
+                .polish: "Liczba słów"
+            ],
+            .focusAreas: [
+                .ukrainian: "Фокус теми",
+                .english: "Focus areas",
+                .polish: "Obszary tematyczne"
+            ],
+            .advancedOptions: [
+                .ukrainian: "Розширені налаштування",
+                .english: "Advanced options",
+                .polish: "Opcje zaawansowane"
+            ],
+            .customPrompt: [
+                .ukrainian: "Власний промпт для ШІ",
+                .english: "Custom AI prompt",
+                .polish: "Własny prompt AI"
+            ],
+            .promptTips: [
+                .ukrainian: "Підказка: можете вказати специфічні вимоги, наприклад 'тільки розмовні фрази' або 'бізнес-лексика'",
+                .english: "Tip: You can specify requirements, e.g. 'only informal phrases' or 'business vocabulary'",
+                .polish: "Wskazówka: możesz określić wymagania, np. 'tylko zwroty potoczne' lub 'słownictwo biznesowe'"
+            ],
+            .generateSet: [
+                .ukrainian: "Згенерувати набір",
+                .english: "Generate set",
+                .polish: "Generuj zestaw"
+            ],
+            .generating: [
+                .ukrainian: "Генерація...",
+                .english: "Generating...",
+                .polish: "Generowanie..."
+            ],
+            .createSet: [
+                .ukrainian: "Створити",
+                .english: "Create",
+                .polish: "Utwórz"
+            ],
+            .pleaseLogin: [
+                .ukrainian: "Будь ласка, увійдіть в акаунт",
+                .english: "Please log in to your account",
+                .polish: "Proszę zalogować się na konto"
+            ],
+            
+            // MARK: - Word Rating
+            .howIsThisTranslation: [
+                .ukrainian: "Як вам цей переклад?",
+                .english: "How is this translation?",
+                .polish: "Co sądzisz o tym tłumaczeniu?"
+            ],
+            .howCanBeBetter: [
+                .ukrainian: "Що можна покращити?",
+                .english: "What can be improved?",
+                .polish: "Co można poprawić?"
+            ],
+            .submitRating: [
+                .ukrainian: "Надіслати оцінку",
+                .english: "Submit rating",
+                .polish: "Wyślij ocenę"
+            ],
+            .thankYou: [
+                .ukrainian: "Дякуємо!",
+                .english: "Thank you!",
+                .polish: "Dziękujemy!"
+            ],
+            .feedbackReceived: [
+                .ukrainian: "Ваш відгук допоможе покращити Wordy для всіх",
+                .english: "Your feedback helps improve Wordy for everyone",
+                .polish: "Twoja opinia pomoże ulepszyć Wordy dla wszystkich"
+            ],
+            
+            // MARK: - Set Exchange
+            .exchangeSets: [
+                .ukrainian: "Обмін наборами",
+                .english: "Exchange sets",
+                .polish: "Wymiana zestawów"
+            ],
+            .export: [
+                .ukrainian: "Експорт",
+                .english: "Export",
+                .polish: "Eksport"
+            ],
+            .importTitle: [
+                .ukrainian: "Імпорт",
+                .english: "Import",
+                .polish: "Import"
+            ],
+            .community: [
+                .ukrainian: "Спільнота",
+                .english: "Community",
+                .polish: "Społeczność"
+            ],
+            .selectSetToExport: [
+                .ukrainian: "Оберіть набір для експорту",
+                .english: "Select set to export",
+                .polish: "Wybierz zestaw do eksportu"
+            ],
+            .importFromFile: [
+                .ukrainian: "Імпорт з файлу",
+                .english: "Import from file",
+                .polish: "Import z pliku"
+            ],
+            .importJSONDescription: [
+                .ukrainian: "Завантажте JSON файл з набором слів",
+                .english: "Upload a JSON file with word set",
+                .polish: "Prześlij plik JSON z zestawem słów"
+            ],
+            .scanQRCode: [
+                .ukrainian: "Сканувати QR-код",
+                .english: "Scan QR code",
+                .polish: "Skanuj kod QR"
+            ],
+            .scanQRDescription: [
+                .ukrainian: "Імпортуйте набір за допомогою QR-коду",
+                .english: "Import a set using QR code",
+                .polish: "Zaimportuj zestaw za pomocą kodu QR"
+            ],
+            .pasteFromClipboard: [
+                .ukrainian: "Вставити з буфера",
+                .english: "Paste from clipboard",
+                .polish: "Wklej ze schowka"
+            ],
+            .pasteJSONDescription: [
+                .ukrainian: "Вставте JSON текст з буфера обміну",
+                .english: "Paste JSON text from clipboard",
+                .polish: "Wklej tekst JSON ze schowka"
+            ],
+            .popular: [
+                .ukrainian: "Популярні",
+                .english: "Popular",
+                .polish: "Popularne"
+            ],
+            .recentWord: [
+                .ukrainian: "Нові",
+                .english: "Recent",
+                .polish: "Nowe"
+            ],
+            .trending: [
+                .ukrainian: "Трендові",
+                .english: "Trending",
+                .polish: "Trendujące"
+            ],
+            .following: [
+                .ukrainian: "Підписки",
+                .english: "Following",
+                .polish: "Obserwowane"
+            ],
+            .invalidFileFormat: [
+                .ukrainian: "Невірний формат файлу. Потрібен JSON.",
+                .english: "Invalid file format. JSON required.",
+                .polish: "Nieprawidłowy format pliku. Wymagany JSON."
+            ],
+            .unsupportedFormat: [
+                .ukrainian: "Цей формат не підтримується",
+                .english: "This format is not supported",
+                .polish: "Ten format nie jest obsługiwany"
+            ],
+            
+            // MARK: - Tips for generation
+            .tipSpecific: [
+                .ukrainian: "Будьте конкретними в описі",
+                .english: "Be specific in your description",
+                .polish: "Bądź konkretny w opisie"
+            ],
+            .tipLevel: [
+                .ukrainian: "Оберіть відповідний рівень",
+                .english: "Choose appropriate level",
+                .polish: "Wybierz odpowiedni poziom"
+            ],
+            .seeAll: [
+                .ukrainian: "Показати всі",
+                .english: "See all",
+                .polish: "Zobacz wszystkie"
+            ]
         ]
-    ]
 }
 
 extension Notification.Name {
     static let languageChanged = Notification.Name("languageChanged")
 }
-
