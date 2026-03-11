@@ -34,6 +34,8 @@ struct SearchView: View {
     @State private var showVoiceSearch = false
     @State private var showPaywall = false
     
+    @State private var gradientRotation: Double = 0
+    
     @State private var showSourcePicker = false
     @State private var showTargetPicker = false
     
@@ -219,49 +221,76 @@ struct SearchView: View {
     }
     
     private var searchBarWithButton: some View {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                
-                TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
-                    .font(.system(size: 16))
-                    .submitLabel(.search)
-                    .onSubmit {
-                        performSearch()
-                    }
-                
-                // Кнопка пошуку - з'являється коли є текст
-                if !searchText.isEmpty {
-                    Button {
-                        isSearchFocused = false
-                        performSearch()
-                    } label: {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(Color(hexString: "#4ECDC4"))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .transition(.scale.combined(with: .opacity))
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.gray)
+            
+            TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
+                .font(.system(size: 16))
+                .submitLabel(.search)
+                .onSubmit {
+                    performSearch()
                 }
-                
-                // Кнопка очищення
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
-                    .buttonStyle(PlainButtonStyle())
+            
+            // Кнопка пошуку
+            if !searchText.isEmpty {
+                Button {
+                    isSearchFocused = false
+                    performSearch()
+                } label: {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(Color(hexString: "#4ECDC4"))
                 }
+                .buttonStyle(PlainButtonStyle())
+                .transition(.scale.combined(with: .opacity))
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white)
-            )
-            .padding(.horizontal, 20)
+            
+            // Кнопка очищення
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white)
+        )
+        // ВИПРАВЛЕНА ГРАДІЄНТНА РАМКА - не блокує взаємодію
+        .overlay(
+            AngularGradient(
+                gradient: Gradient(colors: [
+                    Color(hexString: "#4ECDC4"),
+                    Color(hexString: "#FFD93D"),
+                    Color(hexString: "#FF6B6B"),
+                    Color(hexString: "#A8D8EA"),
+                    Color(hexString: "#4ECDC4")
+                ]),
+                center: .center,
+                angle: .degrees(gradientRotation)
+            )
+            .mask(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(lineWidth: 3)
+            )
+            .allowsHitTesting(false) // <-- КЛЮЧОВЕ ВИПРАВЛЕННЯ!
+        )
+        .onAppear {
+            withAnimation(
+                .linear(duration: 3)
+                .repeatForever(autoreverses: false)
+            ) {
+                gradientRotation = 360
+            }
+        }
+        .padding(.horizontal, 20)
+    }
     
     // MARK: - Контейнери з онбордингом
     

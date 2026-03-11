@@ -93,11 +93,11 @@ class OnboardingManager: ObservableObject {
                     isBlockingInteraction = true
                 }
             case .flashcards:
-                if hasWords && currentTargetFrame != .zero {
-                    print("✅ UI for flashcards is ready, showing...")
-                    isWaitingForUI = false
-                    isShowingOverlay = true
-                    isBlockingInteraction = true
+                if OnboardingContext.isOnDictionaryScreen
+                    && OnboardingContext.justAddedWord
+                    && hasWords
+                    && currentTargetFrame != .zero {
+                    // Показуємо overlay
                 } else {
                     print("⏳ flashcards waiting: hasWords=\(hasWords), frame=\(currentTargetFrame)")
                 }
@@ -127,15 +127,38 @@ class OnboardingManager: ObservableObject {
         
         // КЛЮЧОВА ЗМІНА: flashcards показується ТІЛЬКИ після додавання слова і переходу на словник
         if step == .flashcards {
-            let shouldShow = OnboardingContext.justAddedWord
-                && hasLearningWords
-                && OnboardingContext.isOnDictionaryScreen
-            
-            if !shouldShow {
-                print("🔍 shouldShow(flashcards): false (justAdded=\(OnboardingContext.justAddedWord), hasWords=\(hasLearningWords), onDictionary=\(OnboardingContext.isOnDictionaryScreen))")
-                return false
+                // Перевіряємо чи всі попередні кроки завершені (включаючи addToDictionary)
+                let ordered = OnboardingStep.orderedSteps
+                guard let stepIndex = ordered.firstIndex(of: step) else { return false }
+                let previousSteps = ordered.prefix(stepIndex)
+                let allPreviousCompleted = previousSteps.allSatisfy { completedSteps.contains($0.rawValue) }
+                
+                // Якщо addToDictionary не завершено - не показуємо flashcards
+                guard allPreviousCompleted else {
+                    print("🔍 shouldShow(flashcards): false (previous steps not completed)")
+                    return false
+                }
+                
+                // Якщо ми на словнику але ще не додали слово (justAddedWord = false) - пропускаємо
+                if OnboardingContext.isOnDictionaryScreen && !OnboardingContext.justAddedWord {
+                    print("🔍 shouldShow(flashcards): false (on dictionary but word not added yet - SKIPPING)")
+                    // Позначаємо як завершено, щоб не показувати знову
+                    completedSteps.insert(step.rawValue)
+                    return false
+                }
+                
+                // Показуємо тільки якщо всі умови виконані
+                let shouldShow = OnboardingContext.justAddedWord
+                    && hasLearningWords
+                    && OnboardingContext.isOnDictionaryScreen
+                
+                if !shouldShow {
+                    print("🔍 shouldShow(flashcards): false (justAdded=\(OnboardingContext.justAddedWord), hasWords=\(hasLearningWords), onDictionary=\(OnboardingContext.isOnDictionaryScreen))")
+                } else {
+                    print("🔍 shouldShow(flashcards): TRUE!")
+                }
+                return shouldShow
             }
-        }
         
         let ordered = OnboardingStep.orderedSteps
         guard let stepIndex = ordered.firstIndex(of: step) else { return false }
@@ -204,7 +227,12 @@ class OnboardingManager: ObservableObject {
         
         print("✅ Completing step: \(step.rawValue)")
         
-        // Якщо завершуємо flashcards - скидаємо контекст
+        // Якщо завершуємо addToDictionary - позначаємо що слово щойно додано
+        if step == .addToDictionary {
+            OnboardingContext.justAddedWord = true
+        }
+        
+        // Якщо завершуємо flashcards - скидаємо всі контексти
         if step == .flashcards {
             OnboardingContext.justAddedWord = false
             OnboardingContext.isOnDictionaryScreen = false
@@ -227,6 +255,11 @@ class OnboardingManager: ObservableObject {
                 if nextStep == .addToDictionary || nextStep == .flashcards {
                     self.isWaitingForUI = true
                     self.isShowingOverlay = false
+                    self.isBlockingInteraction = false
+                } else {
+                    self.isWaitingForUI = false
+                    self.isShowingOverlay = true
+                    self.isBlockingInteraction = true
                 }
             }
         } else {
