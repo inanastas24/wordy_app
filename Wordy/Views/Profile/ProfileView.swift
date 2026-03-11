@@ -83,7 +83,7 @@ struct ProfileView: View {
                 .navigationBarBackButtonHidden(true)
             }
             .onAppear {
-                selectedTab = 0
+                OnboardingContext.isOnDictionaryScreen = true
                 dictionaryVM.fetchSavedWords()
                 updateStreak()
             }

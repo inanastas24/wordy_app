@@ -154,6 +154,7 @@ struct DictionaryView: View {
                 onboardingManager.hasLearningWords = count > 0
             }
             .onAppear {
+                OnboardingContext.isOnDictionaryScreen = true
                 viewModel.fetchSavedWords()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     onboardingManager.hasLearningWords = viewModel.learningCount > 0
@@ -166,6 +167,7 @@ struct DictionaryView: View {
             }
             .onDisappear {
                 viewModel.stopListening()
+                OnboardingContext.isOnDictionaryScreen = false
             }
         }
     }

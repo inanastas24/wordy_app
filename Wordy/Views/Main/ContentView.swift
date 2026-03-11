@@ -14,7 +14,6 @@ struct ContentView: View {
     @State private var onboardingStep: OnboardingStep = .appLanguage
     @State private var selectedAppLanguage: Language = .english
 
-    
     @State private var showPaywall = false
     @State private var showMainApp = false
     

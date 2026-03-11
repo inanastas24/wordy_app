@@ -1,4 +1,4 @@
-//1
+//
 //  MenuView.swift
 //  Wordy
 //
@@ -7,6 +7,70 @@
 
 import SwiftUI
 import StoreKit
+import Observation
+
+// MARK: - Review Manager
+@MainActor
+@Observable
+class ReviewManager {
+    static let shared = ReviewManager()
+    
+    private let appStoreID = "6759168234"
+    private let lastReviewRequestKey = "lastReviewRequestDate"
+    private let appUsageCountKey = "appUsageCount"
+    private let minUsageCountForReview = 5 // Мінімум 5 разів відкрив додаток
+    
+    private init() {}
+    
+    var canRequestReview: Bool {
+        let usageCount = UserDefaults.standard.integer(forKey: appUsageCountKey)
+        guard usageCount >= minUsageCountForReview else { return false }
+        
+        guard let lastDate = UserDefaults.standard.object(forKey: lastReviewRequestKey) as? Date else {
+            return true
+        }
+        
+        let calendar = Calendar.current
+        return !calendar.isDateInToday(lastDate)
+    }
+    
+    func recordAppUsage() {
+        let current = UserDefaults.standard.integer(forKey: appUsageCountKey)
+        UserDefaults.standard.set(current + 1, forKey: appUsageCountKey)
+    }
+    
+    func markReviewRequested() {
+        UserDefaults.standard.set(Date(), forKey: lastReviewRequestKey)
+    }
+    
+    func requestReviewIfAppropriate() {
+        guard canRequestReview else { return }
+        
+        requestReview()
+        markReviewRequested()
+    }
+    
+    func openAppStoreForReview() {
+        let urlString = "https://apps.apple.com/app/id\(appStoreID)?action=write-review"
+        guard let url = URL(string: urlString) else { return }
+        
+        guard UIApplication.shared.canOpenURL(url) else { return }
+        
+        UIApplication.shared.open(url) { _ in
+            self.markReviewRequested()
+        }
+    }
+    
+    private func requestReview() {
+        if #available(iOS 14.0, *) {
+            guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first else { return }
+            
+            SKStoreReviewController.requestReview(in: windowScene)
+        }
+    }
+}
 
 struct MenuView: View {
     @Binding var isShowing: Bool
@@ -16,6 +80,7 @@ struct MenuView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
+    @State private var reviewManager = ReviewManager.shared
     
     @State private var bubbleOffsets: [CGFloat] = [0, 0, 0, 0, 0]
     @State private var showExportSheet = false
@@ -24,17 +89,14 @@ struct MenuView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                // Backdrop
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                     .onTapGesture {
                         closeMenu()
                     }
                 
-                // Menu content - not full height to avoid tab bar
                 VStack(alignment: .leading, spacing: 0) {
                     menuHeader
-                    
                     quickStats
                     
                     Divider()
@@ -45,11 +107,10 @@ struct MenuView: View {
                     actionsSection
                     
                     Spacer()
-                    
                     footerSection
                 }
                 .frame(width: min(geometry.size.width * 0.75, 300))
-                .frame(maxHeight: geometry.size.height - 100) // Leave space for tab bar
+                .frame(maxHeight: geometry.size.height - 100)
                 .background(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color.white)
                 .cornerRadius(20)
                 .shadow(color: Color.black.opacity(0.2), radius: 20, x: 5, y: 0)
@@ -66,15 +127,16 @@ struct MenuView: View {
         }
         .onAppear {
             dictionaryVM.fetchSavedWords()
+            reviewManager.recordAppUsage()
+            reviewManager.requestReviewIfAppropriate()
         }
-        // Close when tab changes
         .onChange(of: selectedTab) { oldValue, newValue in
-                    if oldValue != newValue {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                            isShowing = false
-                        }
-                    }
+            if oldValue != newValue {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    isShowing = false
                 }
+            }
+        }
     }
     
     private func closeMenu() {
@@ -204,7 +266,11 @@ struct MenuView: View {
                 .padding(.horizontal, 20)
             
             Button(action: {
-                requestReview()
+                if reviewManager.canRequestReview {
+                    ReviewManager.shared.requestReviewIfAppropriate()
+                } else {
+                    ReviewManager.shared.openAppStoreForReview()
+                }
                 closeMenu()
             }) {
                 MenuRow(
@@ -214,6 +280,7 @@ struct MenuView: View {
                     isDarkMode: localizationManager.isDarkMode
                 )
             }
+            .opacity(reviewManager.canRequestReview ? 1.0 : 0.6)
         }
     }
     
@@ -224,7 +291,7 @@ struct MenuView: View {
                 .padding(.horizontal, 20)
             
             HStack {
-                Text("Wordy v2.2")
+                Text("Wordy v1.0")
                     .font(.system(size: 12))
                     .foregroundColor(localizationManager.isDarkMode ? .gray.opacity(0.6) : Color(hex: "#7F8C8D").opacity(0.6))
                 
@@ -245,28 +312,17 @@ struct MenuView: View {
         }
     }
     
-    // Замініть метод requestReview():
-    private func requestReview() {
-        if #available(iOS 18.0, *) {
-            // Використовуйте AppStore.requestReview(in:) — але це для App Store, не для In-App
-            // Для In-App reviews в iOS 18+ використовуйте:
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-            // Немає прямої заміни, тому залиште як є або приберіть функціонал
-        } else {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                SKStoreReviewController.requestReview(in: windowScene)
-            }
-        }
-    }
-    
     private var shareMessage: String {
+        let appStoreURL = "https://apps.apple.com/app/wordy/id6759168234"
+        
         switch localizationManager.currentLanguage {
         case .ukrainian:
-            return "Вчу мови з Wordy! 📚 Спробуй і ти: [лінк на App Store]"
+            return "Вчу мови з Wordy! 📚 Спробуй і ти: \(appStoreURL)"
         case .polish:
-            return "Uczę się języków z Wordy! 📚 Spróbuj też: [лінк на App Store]"
+            return "Uczę się języków z Wordy! 📚 Spróbuj też: \(appStoreURL)"
         case .english:
-            return "I'm learning languages with Wordy! 📚 Check it out: [App Store link]"
+            return "I'm learning languages with Wordy! 📚 Check it out: \(appStoreURL)"
         }
     }
 }
+

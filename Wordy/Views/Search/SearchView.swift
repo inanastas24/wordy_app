@@ -61,12 +61,12 @@ struct SearchView: View {
                             languagePairContainer
                                 .padding(.top, 5)
                             
-                            SearchBar(text: $searchText, onSubmit: performSearch)
+                            searchBarWithButton
                                 .focused($isSearchFocused)
-                            
-                            if speechService.isRecording {
-                                recordingIndicator
-                            }
+                                                        
+                                    if speechService.isRecording {
+                                        recordingIndicator
+                                }
                             
                             if isLoading {
                                 ProgressView()
@@ -147,7 +147,7 @@ struct SearchView: View {
                         .onAppear {
                             isSearchFocused = false
                         }
-                }
+                    }
             }
             .sheet(isPresented: $showScanner) {
                 TextScannerView(
@@ -186,6 +186,8 @@ struct SearchView: View {
                 }
             }
             .onAppear {
+                OnboardingContext.isOnDictionaryScreen = false
+                OnboardingContext.justAddedWord = false
                 handleDeepLinkAction(deepLinkAction)
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
@@ -206,11 +208,60 @@ struct SearchView: View {
                 .environmentObject(subscriptionManager)
                 .environmentObject(localizationManager)
             }
+            .fullScreenCover(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(localizationManager)
+            }
             .onChange(of: selectedTab) { _, _ in
                 isSearchFocused = false
             }
         }
     }
+    
+    private var searchBarWithButton: some View {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                
+                TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
+                    .font(.system(size: 16))
+                    .submitLabel(.search)
+                    .onSubmit {
+                        performSearch()
+                    }
+                
+                // Кнопка пошуку - з'являється коли є текст
+                if !searchText.isEmpty {
+                    Button {
+                        isSearchFocused = false
+                        performSearch()
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(Color(hexString: "#4ECDC4"))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
+                // Кнопка очищення
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white)
+            )
+            .padding(.horizontal, 20)
+        }
     
     // MARK: - Контейнери з онбордингом
     

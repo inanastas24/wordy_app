@@ -292,89 +292,124 @@ struct LargeWidgetView: View {
     private let loc = WidgetLocalization.self
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
+            // Header компактніший
             HStack {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Text("🫧")
-                        .font(.system(size: 20))
+                        .font(.system(size: 16))
                     
                     Text("Wordy")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(theme.accentColor)
                 }
                 
                 Spacer()
                 
                 Text(loc.string(.wordOfDay))
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(theme.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.5)
             }
             
+            // Основна картка зі словом - займає більше місця
             if let word = entry.word {
-                VStack(spacing: 12) {
-                    VStack(spacing: 10) {
-                        Text(word.original)
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(theme.textPrimary)
-                        
-                        if let transcription = word.transcription {
-                            Text(transcription)
-                                .font(.system(size: 16))
-                                .foregroundColor(theme.textSecondary)
-                        }
-                        
-                        Divider()
-                            .background(theme.dividerColor)
-                            .padding(.horizontal, 20)
-                        
-                        Text(word.translation)
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(theme.accentColor)
-                        
-                        if let example = word.example {
-                            Text(example)
-                                .font(.system(size: 14))
-                                .foregroundColor(theme.textSecondary)
-                                .italic()
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                        }
+                VStack(spacing: 8) {
+                    // Слово з переносом на новий рядок
+                    Text(word.original)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(theme.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                    
+                    if let transcription = word.transcription {
+                        Text(transcription)
+                            .font(.system(size: 14))
+                            .foregroundColor(theme.textSecondary)
                     }
-                    .padding(16)
-                    .background(theme.cardBackground)
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                    
+                    Divider()
+                        .background(theme.dividerColor)
+                        .padding(.horizontal, 16)
+                    
+                    Text(word.translation)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(theme.accentColor)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    
+                    if let example = word.example {
+                        Text(example)
+                            .font(.system(size: 13))
+                            .foregroundColor(theme.textSecondary)
+                            .italic()
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    }
                 }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 12)
+                .background(theme.cardBackground)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
             } else {
                 EmptyStateView(theme: theme)
                     .frame(maxHeight: .infinity)
             }
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            HStack(spacing: 12) {
-                LargeActionButton(
+            // Кнопки в ряд з іконками та компактними текстами
+            HStack(spacing: 10) {
+                CompactActionButton(
                     icon: "camera.fill",
-                    title: loc.string(.scanText),
-                    subtitle: loc.string(.scan),
+                    title: loc.string(.scan),
                     color: Color(hex: "#A8D8EA"),
-                    url: "wordy://camera",
-                    theme: theme
+                    url: "wordy://camera"
                 )
                 
-                LargeActionButton(
+                CompactActionButton(
                     icon: "mic.fill",
-                    title: loc.string(.voiceSearch),
-                    subtitle: loc.string(.sayWord),
+                    title: loc.string(.voice),
                     color: Color(hex: "#FFD93D"),
-                    url: "wordy://voice",
-                    theme: theme
+                    url: "wordy://voice"
                 )
             }
         }
-        .padding(16)
+        .padding(14)
+    }
+}
+// MARK: - Compact Action Button (для Large widget)
+struct CompactActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let url: String
+    
+    var body: some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(color)
+                    .clipShape(Circle())
+                
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color(hex: "#2C3E50"))
+                
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color(hex: "#F8F9FA"))
+            .cornerRadius(10)
+        }
     }
 }
 

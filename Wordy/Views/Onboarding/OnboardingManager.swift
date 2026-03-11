@@ -26,6 +26,8 @@ enum OnboardingContext {
     static var isWordListVisible: Bool = false
     // Для flashcards: чи щойно додано слово і перейшли на словник
     static var justAddedWord: Bool = false
+    // НОВЕ: Чи користувач зараз на сторінці Словника
+    static var isOnDictionaryScreen: Bool = false
 }
 
 class OnboardingManager: ObservableObject {
@@ -125,8 +127,12 @@ class OnboardingManager: ObservableObject {
         
         // КЛЮЧОВА ЗМІНА: flashcards показується ТІЛЬКИ після додавання слова і переходу на словник
         if step == .flashcards {
-            guard OnboardingContext.justAddedWord && hasLearningWords else {
-                print("🔍 shouldShow(flashcards): false (justAdded=\(OnboardingContext.justAddedWord), hasWords=\(hasLearningWords))")
+            let shouldShow = OnboardingContext.justAddedWord
+                && hasLearningWords
+                && OnboardingContext.isOnDictionaryScreen
+            
+            if !shouldShow {
+                print("🔍 shouldShow(flashcards): false (justAdded=\(OnboardingContext.justAddedWord), hasWords=\(hasLearningWords), onDictionary=\(OnboardingContext.isOnDictionaryScreen))")
                 return false
             }
         }
@@ -197,6 +203,12 @@ class OnboardingManager: ObservableObject {
         guard let step = currentStep else { return }
         
         print("✅ Completing step: \(step.rawValue)")
+        
+        // Якщо завершуємо flashcards - скидаємо контекст
+        if step == .flashcards {
+            OnboardingContext.justAddedWord = false
+            OnboardingContext.isOnDictionaryScreen = false
+        }
         
         completedSteps.insert(step.rawValue)
         isWaitingForUI = false

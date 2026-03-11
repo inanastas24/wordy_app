@@ -98,6 +98,14 @@ struct SetsView: View {
     @State private var showDifficultyWords = false
     @State private var selectedSet: WordSet?
     
+    // Додаємо стани для меню
+    @State private var showMenu = false
+    @State private var selectedTab: Int = 1
+    @State private var showSettings = false
+        
+    // Focus state для клавіатури
+    @FocusState private var isSearchFocused: Bool
+    
     // Filtered words based on search
     private var filteredWords: [Word] {
         if searchText.isEmpty {
@@ -107,54 +115,117 @@ struct SetsView: View {
     }
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                backgroundColor
-                    .ignoresSafeArea()
+          NavigationStack {
+              ZStack {
+                  backgroundColor
+                      .ignoresSafeArea()
+                  
+                  VStack(spacing: 0) {
+                      // HeaderView як у DictionaryView
+                      HeaderView(showMenu: $showMenu, title: localizationManager.string(.wordSets))
+                          .environmentObject(localizationManager)
+                      
+                      ScrollView {
+                          VStack(spacing: 20) {
+                              // Пошук по наборах з кнопкою
+                              searchBarWithButton
+                                  .padding(.top, 8)
+                                  .focused($isSearchFocused)
+                              
+                              // Результати пошуку
+                              if !searchText.isEmpty {
+                                  searchResultsSection
+                              }
+                              
+                              // Фільтри
+                              filtersSection
+                              
+                              // Рівні складності (A1-C2)
+                              difficultyLevelsSection
+                              
+                              // Тематичні категорії
+                              categoriesSection
+                          }
+                          .padding(.horizontal, 20)
+                          .padding(.vertical, 16)
+                      }
+                      .scrollDismissesKeyboard(.interactively)
+                      .onAppear {
+                          OnboardingContext.isOnDictionaryScreen = false
+                      }
+                  }
+                  
+                  // Меню як у DictionaryView
+                  if showMenu {
+                      MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
+                          .transition(.move(edge: .leading))
+                          .zIndex(100)
+                  }
+              }
+              .navigationTitle("")
+              .navigationBarHidden(true)
+              .fullScreenCover(isPresented: $showSettings) {
+                  SettingsView()
+                      .environmentObject(localizationManager)
+              }
+              .navigationDestination(isPresented: $showCategoryWords) {
+                  if let category = selectedCategory {
+                      CategoryWordsView(
+                          category: category,
+                          selectedDifficulty: selectedDifficulty
+                      )
+                  }
+              }
+              .navigationDestination(isPresented: $showDifficultyWords) {
+                  if let set = selectedSet {
+                      WordSetDetailView(set: set)
+                  }
+              }
+          }
+      }
+    
+    private var searchBarWithButton: some View {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
                 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Заголовок
-                        headerSection
-                        
-                        // Пошук по наборах
-                        searchBar
-                        
-                        // Результати пошуку
-                        if !searchText.isEmpty {
-                            searchResultsSection
-                        }
-                        
-                        // Фільтри
-                        filtersSection
-                        
-                        // Рівні складності (A1-C2)
-                        difficultyLevelsSection
-                        
-                        // Тематичні категорії
-                        categoriesSection
+                TextField(localizationManager.string(.searchSets), text: $searchText)
+                    .font(.system(size: 16))
+                    .submitLabel(.search)
+                    .onSubmit {
+                        isSearchFocused = false
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                
+                // Кнопка пошуку - з'являється коли є текст
+                if !searchText.isEmpty {
+                    Button {
+                        isSearchFocused = false
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(Color(hex: "#4ECDC4"))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
+                // Кнопка очищення
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
-            .navigationTitle(localizationManager.string(.wordSets))
-            .navigationBarTitleDisplayMode(.large)
-            .navigationDestination(isPresented: $showCategoryWords) {
-                if let category = selectedCategory {
-                    CategoryWordsView(
-                        category: category,
-                        selectedDifficulty: selectedDifficulty
-                    )
-                }
-            }
-            .navigationDestination(isPresented: $showDifficultyWords) {
-                if let set = selectedSet {
-                    WordSetDetailView(set: set)
-                }
-            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color(hex: "#F5F5F5"))
+            )
         }
-    }
     
     // MARK: - Sections
     
