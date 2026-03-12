@@ -10,6 +10,7 @@ import FirebaseAuth
 import Foundation
 import Combine
 
+
 @MainActor
 class DictionaryViewModel: ObservableObject {
     static let shared = DictionaryViewModel()

@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreHaptics
 
+
 struct FlashcardsView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -452,6 +453,7 @@ struct FlashcardsView: View {
             .padding(.top, 10)
         }
         .padding()
+        .iPadCentered(maxWidth: 500)
     }
     
     private func loadCards() {

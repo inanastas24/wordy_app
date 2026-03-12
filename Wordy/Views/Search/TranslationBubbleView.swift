@@ -9,6 +9,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+
 struct TranslationBubbleView: View {
     let result: TranslationResult
     let onSave: (SavedWord) -> Void

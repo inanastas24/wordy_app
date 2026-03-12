@@ -5,6 +5,7 @@
 
 import SwiftUI
 
+
 struct ContentView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState

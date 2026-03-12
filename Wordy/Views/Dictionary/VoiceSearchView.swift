@@ -1,5 +1,6 @@
 import SwiftUI
 
+
 struct VoiceSearchView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState

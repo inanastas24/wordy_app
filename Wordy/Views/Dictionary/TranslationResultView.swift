@@ -7,6 +7,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
+
 struct TranslationResultView: View {
     let result: TranslationResult
     var onClose: () -> Void

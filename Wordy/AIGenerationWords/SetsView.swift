@@ -57,13 +57,6 @@ private class TTSSDelegate: NSObject, AVSpeechSynthesizerDelegate {
             TTSManager.shared.currentText = ""
         }
     }
-    
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            TTSManager.shared.isPlaying = false
-            TTSManager.shared.currentText = ""
-        }
-    }
 }
 
 // MARK: - Word Set Store для відстеження доданих слів

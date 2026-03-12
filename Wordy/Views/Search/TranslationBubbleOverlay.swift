@@ -128,12 +128,14 @@ struct TranslationBubbleOverlay: View {
                 .padding(24)
                 .background(cardBackground)
                 .frame(maxWidth: min(geometry.size.width - 40, 380))
+                .frame(minHeight: 0, maxHeight: .infinity, alignment: .center)
                 .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
                 .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
                 .padding(.horizontal, 20)
 
             Spacer(minLength: geometry.size.height * 0.05)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var cardBackground: some View {

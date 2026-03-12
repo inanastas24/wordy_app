@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 
+
 struct SearchView: View {
     @Binding var selectedTab: Int
     @Binding var deepLinkAction: DeepLinkAction?

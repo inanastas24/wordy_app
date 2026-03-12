@@ -9,6 +9,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import LocalAuthentication
 
+
 struct BiometricSettingsRow: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showExportImport = false
