@@ -10,19 +10,28 @@ import AVFoundation
 import Combine
 
 // MARK: - TTS Manager
-class TTSManager: ObservableObject {
+@MainActor
+final class TTSManager: ObservableObject {
     static let shared = TTSManager()
     
     @Published var isPlaying = false
     @Published var currentText: String = ""
     
     private let synthesizer = AVSpeechSynthesizer()
+    private var delegate: TTSDelegate?
     
     private init() {
-        synthesizer.delegate = TTSSDelegate.shared
+        // Створюємо delegate з weak посиланням на self
+        let newDelegate = TTSDelegate()
+        self.delegate = newDelegate
+        synthesizer.delegate = newDelegate
+        
+        // Налаштовуємо weak reference
+        newDelegate.manager = self
     }
     
     func speak(text: String, language: String = "en") {
+        // Зупиняємо попереднє відтворення
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -46,16 +55,30 @@ class TTSManager: ObservableObject {
         isPlaying = false
         currentText = ""
     }
+    
+    // MARK: - Internal Methods for Delegate
+    fileprivate func handleDidFinish() {
+        isPlaying = false
+        currentText = ""
+    }
 }
 
-private class TTSSDelegate: NSObject, AVSpeechSynthesizerDelegate {
-    static let shared = TTSSDelegate()
+// MARK: - TTS Delegate
+private final class TTSDelegate: NSObject, AVSpeechSynthesizerDelegate {
+    // Weak reference щоб уникнути retain cycle
+    weak var manager: TTSManager?
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            TTSManager.shared.isPlaying = false
-            TTSManager.shared.currentText = ""
-        }
+        // Використовуємо @MainActor через manager
+        manager?.handleDidFinish()
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        manager?.handleDidFinish()
+    }
+    
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
+        manager?.handleDidFinish()
     }
 }
 
