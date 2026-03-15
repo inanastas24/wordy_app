@@ -43,12 +43,15 @@ struct SearchView: View {
     @FocusState private var isSearchFocused: Bool
     
     private let translationService = TranslationService()
-    private let voiceColor = Color(hexString: "#FFD93D")
+    private var voiceColor: Color {
+        Color(hex: localizationManager.isDarkMode ? "#FFCA28" : "#FFD93D")
+    }
+    private let maxCharacters = 254
     
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hexString: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
+                Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                     .ignoresSafeArea()
                     .onTapGesture {
                         isSearchFocused = false
@@ -140,7 +143,6 @@ struct SearchView: View {
                     .environmentObject(appState)
                     .environmentObject(authViewModel)
                     .environmentObject(onboardingManager)
-                    // Онбординг для кнопки "Зберегти" - додаємо через overlay на кнопці всередині TranslationBubbleOverlay
                 }
                 
                 if showMenu {
@@ -168,7 +170,14 @@ struct SearchView: View {
             }
             .onChange(of: scannedText) { _, newText in
                 if !newText.isEmpty {
-                    searchText = newText
+                    let truncatedText = String(newText.prefix(254))
+                    searchText = truncatedText
+                    if newText.count > 254 {
+                        ToastManager.shared.show(
+                            message: localizationManager.string(.textTooLong),
+                            style: .warning
+                        )
+                    }
                     performSearch()
                     scannedText = ""
                 }
@@ -229,6 +238,16 @@ struct SearchView: View {
             TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
                 .font(.system(size: 16))
                 .submitLabel(.search)
+                .onChange(of: searchText) { _, newValue in
+                    // Ліміт 254 символи
+                    if newValue.count > 254 {
+                        searchText = String(newValue.prefix(254))
+                        ToastManager.shared.show(
+                            message: localizationManager.string(.textTooLong),
+                            style: .warning
+                        )
+                    }
+                }
                 .onSubmit {
                     performSearch()
                 }
@@ -241,7 +260,7 @@ struct SearchView: View {
                 } label: {
                     Image(systemName: "arrow.right.circle.fill")
                         .font(.system(size: 22))
-                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                 }
                 .buttonStyle(PlainButtonStyle())
                 .transition(.scale.combined(with: .opacity))
@@ -261,17 +280,16 @@ struct SearchView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
         )
-        // ВИПРАВЛЕНА ГРАДІЄНТНА РАМКА - не блокує взаємодію
         .overlay(
             AngularGradient(
                 gradient: Gradient(colors: [
-                    Color(hexString: "#4ECDC4"),
-                    Color(hexString: "#FFD93D"),
-                    Color(hexString: "#FF6B6B"),
-                    Color(hexString: "#A8D8EA"),
-                    Color(hexString: "#4ECDC4")
+                    Color(hex: "#4ECDC4"),
+                    Color(hex: "#FFD93D"),
+                    Color(hex: "#FF6B6B"),
+                    Color(hex: "#A8D8EA"),
+                    Color(hex: "#4ECDC4")
                 ]),
                 center: .center,
                 angle: .degrees(gradientRotation)
@@ -280,7 +298,7 @@ struct SearchView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(lineWidth: 3)
             )
-            .allowsHitTesting(false) // <-- КЛЮЧОВЕ ВИПРАВЛЕННЯ!
+            .allowsHitTesting(false)
         )
         .onAppear {
             withAnimation(
@@ -293,6 +311,20 @@ struct SearchView: View {
         .padding(.horizontal, 20)
     }
     
+    // MARK: - Voice Result Handler
+    private func handleVoiceResult(text: String) {
+        if text.count > 254 {
+            let truncated = String(text.prefix(254))
+            searchText = truncated
+            ToastManager.shared.show(
+                message: localizationManager.string(.voiceInputTooLong),
+                style: .warning
+            )
+        } else {
+            searchText = text
+        }
+        performVoiceSearch(text: searchText)
+    }
     // MARK: - Контейнери з онбордингом
     
     private var languagePairContainer: some View {
@@ -306,7 +338,7 @@ struct SearchView: View {
             icon: "camera.fill",
             title: localizationManager.string(.scan),
             subtitle: localizationManager.string(.scanText),
-            color: Color(hexString: "#A8D8EA"),
+            color: Color(hex: "#A8D8EA"),
             isDarkMode: localizationManager.isDarkMode
         ) {
             isSearchFocused = false
@@ -343,20 +375,20 @@ struct SearchView: View {
                         .font(.system(size: 20))
                     Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10))
-                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color(hexString: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -370,11 +402,11 @@ struct SearchView: View {
             } label: {
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hexString: "#4ECDC4"))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
                     .frame(width: 36, height: 36)
                     .background(
                         Circle()
-                            .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                            .fill(Color(hex: "#4ECDC4").opacity(0.15))
                     )
             }
             .buttonStyle(PlainButtonStyle())
@@ -389,20 +421,20 @@ struct SearchView: View {
                         .font(.system(size: 20))
                     Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10))
-                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(hexString: "#4ECDC4").opacity(0.15))
+                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color(hexString: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -427,7 +459,7 @@ struct SearchView: View {
                 HStack {
                     Text(title)
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                     
                     Spacer()
                     
@@ -446,7 +478,7 @@ struct SearchView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text(localizationManager.string(.popularLanguages))
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color(hexString: "#4ECDC4"))
+                                .foregroundColor(Color(hex: "#4ECDC4"))
                                 .padding(.horizontal, 4)
                             
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -478,7 +510,7 @@ struct SearchView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 24)
-                    .fill(localizationManager.isDarkMode ? Color(hexString: "#1C1C1E") : Color(hexString: "#FFFDF5"))
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5"))
                     .shadow(color: Color.black.opacity(0.2), radius: 40, x: 0, y: 20)
             )
             .padding(.horizontal, 20)
@@ -502,18 +534,18 @@ struct SearchView: View {
                 
                 Text(language.localizedName(in: localizationManager.currentLanguage))
                     .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50")))
+                    .foregroundColor(isSelected ? .white : (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(hexString: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hexString: "#2C2C2E") : Color.white))
+                    .fill(isSelected ? Color(hex: "#4ECDC4") : (localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hexString: "#E0E0E0")), lineWidth: 1)
+                    .stroke(isSelected ? Color.clear : (localizationManager.isDarkMode ? Color.gray.opacity(0.3) : Color(hex: "#E0E0E0")), lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -546,7 +578,7 @@ struct SearchView: View {
                     HStack {
                         Text(localizationManager.string(.recent))
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hexString: "#2C3E50"))
+                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                         
                         Spacer()
                         
@@ -554,7 +586,7 @@ struct SearchView: View {
                             appState.searchHistory.removeAll()
                         }
                         .font(.system(size: 14))
-                        .foregroundColor(Color(hexString: "#4ECDC4"))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                     }
                     .padding(.horizontal, 20)
                     
@@ -570,15 +602,15 @@ struct SearchView: View {
                 VStack(spacing: 15) {
                     Image(systemName: "text.magnifyingglass")
                         .font(.system(size: 60))
-                        .foregroundColor(Color(hexString: "#A8D8EA"))
+                        .foregroundColor(Color(hex: "#A8D8EA"))
                     
                     Text(localizationManager.string(.search))
                         .font(.system(size: 18))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hexString: "#7F8C8D"))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
                     
                     Text(localizationManager.string(.searchPlaceholder))
                         .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hexString: "#7F8C8D"))
+                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
@@ -750,29 +782,3 @@ struct SearchView: View {
 enum PermissionType {
     case camera, microphone, speech, tracking, notification
 }
-extension Color {
-    /// Initializes a Color from a hex string like "#RRGGBB" or "#RRGGBBAA".
-    init(hexString: String) {
-        var hex = hexString.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        if hex.hasPrefix("#") { hex.removeFirst() }
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r, g, b, a: UInt64
-        switch hex.count {
-        case 6:
-            (r, g, b, a) = ((int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF, 0xFF)
-        case 8:
-            (r, g, b, a) = ((int >> 24) & 0xFF, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
-        default:
-            (r, g, b, a) = (0x00, 0x00, 0x00, 0xFF)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255.0,
-            green: Double(g) / 255.0,
-            blue: Double(b) / 255.0,
-            opacity: Double(a) / 255.0
-        )
-    }
-}
-

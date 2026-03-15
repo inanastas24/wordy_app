@@ -9,7 +9,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-// MARK: - TTS Manager
+// MARK: - TTS Manager (ОНОВЛЕНИЙ - без memory leaks)
 @MainActor
 final class TTSManager: ObservableObject {
     static let shared = TTSManager()
@@ -21,17 +21,13 @@ final class TTSManager: ObservableObject {
     private var delegate: TTSDelegate?
     
     private init() {
-        // Створюємо delegate з weak посиланням на self
         let newDelegate = TTSDelegate()
         self.delegate = newDelegate
         synthesizer.delegate = newDelegate
-        
-        // Налаштовуємо weak reference
         newDelegate.manager = self
     }
     
     func speak(text: String, language: String = "en") {
-        // Зупиняємо попереднє відтворення
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -56,7 +52,6 @@ final class TTSManager: ObservableObject {
         currentText = ""
     }
     
-    // MARK: - Internal Methods for Delegate
     fileprivate func handleDidFinish() {
         isPlaying = false
         currentText = ""
@@ -65,28 +60,31 @@ final class TTSManager: ObservableObject {
 
 // MARK: - TTS Delegate
 private final class TTSDelegate: NSObject, AVSpeechSynthesizerDelegate {
-    // Weak reference щоб уникнути retain cycle
     weak var manager: TTSManager?
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        // Використовуємо @MainActor через manager
-        manager?.handleDidFinish()
+        Task { @MainActor in
+            self.manager?.handleDidFinish()
+        }
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        manager?.handleDidFinish()
+        Task { @MainActor in
+            self.manager?.handleDidFinish()
+        }
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
-        manager?.handleDidFinish()
+        Task { @MainActor in
+            self.manager?.handleDidFinish()
+        }
     }
 }
 
-// MARK: - Word Set Store для відстеження доданих слів
+// MARK: - Word Set Store
 class WordSetStore: ObservableObject {
     static let shared = WordSetStore()
     
-    // Множина ID слів, які були додані з наборів слів (тільки для поточної сесії)
     @Published private(set) var addedWordIds: Set<String> = []
     
     func markAsAdded(wordId: String) {
@@ -114,17 +112,14 @@ struct SetsView: View {
     @State private var showDifficultyWords = false
     @State private var selectedSet: WordSet?
     
-    // Додаємо стани для меню
     @State private var showMenu = false
     @State private var selectedTab: Int = 1
     @State private var showSettings = false
     
     @State private var gradientRotation: Double = 0
         
-    // Focus state для клавіатури
     @FocusState private var isSearchFocused: Bool
     
-    // Filtered words based on search
     private var filteredWords: [Word] {
         if searchText.isEmpty {
             return []
@@ -133,74 +128,65 @@ struct SetsView: View {
     }
     
     var body: some View {
-          NavigationStack {
-              ZStack {
-                  backgroundColor
-                      .ignoresSafeArea()
-                  
-                  VStack(spacing: 0) {
-                      // HeaderView як у DictionaryView
-                      HeaderView(showMenu: $showMenu, title: localizationManager.string(.wordSets))
-                          .environmentObject(localizationManager)
-                      
-                      ScrollView {
-                          VStack(spacing: 20) {
-                              // Пошук по наборах з кнопкою
-                              searchBarWithButton
-                                  .padding(.top, 8)
-                                  .focused($isSearchFocused)
-                              
-                              // Результати пошуку
-                              if !searchText.isEmpty {
-                                  searchResultsSection
-                              }
-                              
-                              // Фільтри
-                              filtersSection
-                              
-                              // Рівні складності (A1-C2)
-                              difficultyLevelsSection
-                              
-                              // Тематичні категорії
-                              categoriesSection
-                          }
-                          .padding(.horizontal, 20)
-                          .padding(.vertical, 16)
-                      }
-                      .scrollDismissesKeyboard(.interactively)
-                      .onAppear {
-                          OnboardingContext.isOnDictionaryScreen = false
-                      }
-                  }
-                  
-                  // Меню як у DictionaryView
-                  if showMenu {
-                      MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
-                          .transition(.move(edge: .leading))
-                          .zIndex(100)
-                  }
-              }
-              .navigationTitle("")
-              .navigationBarHidden(true)
-              .fullScreenCover(isPresented: $showSettings) {
-                  SettingsView()
-                      .environmentObject(localizationManager)
-              }
-              .navigationDestination(isPresented: $showCategoryWords) {
-                  if let category = selectedCategory {
-                      CategoryWordsView(
-                          category: category,
-                          selectedDifficulty: selectedDifficulty
-                      )
-                  }
-              }
-              .navigationDestination(isPresented: $showDifficultyWords) {
-                  if let set = selectedSet {
-                      WordSetDetailView(set: set)
-                  }
-              }
-          }
-      }
+        NavigationStack {
+            ZStack {
+                backgroundColor
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    HeaderView(showMenu: $showMenu, title: localizationManager.string(.wordSets))
+                        .environmentObject(localizationManager)
+                    
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            searchBarWithButton
+                                .padding(.top, 8)
+                                .focused($isSearchFocused)
+                            
+                            if !searchText.isEmpty {
+                                searchResultsSection
+                            }
+                            
+                            filtersSection
+                            difficultyLevelsSection
+                            categoriesSection
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onAppear {
+                        OnboardingContext.isOnDictionaryScreen = false
+                    }
+                }
+                
+                if showMenu {
+                    MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
+                        .transition(.move(edge: .leading))
+                        .zIndex(100)
+                }
+            }
+            .navigationTitle("")
+            .navigationBarHidden(true)
+            .fullScreenCover(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(localizationManager)
+            }
+            .navigationDestination(isPresented: $showCategoryWords) {
+                if let category = selectedCategory {
+                    CategoryWordsView(
+                        category: category,
+                        selectedDifficulty: selectedDifficulty
+                    )
+                }
+            }
+            .navigationDestination(isPresented: $showDifficultyWords) {
+                if let set = selectedSet {
+                    WordSetDetailView(set: set)
+                }
+            }
+        }
+    }
     
     private var searchBarWithButton: some View {
         HStack(spacing: 12) {
@@ -214,7 +200,6 @@ struct SetsView: View {
                     isSearchFocused = false
                 }
             
-            // Кнопка пошуку
             if !searchText.isEmpty {
                 Button {
                     isSearchFocused = false
@@ -227,7 +212,6 @@ struct SetsView: View {
                 .transition(.scale.combined(with: .opacity))
             }
             
-            // Кнопка очищення
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
@@ -243,7 +227,6 @@ struct SetsView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color(hex: "#F5F5F5"))
         )
-        // ВИПРАВЛЕНА ГРАДІЄНТНА РАМКА - не блокує взаємодію
         .overlay(
             AngularGradient(
                 gradient: Gradient(colors: [
@@ -260,7 +243,7 @@ struct SetsView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(lineWidth: 3)
             )
-            .allowsHitTesting(false) // <-- КЛЮЧОВЕ ВИПРАВЛЕННЯ!
+            .allowsHitTesting(false)
         )
         .onAppear {
             withAnimation(
@@ -271,8 +254,6 @@ struct SetsView: View {
             }
         }
     }
-    
-    // MARK: - Sections
     
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -372,7 +353,6 @@ struct SetsView: View {
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(PredefinedWordSets.allSets) { set in
-                    // Фільтруємо набори за обраним рівнем складності
                     if selectedDifficulty == nil || set.difficulty == selectedDifficulty {
                         DifficultySetCard(set: set) {
                             selectedSet = set
@@ -403,8 +383,6 @@ struct SetsView: View {
         }
     }
     
-    // MARK: - Helpers
-    
     private var backgroundColor: Color {
         localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
     }
@@ -422,7 +400,6 @@ struct SetsView: View {
     
     private func wordCountForCategory(_ category: WordCategory) -> Int {
         let words = PredefinedWordSets.words(for: category)
-        // Якщо вибраний рівень складності - фільтруємо
         if let difficulty = selectedDifficulty {
             return words.filter { $0.difficulty == difficulty }.count
         }
@@ -431,7 +408,6 @@ struct SetsView: View {
 }
 
 // MARK: - Search Result Word Row
-
 struct SearchResultWordRow: View {
     let word: Word
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -439,10 +415,10 @@ struct SearchResultWordRow: View {
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
+    @State private var showPermissionAlert = false
     
     var body: some View {
         HStack(spacing: 12) {
-            // Word info
             VStack(alignment: .leading, spacing: 4) {
                 Text(word.original)
                     .font(.system(size: 16, weight: .semibold))
@@ -460,9 +436,9 @@ struct SearchResultWordRow: View {
             
             Spacer()
             
-            // Listen button
+            // Listen button with permission check
             Button {
-                ttsManager.speak(text: word.original, language: "en")
+                checkAndSpeak()
             } label: {
                 Image(systemName: ttsManager.isPlaying && ttsManager.currentText == word.original ? "speaker.wave.2.fill" : "speaker.wave.2")
                     .font(.system(size: 16))
@@ -472,8 +448,17 @@ struct SearchResultWordRow: View {
                     .clipShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
+            .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
+                Button(localizationManager.string(.openSettings)) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button(localizationManager.string(.cancel), role: .cancel) {}
+            } message: {
+                Text(localizationManager.string(.audioPermissionMessage))
+            }
             
-            // Add button - перевіряємо чи слово вже додане
             addButton
         }
         .padding()
@@ -484,13 +469,25 @@ struct SearchResultWordRow: View {
         .onAppear {
             updateAddedState()
         }
-        .onChange(of: dictionaryVM.savedWords.count) { _ in
+        .onChange(of: dictionaryVM.savedWords.count, initial: false) { _, _ in
             updateAddedState()
         }
         .alert(localizationManager.string(.wordAlreadyExists), isPresented: $showAlreadyExistsAlert) {
             Button(localizationManager.string(.ok), role: .cancel) { }
         } message: {
             Text(localizationManager.string(.wordAlreadyInDictionary))
+        }
+    }
+    
+    private func checkAndSpeak() {
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playback, mode: .default, options: [])
+            try audioSession.setActive(true)
+            ttsManager.speak(text: word.original, language: "en")
+        } catch {
+            print("⚠️ TTS audio session error: \(error)")
+            ttsManager.speak(text: word.original, language: "en")
         }
     }
     
@@ -511,7 +508,6 @@ struct SearchResultWordRow: View {
     }
     
     private func addToDictionary(_ word: Word) {
-        // Перевірка чи слово вже є в словнику
         let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
         guard !isInDictionary else {
             showAlreadyExistsAlert = true
@@ -539,7 +535,6 @@ struct SearchResultWordRow: View {
         
         dictionaryVM.saveWord(savedWord)
         
-        // Оновлюємо стан одразу після додавання
         withAnimation {
             isAdded = true
         }
@@ -547,7 +542,6 @@ struct SearchResultWordRow: View {
 }
 
 // MARK: - Supporting Views
-
 struct DifficultySetCard: View {
     let set: WordSet
     let action: () -> Void
@@ -606,7 +600,6 @@ struct CategoryCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                // Emoji icon
                 Text(category.defaultEmoji)
                     .font(.system(size: 28))
                     .frame(width: 44, height: 44)
@@ -666,7 +659,6 @@ struct SelectableFilterChip: View {
 }
 
 // MARK: - Category Words View
-
 struct CategoryWordsView: View {
     let category: WordCategory
     let selectedDifficulty: DifficultyLevel?
@@ -676,7 +668,6 @@ struct CategoryWordsView: View {
     
     private var words: [Word] {
         let allWords = PredefinedWordSets.words(for: category)
-        // Фільтруємо за рівнем складності якщо вибрано
         if let difficulty = selectedDifficulty {
             return allWords.filter { $0.difficulty == difficulty }
         }
@@ -690,7 +681,6 @@ struct CategoryWordsView: View {
             
             ScrollView {
                 VStack(spacing: 16) {
-                    // Category header
                     VStack(spacing: 12) {
                         Text(category.defaultEmoji)
                             .font(.system(size: 60))
@@ -705,12 +695,10 @@ struct CategoryWordsView: View {
                     }
                     .padding(.top, 20)
                     
-                    // Words count
                     Text("\(words.count) \(localizationManager.string(.words))")
                         .font(.system(size: 14))
                         .foregroundColor(.gray)
                     
-                    // Words list
                     LazyVStack(spacing: 12) {
                         ForEach(words) { word in
                             CategoryWordRow(word: word)
@@ -729,6 +717,7 @@ struct CategoryWordsView: View {
     }
 }
 
+// MARK: - Category Word Row
 struct CategoryWordRow: View {
     let word: Word
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -737,13 +726,12 @@ struct CategoryWordRow: View {
     @State private var isExpanded = false
     @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
+    @State private var showPermissionAlert = false
     
-    // Check if this is an irregular verb
     private var isIrregularVerb: Bool {
         word.category == .irregularVerbs
     }
     
-    // Parse the 3 forms of irregular verb
     private var irregularVerbForms: (base: String, past: String, pastParticiple: String)? {
         guard isIrregularVerb else { return nil }
         let components = word.original.components(separatedBy: " - ")
@@ -753,7 +741,6 @@ struct CategoryWordRow: View {
                 pastParticiple: components[2].trimmingCharacters(in: .whitespaces))
     }
     
-    // Display text for the word (base form for irregular verbs, full text otherwise)
     private var displayOriginal: String {
         if isIrregularVerb, let forms = irregularVerbForms {
             return forms.base
@@ -781,12 +768,10 @@ struct CategoryWordRow: View {
                 
                 Spacer()
                 
-                // Action buttons
                 HStack(spacing: 8) {
-                    // Listen button - speak base form for irregular verbs
+                    // Listen button with permission check
                     Button {
-                        let textToSpeak = isIrregularVerb ? (irregularVerbForms?.base ?? word.original) : word.original
-                        ttsManager.speak(text: textToSpeak, language: "en")
+                        checkAndSpeak()
                     } label: {
                         let textToSpeak = isIrregularVerb ? (irregularVerbForms?.base ?? word.original) : word.original
                         Image(systemName: ttsManager.isPlaying && ttsManager.currentText == textToSpeak ? "speaker.wave.2.fill" : "speaker.wave.2")
@@ -797,11 +782,19 @@ struct CategoryWordRow: View {
                             .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
+                        Button(localizationManager.string(.openSettings)) {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        Button(localizationManager.string(.cancel), role: .cancel) {}
+                    } message: {
+                        Text(localizationManager.string(.audioPermissionMessage))
+                    }
                     
-                    // Add to dictionary button - перевіряємо чи слово вже додане
                     addButton
                     
-                    // Expand button
                     Button {
                         withAnimation(.spring(response: 0.35)) {
                             isExpanded.toggle()
@@ -817,7 +810,6 @@ struct CategoryWordRow: View {
             
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
-                    // Show 3 forms for irregular verbs
                     if isIrregularVerb, let forms = irregularVerbForms {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(localizationManager.string(.verbForms))
@@ -825,7 +817,6 @@ struct CategoryWordRow: View {
                                 .foregroundColor(.gray)
                             
                             HStack(spacing: 16) {
-                                // Base form
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.base)
                                         .font(.system(size: 14, weight: .medium))
@@ -838,7 +829,6 @@ struct CategoryWordRow: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.gray)
                                 
-                                // Past tense
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.past)
                                         .font(.system(size: 14, weight: .medium))
@@ -852,7 +842,6 @@ struct CategoryWordRow: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.gray)
                                 
-                                // Past participle
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.pastParticiple)
                                         .font(.system(size: 14, weight: .medium))
@@ -914,7 +903,6 @@ struct CategoryWordRow: View {
                         }
                     }
                     
-                    // Difficulty badge
                     HStack {
                         Text(word.difficulty.displayName)
                             .font(.system(size: 12, weight: .medium))
@@ -938,13 +926,27 @@ struct CategoryWordRow: View {
         .onAppear {
             updateAddedState()
         }
-        .onChange(of: dictionaryVM.savedWords.count) { _ in
+        .onChange(of: dictionaryVM.savedWords.count, initial: false) { _, _ in
             updateAddedState()
         }
         .alert(localizationManager.string(.wordAlreadyExists), isPresented: $showAlreadyExistsAlert) {
             Button(localizationManager.string(.ok), role: .cancel) { }
         } message: {
             Text(localizationManager.string(.wordAlreadyInDictionary))
+        }
+    }
+    
+    private func checkAndSpeak() {
+        let textToSpeak = isIrregularVerb ? (irregularVerbForms?.base ?? word.original) : word.original
+        
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playback, mode: .default, options: [])
+            try audioSession.setActive(true)
+            ttsManager.speak(text: textToSpeak, language: "en")
+        } catch {
+            print("⚠️ TTS audio session error: \(error)")
+            ttsManager.speak(text: textToSpeak, language: "en")
         }
     }
     
@@ -976,7 +978,6 @@ struct CategoryWordRow: View {
     }
     
     private func addToDictionary(_ word: Word) {
-        // Перевірка чи слово вже є в словнику
         let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
         guard !isInDictionary else {
             showAlreadyExistsAlert = true
@@ -1004,7 +1005,6 @@ struct CategoryWordRow: View {
         
         dictionaryVM.saveWord(savedWord)
         
-        // Оновлюємо стан одразу після додавання
         withAnimation {
             isAdded = true
         }
@@ -1012,7 +1012,6 @@ struct CategoryWordRow: View {
 }
 
 // MARK: - Word Set Detail View
-
 struct WordSetDetailView: View {
     let set: WordSet
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -1025,7 +1024,6 @@ struct WordSetDetailView: View {
             
             ScrollView {
                 VStack(spacing: 16) {
-                    // Set header
                     VStack(spacing: 12) {
                         Text(set.emoji)
                             .font(.system(size: 60))
@@ -1046,7 +1044,6 @@ struct WordSetDetailView: View {
                     }
                     .padding(.top, 20)
                     
-                    // Words list
                     LazyVStack(spacing: 12) {
                         ForEach(set.words) { word in
                             CategoryWordRow(word: word)
@@ -1064,3 +1061,4 @@ struct WordSetDetailView: View {
         localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
     }
 }
+

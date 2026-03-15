@@ -6,6 +6,7 @@
 import SwiftUI
 import Vision
 import AVFoundation
+import Speech
 
 struct TextScannerView: View {
     @Binding var scannedText: String
@@ -26,6 +27,12 @@ struct TextScannerView: View {
     @State private var imageSize: CGSize = .zero
     
     @State private var isConfiguring = false
+    
+    // Permission states
+    @State private var showPermissionAlert = false
+    @State private var permissionType: ScannerPermissionType = .camera
+    @State private var showVoiceError = false
+    @State private var voiceErrorMessage = ""
     
     var body: some View {
         ZStack {
@@ -82,15 +89,35 @@ struct TextScannerView: View {
             if !isFrozen && isCameraReady {
                 VStack {
                     Spacer()
-                    Button(action: capturePhoto) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 72, height: 72)
-                                .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 4)
-                            Circle()
-                                .stroke(Color.white, lineWidth: 4)
-                                .frame(width: 80, height: 80)
+                    HStack(spacing: 40) {
+                        // Voice search button
+                        Button {
+                            startVoiceSearchWithPermissionCheck()
+                        } label: {
+                            VStack(spacing: 8) {
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 24))
+                                Text(localizationManager.string(.voice))
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(12)
+                        }
+                        
+                        // Capture button
+                        Button(action: capturePhoto) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 72, height: 72)
+                                    .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 4)
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 4)
+                                    .frame(width: 80, height: 80)
+                            }
                         }
                     }
                     .padding(.bottom, 100)
@@ -180,10 +207,99 @@ struct TextScannerView: View {
             }
         }
         .onAppear { setupCamera() }
-        .onDisappear { stopCameraSafely() } // ОНОВЛЕНО
+        .onDisappear { stopCameraSafely() }
+        .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
+            Button(localizationManager.string(.openSettings)) {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button(localizationManager.string(.cancel), role: .cancel) {}
+        } message: {
+            switch permissionType {
+            case .camera:
+                Text(localizationManager.string(.permissionCameraMessage))
+            case .microphone:
+                Text(localizationManager.string(.permissionMicrophoneMessage))
+            case .speech:
+                Text(localizationManager.string(.permissionSpeechMessage))
+            default:
+                Text(localizationManager.string(.permissionMessage))
+            }
+        }
+        .alert(localizationManager.string(.error), isPresented: $showVoiceError) {
+            Button(localizationManager.string(.ok), role: .cancel) {}
+        } message: {
+            Text(voiceErrorMessage)
+        }
     }
     
-    // НОВИЙ МЕТОД: Безпечна зупинка камери
+    private func startVoiceSearchWithPermissionCheck() {
+        let micStatus = AVAudioApplication.shared.recordPermission
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        
+        guard micStatus == .granted else {
+            if micStatus == .denied {
+                permissionType = .microphone
+                showPermissionAlert = true
+            } else {
+                AVAudioApplication.requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        if granted {
+                            self.checkSpeechPermissionAndStart()
+                        } else {
+                            self.permissionType = .microphone
+                            self.showPermissionAlert = true
+                        }
+                    }
+                }
+            }
+            return
+        }
+        
+        checkSpeechPermissionAndStart()
+    }
+    
+    private func checkSpeechPermissionAndStart() {
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        
+        guard speechStatus == .authorized else {
+            if speechStatus == .denied || speechStatus == .restricted {
+                permissionType = .speech
+                showPermissionAlert = true
+            } else {
+                SFSpeechRecognizer.requestAuthorization { status in
+                    DispatchQueue.main.async {
+                        if status == .authorized {
+                            self.startVoiceSearch()
+                        } else {
+                            self.permissionType = .speech
+                            self.showPermissionAlert = true
+                        }
+                    }
+                }
+            }
+            return
+        }
+        
+        startVoiceSearch()
+    }
+    
+    private func startVoiceSearch() {
+        print("🎤 Starting voice search from scanner...")
+        
+        // Stop camera before starting voice search
+        stopCameraSafely()
+        
+        // Here you would typically present a voice search overlay or sheet
+        // For now, we'll just show a placeholder implementation
+        // You can integrate with your existing VoiceSearchView here
+        
+        // Example error handling:
+        // voiceErrorMessage = localizationManager.string(.recognitionError)
+        // showVoiceError = true
+    }
+    
     private func stopCameraSafely() {
         guard !isConfiguring else {
             print("⚠️ Cannot stop camera - currently configuring")
@@ -205,7 +321,7 @@ struct TextScannerView: View {
             DispatchQueue.main.async {
                 self.capturedImage = image
                 self.isFrozen = true
-                self.stopCameraSafely() // ОНОВЛЕНО
+                self.stopCameraSafely()
                 self.imageSize = CGSize(width: image.size.width, height: image.size.height)
                 self.recognizeTextInImage(image)
             }
@@ -262,9 +378,7 @@ struct TextScannerView: View {
         recognizedWords = []
         isFrozen = false
         imageSize = .zero
-        // ОНОВЛЕНО: Спочатку зупиняємо, потім налаштовуємо
         stopCameraSafely()
-        // Невелика затримка перед повторним налаштуванням
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.setupCamera()
         }
@@ -272,8 +386,20 @@ struct TextScannerView: View {
     
     private func setupCamera() {
         DispatchQueue.global(qos: .userInitiated).async {
-            // ОНОВЛЕНО: Встановлюємо прапорець конфігурації
             self.isConfiguring = true
+            
+            // Check permission first
+            let status = AVCaptureDevice.authorizationStatus(for: .video)
+            guard status == .authorized else {
+                DispatchQueue.main.async {
+                    self.isConfiguring = false
+                    if status == .denied || status == .restricted {
+                        self.permissionType = .camera
+                        self.showPermissionAlert = true
+                    }
+                }
+                return
+            }
             
             self.session.beginConfiguration()
             self.session.inputs.forEach { self.session.removeInput($0) }
@@ -293,14 +419,14 @@ struct TextScannerView: View {
                 if self.session.canAddOutput(self.photoOutput) { self.session.addOutput(self.photoOutput) }
                 
                 self.session.commitConfiguration()
-                self.isConfiguring = false // ОНОВЛЕНО
+                self.isConfiguring = false
                 
                 self.session.startRunning()
                 
                 DispatchQueue.main.async { self.isCameraReady = true }
             } catch {
                 DispatchQueue.main.async {
-                    self.isConfiguring = false // ОНОВЛЕНО
+                    self.isConfiguring = false
                     self.cameraError = error.localizedDescription
                 }
             }
@@ -347,7 +473,6 @@ class VideoPreviewView: UIView {
     var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 }
 
-// MARK: - Оверлей з вертикальними колонками
 struct WordsOverlay: View {
     let words: [RecognizedWord]
     let containerSize: CGSize
@@ -406,4 +531,8 @@ struct WordButton: View {
                 )
         }
     }
+}
+
+enum ScannerPermissionType {
+    case camera, microphone, speech, tracking, notification
 }

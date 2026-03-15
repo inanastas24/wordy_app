@@ -1,5 +1,11 @@
-import SwiftUI
+//
+//  VoiceSearchView.swift
+//  Wordy
+//
 
+import SwiftUI
+import Speech
+import AVFoundation
 
 struct VoiceSearchView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
@@ -11,11 +17,13 @@ struct VoiceSearchView: View {
     @State private var translationResult: TranslationResult?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showPermissionAlert = false
     
     // Callback returns recognized text only - language is determined by AppState
     var onResult: ((String) -> Void)?
     
     private let voiceColor = Color(hex: "#FFD93D")
+    private let maxInputLength = 10
     
     var body: some View {
         NavigationStack {
@@ -26,9 +34,6 @@ struct VoiceSearchView: View {
                 VStack(spacing: 25) {
                     if !showResult {
                         Spacer()
-                        
-                        // 🆕 Спрощений Language Pair Indicator (без "Мова 1 / Мова 2")
-                            //languagePairIndicator
                         
                         Text(localizationManager.string(.holdToSpeak))
                             .font(.system(size: 18))
@@ -69,7 +74,7 @@ struct VoiceSearchView: View {
                                 .padding()
                         }
                         
-                        // 🆕 Спрощений текст — просто показуємо пари без "Мова 1/2"
+                        // Language pair indicator
                         HStack(spacing: 8) {
                             Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
                                 .font(.system(size: 14, weight: .semibold))
@@ -98,7 +103,21 @@ struct VoiceSearchView: View {
                                 print("🎤 Starting recording...")
                                 errorMessage = nil
                                 
-                                // Використовуємо source мову для розпізнавання
+                                // Check permissions
+                                let speechStatus = SFSpeechRecognizer.authorizationStatus()
+                                let micStatus = AVAudioApplication.shared.recordPermission
+                                
+                                guard speechStatus == .authorized else {
+                                    requestSpeechPermission()
+                                    return
+                                }
+                                
+                                guard micStatus == .granted else {
+                                    requestMicrophonePermission()
+                                    return
+                                }
+                                
+                                // Use source language for recognition
                                 speechService.startRecording(language: appState.languagePair.source.rawValue) { text in
                                     guard let text = text, !text.isEmpty else {
                                         DispatchQueue.main.async {
@@ -107,11 +126,21 @@ struct VoiceSearchView: View {
                                         return
                                     }
                                     
-                                    print("🎤 Recognized: '\(text)'")
+                                    print("🎤 Recognized: '\(text)' (length: \(text.count))")
                                     
                                     DispatchQueue.main.async {
-                                        self.onResult?(text)
-                                        self.dismiss()
+                                        // Check length limit - обрізаємо до 254 символів
+                                        if text.count > maxInputLength {
+                                            let truncated = String(text.prefix(maxInputLength))
+                                            onResult?(truncated)
+                                            ToastManager.shared.show(
+                                                message: localizationManager.string(.voiceInputTooLong),
+                                                style: .warning
+                                            )
+                                        } else {
+                                            onResult?(text)
+                                        }
+                                        dismiss()
                                     }
                                 }
                             },
@@ -139,48 +168,54 @@ struct VoiceSearchView: View {
                     }
                 }
             }
+            .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
+                Button(localizationManager.string(.openSettings)) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button(localizationManager.string(.cancel), role: .cancel) {}
+            } message: {
+                Text(localizationManager.string(.permissionMessage))
+            }
+            .onAppear {
+                checkPermissions()
+            }
         }
     }
     
-    // MARK: - 🆕 Спрощений Language Pair Indicator
-    private var languagePairIndicator: some View {
-        HStack(spacing: 16) {
-            // Source Language
-            HStack(spacing: 6) {
-                Text(appState.languagePair.source.flag)
-                    .font(.system(size: 20))
-                Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
-            )
-            
-            // Swap icon (не кнопка, просто індикатор)
-            Image(systemName: "arrow.left.arrow.right")
-                .font(.system(size: 14))
-                .foregroundColor(Color(hex: "#4ECDC4"))
-            
-            // Target Language
-            HStack(spacing: 6) {
-                Text(appState.languagePair.target.flag)
-                    .font(.system(size: 20))
-                Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hex: "#4ECDC4").opacity(0.15))
-            )
+    private func checkPermissions() {
+        // Request permissions if not determined
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        let micStatus = AVAudioApplication.shared.recordPermission
+        
+        if speechStatus == .notDetermined {
+            SFSpeechRecognizer.requestAuthorization { _ in }
         }
-        .padding(.bottom, 10)
+        
+        if micStatus == .undetermined {
+            AVAudioApplication.requestRecordPermission { _ in }
+        }
+    }
+    
+    private func requestSpeechPermission() {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                if status != .authorized {
+                    showPermissionAlert = true
+                }
+            }
+        }
+    }
+    
+    private func requestMicrophonePermission() {
+        AVAudioApplication.requestRecordPermission { granted in
+            DispatchQueue.main.async {
+                if !granted {
+                    showPermissionAlert = true
+                }
+            }
+        }
     }
 }
 

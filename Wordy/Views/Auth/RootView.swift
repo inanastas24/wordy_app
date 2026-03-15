@@ -90,47 +90,54 @@ struct RootView: View {
     @AppStorage("learningLanguage") private var learningLanguage: String = ""
     
     var body: some View {
-        content
-            .onAppear {
-                print("🚀 RootView appeared")
-                checkInitialState()
+        ZStack(alignment: .top) {
+            content
+            
+            ToastView()
+                .environmentObject(ToastManager.shared)
+                .environmentObject(localizationManager)
+                .ignoresSafeArea(edges: .top)
+                .zIndex(9999)
+        }
+        .onAppear {
+            print("🚀 RootView appeared")
+            checkInitialState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openPaywallFromNotification)) { _ in
+            if currentFlow == .mainApp {
+            } else {
+                currentFlow = .paywall
             }
-            .onReceive(NotificationCenter.default.publisher(for: .openPaywallFromNotification)) { _ in
-                if currentFlow == .mainApp {
-                    // Показуємо paywall як sheet з mainApp
-                } else {
-                    currentFlow = .paywall
-                }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .userDidLogout)) { _ in
+            print("👤 User logged out, resetting flow")
+            withAnimation {
+                resetStateOnLogout()
+                currentFlow = .login
             }
-            .onReceive(NotificationCenter.default.publisher(for: .userDidLogout)) { _ in
-                print("👤 User logged out, resetting flow")
-                withAnimation {
-                    resetStateOnLogout()
-                    currentFlow = .login
-                }
+        }
+        .onChange(of: authViewModel.isCheckingAuth) { _, isChecking in
+            print("🔍 Auth checking changed: \(isChecking)")
+            if !isChecking && !isAuthChecked {
+                isAuthChecked = true
+                handleAuthState()
             }
-            .onChange(of: authViewModel.isCheckingAuth) { _, isChecking in
-                print("🔍 Auth checking changed: \(isChecking)")
-                if !isChecking && !isAuthChecked {
-                    isAuthChecked = true
-                    handleAuthState()
-                }
+        }
+        .onChange(of: authViewModel.isAuthenticated) { _, isAuthenticated in
+            print("🔐 Auth state changed: \(isAuthenticated)")
+            if isAuthenticated {
+                handleSuccessfulLogin()
             }
-            .onChange(of: authViewModel.isAuthenticated) { _, isAuthenticated in
-                print("🔐 Auth state changed: \(isAuthenticated)")
-                if isAuthenticated {
-                    handleSuccessfulLogin()
-                }
+        }
+        .onChange(of: isSubscriptionLoaded) { _, loaded in
+            print("📦 Subscription loaded: \(loaded)")
+            if loaded {
+                determineNextFlow()
             }
-            .onChange(of: isSubscriptionLoaded) { _, loaded in
-                print("📦 Subscription loaded: \(loaded)")
-                if loaded {
-                    determineNextFlow()
-                }
-            }
-            .onOpenURL { url in
-                handleDeepLink(url)
-            }
+        }
+        .onOpenURL { url in
+            handleDeepLink(url)
+        }
     }
     
     @ViewBuilder

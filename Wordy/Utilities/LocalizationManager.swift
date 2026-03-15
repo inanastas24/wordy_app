@@ -295,6 +295,11 @@ enum LocalizableKey: String {
     case invalidFileFormat
     case unsupportedFormat, tipSpecific, tipLevel
     case seeAll
+    
+    case textTooLong
+    case voiceInputTooLong
+    case warning
+    case audioPermissionMessage
 }
 
 public class LocalizationManager: ObservableObject {
@@ -1900,6 +1905,26 @@ public class LocalizationManager: ObservableObject {
                 .ukrainian: "Показати всі",
                 .english: "See all",
                 .polish: "Zobacz wszystkie"
+            ],
+            .textTooLong: [
+                .ukrainian: "Максимум 254 символи",
+                .english: "Maximum 254 characters",
+                .polish: "Maksymalnie 254 znaki"
+            ],
+            .voiceInputTooLong: [
+                .ukrainian: "Текст обрізано до 254 символів",
+                .english: "Text truncated to 254 characters",
+                .polish: "Tekst skrócony do 254 znaków"
+            ],
+            .warning: [
+                .ukrainian: "Увага",
+                .english: "Warning",
+                .polish: "Ostrzeżenie"
+            ],
+            .audioPermissionMessage: [
+                .ukrainian: "Потрібен доступ до аудіо для програвання вимови",
+                .english: "Audio access needed for pronunciation playback",
+                .polish: "Potrzebny dostęp do audio do odtwarzania wymowy"
             ]
         ]
 }
