@@ -95,6 +95,8 @@ struct TranslationBubbleView: View {
                     .padding(.horizontal, 24)
                     
                     Button(action: {
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
                         Task {
                             await saveWord()
                         }

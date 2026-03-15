@@ -7,7 +7,7 @@
 
 import SwiftUI
 import CoreHaptics
-
+import FirebaseFirestore
 
 struct FlashcardsView: View {
     @Environment(\.dismiss) var dismiss
@@ -68,6 +68,9 @@ struct FlashcardsView: View {
         }
         .onChange(of: showCompletion) { _, completed in
             if completed {
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                
                 showConfetti = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     showConfetti = false

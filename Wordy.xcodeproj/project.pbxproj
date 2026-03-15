@@ -10,6 +10,8 @@
 		463C21462F39019F004B46FA /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 463C21452F39019F004B46FA /* FirebaseStorage */; };
 		463C214F2F39E9EE004B46FA /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 463C214E2F39E9EE004B46FA /* GoogleSignIn */; };
 		463C21512F39E9F7004B46FA /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 463C21502F39E9F7004B46FA /* GoogleSignInSwift */; };
+		46590E062F67313B0000253C /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 46590E052F67313B0000253C /* FirebaseAnalytics */; };
+		46590E082F67313B0000253C /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 46590E072F67313B0000253C /* FirebaseCrashlytics */; };
 		4678702D2F449FEB005CAF30 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 4678702C2F449FEB005CAF30 /* FirebaseFunctions */; };
 		46B549DF2F2B95BC0070EA1B /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 46B549DE2F2B95BC0070EA1B /* FirebaseAuth */; };
 		46B549E12F2B95BC0070EA1B /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 46B549E02F2B95BC0070EA1B /* FirebaseCore */; };
@@ -142,7 +144,9 @@
 				463C21462F39019F004B46FA /* FirebaseStorage in Frameworks */,
 				463C21512F39E9F7004B46FA /* GoogleSignInSwift in Frameworks */,
 				46B549DF2F2B95BC0070EA1B /* FirebaseAuth in Frameworks */,
+				46590E082F67313B0000253C /* FirebaseCrashlytics in Frameworks */,
 				46B549E32F2B95BC0070EA1B /* FirebaseFirestore in Frameworks */,
+				46590E062F67313B0000253C /* FirebaseAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,6 +208,7 @@
 				460257BB2F27B97F000844D1 /* Resources */,
 				46B549DD2F2B95620070EA1B /* Frameworks */,
 				46D0415A2F3CD81100DABB9A /* Embed Foundation Extensions */,
+				46590E092F6733010000253C /* Firebase Crashlytics */,
 			);
 			buildRules = (
 			);
@@ -366,6 +371,32 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		46590E092F6733010000253C /* Firebase Crashlytics */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)",
+				"$(DWARF_DSYM_FOLDER_PATH)/$(DWARF_DSYM_FILE_NAME)/Contents/Resources/DWARF/$(PRODUCT_NAME)",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			name = "Firebase Crashlytics";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nRUN_SCRIPT=$(find \"${HOME}/Library/Developer/Xcode/DerivedData\" -name \"run\" -path \"*Wordy*/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\" 2>/dev/null | head -n 1)\n\nif [ -z \"$RUN_SCRIPT\" ]; then\n  echo \"Error: Crashlytics run script not found\"\n  exit 1\nfi\n\n\"$RUN_SCRIPT\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		460257B92F27B97F000844D1 /* Sources */ = {
@@ -854,6 +885,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 463C21472F3905BA004B46FA /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
+		};
+		46590E052F67313B0000253C /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 46B5496A2F2B90A20070EA1B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		46590E072F67313B0000253C /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 46B5496A2F2B90A20070EA1B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
 		};
 		4678702C2F449FEB005CAF30 /* FirebaseFunctions */ = {
 			isa = XCSwiftPackageProductDependency;

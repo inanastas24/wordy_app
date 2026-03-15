@@ -8,6 +8,7 @@ import SwiftUI
 import WidgetKit
 import FirebaseAuth
 import LocalAuthentication
+import FirebaseCrashlytics
 
 // MARK: - Loading Screen
 struct LoadingScreen: View {
@@ -92,7 +93,6 @@ struct RootView: View {
     var body: some View {
         ZStack(alignment: .top) {
             content
-            
             ToastView()
                 .environmentObject(ToastManager.shared)
                 .environmentObject(localizationManager)

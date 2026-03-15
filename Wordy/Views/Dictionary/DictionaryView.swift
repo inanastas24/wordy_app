@@ -301,6 +301,8 @@ struct DictionaryView: View {
                                 withAnimation { swipedWordId = nil }
                             },
                             onDelete: {
+                                let impact = UIImpactFeedbackGenerator(style: .rigid)
+                                impact.impactOccurred()
                                 viewModel.deleteWord(word)
                                 withAnimation { swipedWordId = nil }
                             },
@@ -701,7 +703,11 @@ struct WordDetailOverlay: View {
                                         .foregroundColor(Color(hex: "#4ECDC4"))
                                 }
                                 
-                                Button(action: { showingDeleteConfirm = true }) {
+                                Button(action: {
+                                    let impact = UIImpactFeedbackGenerator(style: .rigid)
+                                    impact.impactOccurred()
+                                    showingDeleteConfirm = true
+                                }) {
                                     Image(systemName: "trash.circle.fill")
                                         .font(.system(size: 28))
                                         .foregroundColor(.red.opacity(0.8))
