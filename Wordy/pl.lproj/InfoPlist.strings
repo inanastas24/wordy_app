@@ -7,9 +7,6 @@ NSMicrophoneUsageDescription = "Potrzebny dostęp do mikrofonu do wyszukiwania g
 /* Speech recognition permission */
 NSSpeechRecognitionUsageDescription = "Pozwala na zamianę mowy na tekst";
 
-/* User tracking permission */
-NSUserTrackingUsageDescription = "Pomaga to wyświetlać trafne reklamy i utrzymać aplikację za darmo";
-
 /* Face ID permission */
 NSFaceIDUsageDescription = "Wordy używa Face ID do szybkiego i bezpiecznego dostępu do konta";
 
