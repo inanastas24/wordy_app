@@ -15,6 +15,7 @@ struct TextScannerView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @State private var recognizedWords: [RecognizedWord] = []
     @State private var session = AVCaptureSession()
@@ -34,6 +35,7 @@ struct TextScannerView: View {
     @State private var showVoiceError = false
     @State private var voiceErrorMessage = ""
     
+    var onShowPaywall: (() -> Void)?
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -90,23 +92,6 @@ struct TextScannerView: View {
                 VStack {
                     Spacer()
                     HStack(spacing: 40) {
-                        // Voice search button
-                        Button {
-                            startVoiceSearchWithPermissionCheck()
-                        } label: {
-                            VStack(spacing: 8) {
-                                Image(systemName: "mic.fill")
-                                    .font(.system(size: 24))
-                                Text(localizationManager.string(.voice))
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background(Color.black.opacity(0.6))
-                            .cornerRadius(12)
-                        }
-                        
                         // Capture button
                         Button(action: capturePhoto) {
                             ZStack {
@@ -206,7 +191,15 @@ struct TextScannerView: View {
                 .padding()
             }
         }
-        .onAppear { setupCamera() }
+        .onAppear {
+               // 🆕 БЛОКУВАННЯ на вході
+               if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
+                   dismiss()
+                   onShowPaywall?()
+                   return
+               }
+               setupCamera()
+           }
         .onDisappear { stopCameraSafely() }
         .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
             Button(localizationManager.string(.openSettings)) {

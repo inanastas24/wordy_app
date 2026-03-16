@@ -158,8 +158,12 @@ struct SearchView: View {
                 TextScannerView(
                     scannedText: $scannedText,
                     isRecognizing: $isRecognizing,
-                    onTextRecognized: { text in }
+                    onTextRecognized: { text in },
+                    onShowPaywall: {
+                        showPaywall = true
+                    }
                 )
+                .environmentObject(subscriptionManager) 
             }
             .sheet(isPresented: $showVoiceSearch) {
                 VoiceSearchView { text in
@@ -167,6 +171,7 @@ struct SearchView: View {
                 }
                 .environmentObject(localizationManager)
                 .environmentObject(appState)
+                .environmentObject(subscriptionManager)
             }
             .onChange(of: scannedText) { _, newText in
                 if !newText.isEmpty {
@@ -689,6 +694,12 @@ struct SearchView: View {
     
     private func performSearch() {
         guard !searchText.isEmpty else { return }
+        
+        // 🆕 БЛОКУВАННЯ: Перевіряємо підписку ПЕРЕД пошуком
+        if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
+            showPaywall = true
+            return
+        }
         
         let detectedLang = translationService.detectLanguageSync(searchText)
         

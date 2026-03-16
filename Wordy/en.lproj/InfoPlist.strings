@@ -7,8 +7,5 @@ NSMicrophoneUsageDescription = "Wordy uses microphone for voice search";
 /* Speech recognition permission */
 NSSpeechRecognitionUsageDescription = "Wordy uses speech recognition to convert your voice to text";
 
-/* User tracking permission */
-NSUserTrackingUsageDescription = "This helps show relevant ads and keep the app free";
-
 /* Face ID permission */
 NSFaceIDUsageDescription = "Wordy uses Face ID for quick and secure access to your account";

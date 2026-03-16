@@ -559,18 +559,6 @@ final class SubscriptionManager: ObservableObject {
     private func getDeviceId() -> String {
         UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
     }
-    
-    // MARK: - Testing
-    
-    #if DEBUG
-    func simulateExpiredSubscription() {
-        status = .expired(expiryDate: Date().addingTimeInterval(-30 * 24 * 60 * 60))
-    }
-    
-    func simulateBillingRetry() {
-        status = .billingRetry
-    }
-    #endif
 }
 
 enum StoreError: Error {
@@ -579,27 +567,3 @@ enum StoreError: Error {
 }
 
 struct TimeoutError: Error {}
-
-// MARK: - Preview Helpers
-
-#if DEBUG
-extension SubscriptionManager {
-    static var preview: SubscriptionManager {
-        let manager = SubscriptionManager()
-        manager.status = .unknown
-        return manager
-    }
-    
-    static var previewPremium: SubscriptionManager {
-        let manager = SubscriptionManager()
-        manager.status = .premium(expiryDate: Date().addingTimeInterval(30 * 24 * 60 * 60), isInGracePeriod: false)
-        return manager
-    }
-    
-    static var previewExpired: SubscriptionManager {
-        let manager = SubscriptionManager()
-        manager.status = .expired(expiryDate: Date().addingTimeInterval(-5 * 24 * 60 * 60))
-        return manager
-    }
-}
-#endif
