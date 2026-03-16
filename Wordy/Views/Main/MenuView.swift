@@ -122,7 +122,7 @@ struct MenuView: View {
         .edgesIgnoringSafeArea(.all)
         .sheet(isPresented: $showExportSheet) {
             if let url = exportURL {
-                ShareSheet(activityItems: [url])
+                ShareSheet(items: [url])
             }
         }
         .onAppear {
@@ -305,6 +305,22 @@ struct MenuView: View {
     private func shareApp() {
         let text = shareMessage
         let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        
+        // 🔑 ОБОВ'ЯЗКОВО для iPad - встановлюємо sourceView
+        if let popover = activityVC.popoverPresentationController {
+            // Знаходимо вікно та view для прив'язки popover
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootView = windowScene.windows.first?.rootViewController?.view {
+                popover.sourceView = rootView
+                popover.sourceRect = CGRect(
+                    x: rootView.bounds.midX,
+                    y: rootView.bounds.midY,
+                    width: 0,
+                    height: 0
+                )
+                popover.permittedArrowDirections = [] // Без стрілки, по центру
+            }
+        }
         
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let rootVC = windowScene.windows.first?.rootViewController {

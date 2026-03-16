@@ -103,7 +103,7 @@ struct SettingsView: View {
             .navigationBarHidden(true)
             .sheet(isPresented: $showExportSheet) {
                 if let url = exportURL {
-                    ShareSheet(activityItems: [url])
+                    ShareSheet(items: [url])
                 }
             }
             .sheet(isPresented: $showPaywall) {
@@ -658,3 +658,4 @@ struct SettingsRow: View {
         )
     }
 }
+
