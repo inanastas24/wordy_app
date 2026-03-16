@@ -209,6 +209,7 @@
 				46B549DD2F2B95620070EA1B /* Frameworks */,
 				46D0415A2F3CD81100DABB9A /* Embed Foundation Extensions */,
 				46590E092F6733010000253C /* Firebase Crashlytics */,
+				460E9BF02F6863CD00D50439 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -373,6 +374,23 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		460E9BF02F6863CD00D50439 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nif command -v swiftlint &> /dev/null\nthen\n    swiftlint\nelse\n    echo \"warning: SwiftLint not installed, skipping...\"\nfi\n";
+		};
 		46590E092F6733010000253C /* Firebase Crashlytics */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
