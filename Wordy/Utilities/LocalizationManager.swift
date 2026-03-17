@@ -164,7 +164,7 @@ enum LocalizableKey: String {
     case popularLanguages
     case otherLanguages
     
-    case originalWord, enterTranslation, transcription, optional, example, enterExample, preview
+    case originalWord, enterTranslation, transcription, optional, example, enterExample, preview, translationVariant, loading
     case wordAdded, wordUpdated, wordAddedMessage, wordUpdatedMessage, addAnother, done
     case selectLanguagePair, sourceLanguage, targetLanguage, changesSaved, unknownError
     case languagePair, translation, permissionPermissionNotificationTitle
@@ -172,7 +172,7 @@ enum LocalizableKey: String {
     case wordSets
     case wordSetsSubtitle
     case sets // для таб-бару
-    case words
+    case words, saved, saving
     case wordsInCategory
 
     // MARK: - Category Keys
@@ -740,11 +740,6 @@ public class LocalizationManager: ObservableObject {
             .english: "Speech Recognition",
             .polish: "Rozpoznawanie mowy"
         ],
-        .trackingPermission: [
-            .ukrainian: "Відстеження в інших додатках",
-            .english: "Tracking in other apps",
-            .polish: "Śledzenie w innych aplikacjach"
-        ],
         .permissionRequired: [
             .ukrainian: "Потрібен дозвіл",
             .english: "Permission Required",
@@ -894,18 +889,6 @@ public class LocalizationManager: ObservableObject {
             .english: "Allows converting your speech to text",
             .polish: "Pozwala na zamianę mowy na tekst"
         ],
-
-        .permissionTrackingTitle: [
-            .ukrainian: "Персоналізація реклами",
-            .english: "Ad Personalization",
-            .polish: "Personalizacja reklam"
-        ],
-        .permissionTrackingMessage: [
-            .ukrainian: "Це допомагає показувати релевантну рекламу та підтримувати безкоштовність додатку",
-            .english: "This helps show relevant ads and keep the app free",
-            .polish: "Pomaga to wyświetlać trafne reklamy i utrzymać aplikację za darmo"
-        ],
-
         .permissionAllow: [
             .ukrainian: "Дозволити",
             .english: "Allow",
@@ -1270,6 +1253,26 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Готово",
             .english: "Done",
             .polish: "Gotowe"
+        ],
+        .saved: [
+            .ukrainian: "Збережено!",
+            .english: "Saved!",
+            .polish: "Zapisano!"
+        ],
+        .saving: [
+            .ukrainian: "Збереження...",
+            .english: "Saving...",
+            .polish: "Zapisywanie..."
+        ],
+        .translationVariant: [
+            .ukrainian: "Варіанти перекладу",
+            .english: "Translation variants",
+            .polish: "Warianty tłumaczenia"
+        ],
+        .loading: [
+            .ukrainian: "Завантаження",
+            .english: "Loading",
+            .polish: "Ładowanie"
         ],
         .selectLanguagePair: [
             .ukrainian: "Оберіть пару мов",

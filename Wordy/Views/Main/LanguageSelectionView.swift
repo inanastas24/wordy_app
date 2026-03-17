@@ -9,11 +9,11 @@ import SwiftUI
 
 struct LanguageSelectionView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
-    @EnvironmentObject var appState: AppState
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage = false
-    @AppStorage("appLanguage") private var appLanguage: Language = .english
+    @AppStorage("appLanguage") private var appLanguage: String = ""
     
     let onComplete: (Language) -> Void
+    @State private var selectedLanguage: Language = .english
     
     var body: some View {
         NavigationStack {
@@ -42,8 +42,8 @@ struct LanguageSelectionView: View {
                             isSelected: localizationManager.currentLanguage == language
                         ) {
                             localizationManager.setLanguage(language)
-                            appLanguage = language
-                            appState.appLanguage = language.rawValue
+                            selectedLanguage = language
+                            appLanguage = language.rawValue
                         }
                     }
                 }
@@ -52,7 +52,7 @@ struct LanguageSelectionView: View {
                 
                 Button {
                     hasSelectedLanguage = true
-                    onComplete(localizationManager.currentLanguage) 
+                    onComplete(selectedLanguage)
                 } label: {
                     HStack {
                         Text("Продовжити")
@@ -69,6 +69,12 @@ struct LanguageSelectionView: View {
                 .padding(.bottom, 40)
             }
             .background(Color(hex: "#FFFDF5").ignoresSafeArea())
+        }
+        .onAppear {
+            if appLanguage.isEmpty {
+                appLanguage = selectedLanguage.rawValue
+                localizationManager.setLanguage(selectedLanguage)
+            }
         }
     }
 }

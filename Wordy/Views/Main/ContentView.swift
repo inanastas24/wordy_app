@@ -224,7 +224,6 @@ struct OnboardingPermissionsRequestView: View {
             PermissionManager.shared.requestCameraPermission()
             PermissionManager.shared.requestMicrophonePermission()
             PermissionManager.shared.requestSpeechPermission()
-            PermissionManager.shared.requestTrackingPermission()
         }
     }
 }

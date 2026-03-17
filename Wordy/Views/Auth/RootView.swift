@@ -163,11 +163,7 @@ struct RootView: View {
         case .learningLanguage:
             LearningLanguageSelectionView(onComplete: {
                 hasSelectedLanguagePair = true
-                // Для зворотної сумісності
-                hasSelectedLearningLanguage = true
-                withAnimation {
-                    determineNextFlow()
-                }
+                currentFlow = .mainApp
             })
             
         case .notifications:
@@ -350,7 +346,7 @@ struct RootView: View {
             nextFlow = .login
         } else if !hasSelectedLanguage || appLanguage.isEmpty {
             nextFlow = .appLanguage
-        } else if !hasSelectedLanguagePair || sourceLanguage.isEmpty || targetLanguage.isEmpty {
+        } else if !hasSelectedLanguagePair {
             // ✅ Перевіряємо LanguagePair (обидві мови)
             nextFlow = .learningLanguage
         } else if !hasCompletedOnboarding {

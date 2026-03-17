@@ -7,7 +7,6 @@ import SwiftUI
 import Combine
 import AVFoundation
 import Speech
-import AppTrackingTransparency
 import AdSupport
 import UserNotifications
 
@@ -19,7 +18,6 @@ class PermissionManager: ObservableObject {
     @Published var speechAuthorized = false
     @Published var trackingAuthorized = false
     @Published var notificationAuthorized = false
-    @Published var trackingStatus: ATTrackingManager.AuthorizationStatus = .notDetermined
     
     private let localizationManager = LocalizationManager.shared
     
@@ -52,15 +50,7 @@ class PermissionManager: ObservableObject {
         requestNotificationPermission {
             group.leave()
         }
-        
-        // Tracking (з затримкою як у тебе було)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            group.enter()
-            self.requestTrackingPermission {
-                group.leave()
-            }
-        }
-        
+    
         group.notify(queue: .main) {
             completion?()
         }
@@ -145,38 +135,6 @@ class PermissionManager: ObservableObject {
         }
     }
     
-    // MARK: - App Tracking Transparency Permission
-    func requestTrackingPermission(completion: (() -> Void)? = nil) {
-        if #available(iOS 14, *) {
-            let status = ATTrackingManager.trackingAuthorizationStatus
-            self.trackingStatus = status
-            
-            switch status {
-            case .notDetermined:
-                ATTrackingManager.requestTrackingAuthorization { [weak self] authStatus in
-                    DispatchQueue.main.async {
-                        self?.trackingStatus = authStatus
-                        self?.trackingAuthorized = authStatus == .authorized
-                        completion?()
-                    }
-                }
-            case .authorized:
-                self.trackingAuthorized = true
-                self.trackingStatus = .authorized
-                completion?()
-            case .denied, .restricted:
-                self.trackingAuthorized = false
-                self.trackingStatus = status
-                completion?()
-            @unknown default:
-                completion?()
-            }
-        } else {
-            self.trackingAuthorized = true
-            completion?()
-        }
-    }
-    
     // MARK: - Check All Permissions Status
     func checkAllPermissions() {
         cameraAuthorized = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
@@ -189,12 +147,6 @@ class PermissionManager: ObservableObject {
             }
         }
         
-        if #available(iOS 14, *) {
-            trackingStatus = ATTrackingManager.trackingAuthorizationStatus
-            trackingAuthorized = trackingStatus == .authorized
-        } else {
-            trackingAuthorized = true
-        }
     }
     
     // MARK: - Individual Checkers
@@ -208,11 +160,6 @@ class PermissionManager: ObservableObject {
     
     func checkSpeechPermission() -> SFSpeechRecognizerAuthorizationStatus {
         return SFSpeechRecognizer.authorizationStatus()
-    }
-    
-    @available(iOS 14, *)
-    func checkTrackingPermission() -> ATTrackingManager.AuthorizationStatus {
-        return ATTrackingManager.trackingAuthorizationStatus
     }
     
     // MARK: - Settings Alert when denied (локалізований)

@@ -329,7 +329,7 @@ struct TranslationBubbleOverlay: View {
     private var synonymsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Варіанти перекладу")
+                Text(localizationManager.string(.translationVariant))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
 
@@ -429,29 +429,28 @@ struct TranslationBubbleOverlay: View {
         .padding(.top, 10)
     }
 
+    @ViewBuilder
     private var saveButtonContent: some View {
-        Group {
-            switch saveState {
-            case .idle:
-                Image(systemName: "plus.circle.fill")
-                Text(localizationManager.currentLanguage == .ukrainian ? "Зберегти до словника" : "Save to dictionary")
+        switch saveState {
+        case .idle:
+            Image(systemName: "plus.circle.fill")
+            Text(localizationManager.currentLanguage == .ukrainian ? "Зберегти до словника" : "Save to dictionary")
 
-            case .loading:
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(0.8)
-                Text("Збереження...")
+        case .loading:
+            ProgressView()
+                .tint(.white)
+                .scaleEffect(0.8)
+            Text(localizationManager.string(.saving))
 
-            case .success:
-                Image(systemName: "checkmark.circle.fill")
-                    .transition(.scale)
-                Text("Збережено!")
-                    .transition(.opacity)
+        case .success:
+            Image(systemName: "checkmark.circle.fill")
+                .transition(.scale)
+            Text(localizationManager.string(.saved))
+                .transition(.opacity)
 
-            case .error(let message):
-                Image(systemName: "exclamationmark.triangle.fill")
-                Text(message)
-            }
+        case .error(let message):
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(message)
         }
     }
 
@@ -494,7 +493,7 @@ struct TranslationBubbleOverlay: View {
                 .frame(width: 40, height: 5)
                 .padding(.top, 12)
 
-            Text("Синонім")
+            Text(localizationManager.string(.synonyms))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(localizationManager.isDarkMode ? Color.gray.opacity(0.8) : .secondary)
                 .tracking(1)
@@ -552,7 +551,7 @@ struct TranslationBubbleOverlay: View {
                 .padding(.horizontal, 20)
 
             Button(action: closeSynonymDetail) {
-                Text("Скасувати")
+                Text(localizationManager.string(.cancel))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.7) : .secondary)
                     .padding(.vertical, 12)
@@ -563,7 +562,7 @@ struct TranslationBubbleOverlay: View {
 
     private func translationSection(detail: SynonymDetail) -> some View {
         VStack(spacing: 8) {
-            Text("Переклад")
+            Text(localizationManager.string(.translation))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(localizationManager.isDarkMode ? Color.gray.opacity(0.8) : .secondary)
                 .tracking(0.5)
@@ -581,7 +580,7 @@ struct TranslationBubbleOverlay: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             } else if translation.isEmpty || translation == "-" {
-                Text("Завантаження...")
+                Text(localizationManager.string(.loading))
                     .font(.system(size: 18))
                     .foregroundColor(Color.gray)
                     .multilineTextAlignment(.center)
@@ -622,21 +621,21 @@ struct TranslationBubbleOverlay: View {
             case .idle:
                 Image(systemName: "book.fill")
                     .font(.system(size: 18))
-                Text("Додати до словника")
+                Text(localizationManager.string(.addToDictionary))
                     .font(.system(size: 17, weight: .semibold))
 
             case .loading:
                 ProgressView()
                     .tint(.white)
                     .scaleEffect(0.9)
-                Text("Збереження...")
+                Text(localizationManager.string(.saving))
                     .font(.system(size: 17, weight: .semibold))
 
             case .success:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 18))
                     .transition(.scale)
-                Text("Збережено!")
+                Text(localizationManager.string(.saved))
                     .font(.system(size: 17, weight: .semibold))
                     .transition(.opacity)
 
@@ -911,3 +910,4 @@ struct TranslationBubbleOverlay: View {
         ttsManager.speak(text: text, language: language)
     }
 }
+

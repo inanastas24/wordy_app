@@ -13,6 +13,11 @@ class AppState: ObservableObject {
     @Published var searchHistory: [SearchItem]
     @Published var savedWords: [SavedWordModel] = []
     
+    @AppStorage("sourceLanguage") private var sourceLanguage: String = ""
+    @AppStorage("targetLanguage") private var targetLanguage: String = ""
+    @AppStorage("hasSelectedLanguagePair") private var hasSelectedLanguagePair = false
+
+    
     // MARK: - Language Pair
     @Published var languagePair: LanguagePair {
         didSet {
@@ -57,7 +62,11 @@ class AppState: ObservableObject {
     
     /// Повне збереження: JSON + індивідуальні ключі + прапорці
     func saveLanguagePair() {
-        persistLanguagePair()
+        sourceLanguage = languagePair.source.rawValue
+        targetLanguage = languagePair.target.rawValue
+        hasSelectedLanguagePair = true
+        
+        print("💾 Saved language pair: \(sourceLanguage) → \(targetLanguage)")
     }
     
     private func persistLanguagePair() {
