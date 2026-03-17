@@ -29,7 +29,7 @@ struct TranslationBubbleOverlay: View {
 
     @State private var synonymTranslations: [String: String] = [:]
     @State private var isLoadingSynonyms = false
-    @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     @State private var didSetContext = false
     @State private var scrollViewProxy: ScrollViewProxy? = nil
 
@@ -245,7 +245,7 @@ struct TranslationBubbleOverlay: View {
                     .multilineTextAlignment(.center)
 
                 Button(action: { speak(text: text, language: language) }) {
-                    Image(systemName: ttsManager.isPlaying && ttsManager.currentLanguage == language ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .font(.system(size: 16))
                         .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
                         .frame(width: 36, height: 36)
@@ -707,7 +707,7 @@ struct TranslationBubbleOverlay: View {
                     word: detail.word,
                     ipaTranscription: detail.ipaTranscription,
                     translation: newDetail.translation,
-                    language: appState.learningLanguage
+                    language: translationLanguage
                 )
                 self.synonymTranslations[detail.word] = newDetail.translation
             }
@@ -842,7 +842,7 @@ struct TranslationBubbleOverlay: View {
                 word: synonym,
                 ipaTranscription: ipa,
                 translation: finalTranslation,
-                language: appState.learningLanguage
+                language: translationLanguage
             )
             showSynonymModal()
         }

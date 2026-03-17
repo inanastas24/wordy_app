@@ -13,7 +13,7 @@ struct TranslationResultView: View {
     var onClose: () -> Void
     var onSave: (() -> Void)? = nil
     
-    @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) var colorScheme
@@ -39,19 +39,6 @@ struct TranslationResultView: View {
                 
                 if isSilentModeEnabled {
                     silentModeWarning
-                }
-                
-                if ttsManager.isLoading {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                        .padding()
-                }
-                
-                if let error = ttsManager.error {
-                    Text("Помилка: \(error)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.red)
-                        .padding(.horizontal)
                 }
                 
                 wordSection(
@@ -139,7 +126,7 @@ struct TranslationResultView: View {
     
     // централізований метод зупинки аудіо
     private func stopAudioImmediately() {
-        ttsManager.stopPlaying()
+        ttsManager.stop()
     }
     
     private var silentModeWarning: some View {
@@ -181,7 +168,7 @@ struct TranslationResultView: View {
                             .fill(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
                     )
             }
-            .disabled(ttsManager.isLoading || isDismissing)  // ОНОВЛЕНО: блокуємо при закритті
+            .disabled(isDismissing)  // ОНОВЛЕНО: блокуємо при закритті
         }
     }
     
@@ -197,7 +184,7 @@ struct TranslationResultView: View {
     }
     
     private func iconName(for language: String) -> String {
-        let isPlaying = ttsManager.isPlaying && ttsManager.currentLanguage == language
+        let isPlaying = ttsManager.isPlaying
         return isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2"
     }
     

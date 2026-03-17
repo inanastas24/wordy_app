@@ -396,6 +396,7 @@ struct CompactWordRow: View {
     let onTap: () -> Void
     let onSpeak: () -> Void
     
+    @EnvironmentObject var localizationManager: LocalizationManager
     @State private var offset: CGFloat = 0
     private let buttonWidth: CGFloat = 80
     private let swipeThreshold: CGFloat = 50
@@ -408,7 +409,7 @@ struct CompactWordRow: View {
                     VStack(spacing: 4) {
                         Image(systemName: word.isLearned ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill")
                             .font(.system(size: 22))
-                        Text(word.isLearned ? "Назад" : "Вивчено")
+                        Text(word.isLearned ? localizationManager.string(.backTitle) : localizationManager.string(.statusLearned))
                             .font(.system(size: 11))
                     }
                     .foregroundColor(.white)
@@ -423,7 +424,7 @@ struct CompactWordRow: View {
                     VStack(spacing: 4) {
                         Image(systemName: "trash.fill")
                             .font(.system(size: 22))
-                        Text("Видалити")
+                        Text(localizationManager.string(.deleteButton))
                             .font(.system(size: 11))
                     }
                     .foregroundColor(.white)
@@ -667,19 +668,19 @@ struct WordDetailOverlay: View {
         }
     }
     
-    private var cancelTitle: String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Скасувати"
-        case .polish: return "Anuluj"
-        case .english: return "Cancel"
-        }
-    }
-    
     private var deleteTitle: String {
         switch localizationManager.currentLanguage {
         case .ukrainian: return "Видалити"
         case .polish: return "Usuń"
         case .english: return "Delete"
+        }
+    }
+    
+    private var cancelTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Скасувати"
+        case .polish: return "Anuluj"
+        case .english: return "Cancel"
         }
     }
     

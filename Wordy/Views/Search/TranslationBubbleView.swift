@@ -24,7 +24,7 @@ struct TranslationBubbleView: View {
     @State private var errorMessage = ""
     
     @State private var showConfetti = false
-    @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     
     var body: some View {
         GeometryReader { geometry in

@@ -9,92 +9,20 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-// MARK: - TTS Manager (ОНОВЛЕНИЙ - без memory leaks)
-@MainActor
-final class TTSManager: ObservableObject {
-    static let shared = TTSManager()
-    
-    @Published var isPlaying = false
-    @Published var currentText: String = ""
-    
-    private let synthesizer = AVSpeechSynthesizer()
-    private var delegate: TTSDelegate?
-    
-    private init() {
-        let newDelegate = TTSDelegate()
-        self.delegate = newDelegate
-        synthesizer.delegate = newDelegate
-        newDelegate.manager = self
-    }
-    
-    func speak(text: String, language: String = "en") {
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
-        
-        currentText = text
-        
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: language == "en" ? "en-US" : language)
-        utterance.rate = 0.5
-        utterance.pitchMultiplier = 1.0
-        utterance.volume = 1.0
-        
-        isPlaying = true
-        synthesizer.speak(utterance)
-    }
-    
-    func stop() {
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
-        isPlaying = false
-        currentText = ""
-    }
-    
-    fileprivate func handleDidFinish() {
-        isPlaying = false
-        currentText = ""
-    }
-}
-
-// MARK: - TTS Delegate
-private final class TTSDelegate: NSObject, AVSpeechSynthesizerDelegate {
-    weak var manager: TTSManager?
-    
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            self.manager?.handleDidFinish()
-        }
-    }
-    
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            self.manager?.handleDidFinish()
-        }
-    }
-    
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didPause utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            self.manager?.handleDidFinish()
-        }
-    }
-}
-
 // MARK: - Word Set Store
-class WordSetStore: ObservableObject {
+final class WordSetStore: ObservableObject {
     static let shared = WordSetStore()
-    
+
     @Published private(set) var addedWordIds: Set<String> = []
-    
+
     func markAsAdded(wordId: String) {
         addedWordIds.insert(wordId)
     }
-    
+
     func isAdded(wordId: String) -> Bool {
-        return addedWordIds.contains(wordId)
+        addedWordIds.contains(wordId)
     }
-    
+
     func removeWordId(wordId: String) {
         addedWordIds.remove(wordId)
     }
@@ -103,7 +31,7 @@ class WordSetStore: ObservableObject {
 struct SetsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
-    
+
     @State private var selectedCategory: WordCategory?
     @State private var selectedDifficulty: DifficultyLevel?
     @State private var searchText = ""
@@ -111,42 +39,41 @@ struct SetsView: View {
     @State private var showCategoryWords = false
     @State private var showDifficultyWords = false
     @State private var selectedSet: WordSet?
-    
+
     @State private var showMenu = false
     @State private var selectedTab: Int = 1
     @State private var showSettings = false
-    
+
     @State private var gradientRotation: Double = 0
-        
     @FocusState private var isSearchFocused: Bool
-    
+
     private var filteredWords: [Word] {
         if searchText.isEmpty {
             return []
         }
         return PredefinedWordSets.searchWords(query: searchText)
     }
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
                 backgroundColor
                     .ignoresSafeArea()
-                
+
                 VStack(spacing: 0) {
                     HeaderView(showMenu: $showMenu, title: localizationManager.string(.wordSets))
                         .environmentObject(localizationManager)
-                    
+
                     ScrollView {
                         VStack(spacing: 20) {
                             searchBarWithButton
                                 .padding(.top, 8)
                                 .focused($isSearchFocused)
-                            
+
                             if !searchText.isEmpty {
                                 searchResultsSection
                             }
-                            
+
                             filtersSection
                             difficultyLevelsSection
                             categoriesSection
@@ -159,7 +86,7 @@ struct SetsView: View {
                         OnboardingContext.isOnDictionaryScreen = false
                     }
                 }
-                
+
                 if showMenu {
                     MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
                         .transition(.move(edge: .leading))
@@ -187,19 +114,19 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var searchBarWithButton: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.gray)
-            
+
             TextField(localizationManager.string(.searchSets), text: $searchText)
                 .font(.system(size: 16))
                 .submitLabel(.search)
                 .onSubmit {
                     isSearchFocused = false
                 }
-            
+
             if !searchText.isEmpty {
                 Button {
                     isSearchFocused = false
@@ -211,7 +138,7 @@ struct SetsView: View {
                 .buttonStyle(PlainButtonStyle())
                 .transition(.scale.combined(with: .opacity))
             }
-            
+
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
@@ -254,7 +181,7 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(localizationManager.string(.wordSetsSubtitle))
@@ -263,15 +190,15 @@ struct SetsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    
+
     private var searchBar: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.gray)
-            
+
             TextField(localizationManager.string(.searchSets), text: $searchText)
                 .font(.system(size: 16))
-            
+
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
@@ -287,16 +214,16 @@ struct SetsView: View {
                 .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color(hex: "#F5F5F5"))
         )
     }
-    
+
     private var searchResultsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("\(filteredWords.count) \(localizationManager.string(.words))")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.gray)
-                
+
                 Spacer()
-                
+
                 Button {
                     searchText = ""
                 } label: {
@@ -305,7 +232,7 @@ struct SetsView: View {
                         .foregroundColor(Color(hex: "#4ECDC4"))
                 }
             }
-            
+
             LazyVStack(spacing: 12) {
                 ForEach(filteredWords.prefix(20)) { word in
                     SearchResultWordRow(word: word)
@@ -313,13 +240,13 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var filtersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(localizationManager.string(.filterBy))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.gray)
-            
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     SelectableFilterChip(
@@ -330,7 +257,7 @@ struct SetsView: View {
                         selectedDifficulty = nil
                         selectedCategory = nil
                     }
-                    
+
                     ForEach(DifficultyLevel.allCases, id: \.self) { level in
                         SelectableFilterChip(
                             title: level.displayName,
@@ -345,12 +272,12 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var difficultyLevelsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(localizationManager.string(.difficultyLevel))
                 .font(.system(size: 20, weight: .bold))
-            
+
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(PredefinedWordSets.allSets) { set in
                     if selectedDifficulty == nil || set.difficulty == selectedDifficulty {
@@ -363,12 +290,12 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var categoriesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(localizationManager.string(.popularLanguages))
                 .font(.system(size: 20, weight: .bold))
-            
+
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(WordCategory.allCases, id: \.self) { category in
                     CategoryCard(
@@ -382,11 +309,11 @@ struct SetsView: View {
             }
         }
     }
-    
+
     private var backgroundColor: Color {
         localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
     }
-    
+
     private func difficultyColor(_ level: DifficultyLevel) -> Color {
         switch level {
         case .a1: return .green
@@ -397,7 +324,7 @@ struct SetsView: View {
         case .c2: return .red
         }
     }
-    
+
     private func wordCountForCategory(_ category: WordCategory) -> Int {
         let words = PredefinedWordSets.words(for: category)
         if let difficulty = selectedDifficulty {
@@ -410,37 +337,39 @@ struct SetsView: View {
 // MARK: - Search Result Word Row
 struct SearchResultWordRow: View {
     let word: Word
+
     @EnvironmentObject var localizationManager: LocalizationManager
-    @StateObject private var ttsManager = TTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
     @State private var showPermissionAlert = false
-    
+
+    private let sourceLanguage = "en"
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(word.original)
                     .font(.system(size: 16, weight: .semibold))
-                
+
                 Text(word.translation)
                     .font(.system(size: 14))
                     .foregroundColor(Color(hex: "#4ECDC4"))
-                
+
                 if let transcription = word.transcription {
                     Text(transcription)
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                 }
             }
-            
+
             Spacer()
-            
-            // Listen button with permission check
+
             Button {
                 checkAndSpeak()
             } label: {
-                Image(systemName: ttsManager.isPlaying && ttsManager.currentText == word.original ? "speaker.wave.2.fill" : "speaker.wave.2")
+                Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
                     .font(.system(size: 16))
                     .foregroundColor(Color(hex: "#4ECDC4"))
                     .frame(width: 36, height: 36)
@@ -458,7 +387,7 @@ struct SearchResultWordRow: View {
             } message: {
                 Text(localizationManager.string(.audioPermissionMessage))
             }
-            
+
             addButton
         }
         .padding()
@@ -478,23 +407,23 @@ struct SearchResultWordRow: View {
             Text(localizationManager.string(.wordAlreadyInDictionary))
         }
     }
-    
+
     private func checkAndSpeak() {
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true)
-            ttsManager.speak(text: word.original, language: "en")
+            ttsManager.speak(text: word.original, language: sourceLanguage)
         } catch {
             print("⚠️ TTS audio session error: \(error)")
-            ttsManager.speak(text: word.original, language: "en")
+            ttsManager.speak(text: word.original, language: sourceLanguage)
         }
     }
-    
+
     private func updateAddedState() {
         isAdded = dictionaryVM.savedWords.contains { $0.id == word.id }
     }
-    
+
     private var addButton: some View {
         Button {
             addToDictionary(word)
@@ -506,14 +435,14 @@ struct SearchResultWordRow: View {
         .buttonStyle(PlainButtonStyle())
         .disabled(isAdded)
     }
-    
+
     private func addToDictionary(_ word: Word) {
         let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
         guard !isInDictionary else {
             showAlreadyExistsAlert = true
             return
         }
-        
+
         let savedWord = SavedWordModel(
             id: word.id,
             original: word.original,
@@ -532,9 +461,9 @@ struct SearchResultWordRow: View {
             createdAt: Date(),
             userId: nil
         )
-        
+
         dictionaryVM.saveWord(savedWord)
-        
+
         withAnimation {
             isAdded = true
         }
@@ -545,16 +474,16 @@ struct SearchResultWordRow: View {
 struct DifficultySetCard: View {
     let set: WordSet
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text(set.emoji)
                         .font(.system(size: 40))
-                    
+
                     Spacer()
-                    
+
                     Text("\(set.wordCount) words")
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.8))
@@ -565,12 +494,12 @@ struct DifficultySetCard: View {
                                 .fill(Color.white.opacity(0.2))
                         )
                 }
-                
+
                 Text(set.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.leading)
-                
+
                 Text(set.difficulty.description)
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.8))
@@ -595,8 +524,9 @@ struct CategoryCard: View {
     let category: WordCategory
     let wordCount: Int
     let action: () -> Void
+
     @EnvironmentObject var localizationManager: LocalizationManager
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
@@ -607,20 +537,20 @@ struct CategoryCard: View {
                         Circle()
                             .fill(Color(hex: "#4ECDC4").opacity(0.15))
                     )
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localizationManager.string(category.localizationKey))
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    
+
                     Text("\(wordCount) \(localizationManager.string(.words))")
                         .font(.system(size: 13))
                         .foregroundColor(.gray)
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "chevron.right")
                     .foregroundColor(.gray)
                     .font(.system(size: 12, weight: .semibold))
@@ -641,7 +571,7 @@ struct SelectableFilterChip: View {
     let isSelected: Bool
     let color: Color
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             Text(title)
@@ -662,10 +592,11 @@ struct SelectableFilterChip: View {
 struct CategoryWordsView: View {
     let category: WordCategory
     let selectedDifficulty: DifficultyLevel?
+
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
-    @StateObject private var ttsManager = TTSManager.shared
-    
+    @StateObject private var ttsManager = TextToSpeechService.shared
+
     private var words: [Word] {
         let allWords = PredefinedWordSets.words(for: category)
         if let difficulty = selectedDifficulty {
@@ -673,32 +604,32 @@ struct CategoryWordsView: View {
         }
         return allWords
     }
-    
+
     var body: some View {
         ZStack {
             backgroundColor
                 .ignoresSafeArea()
-            
+
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(spacing: 12) {
                         Text(category.defaultEmoji)
                             .font(.system(size: 60))
-                        
+
                         Text(localizationManager.string(category.localizationKey))
                             .font(.system(size: 24, weight: .bold))
-                        
+
                         Text("\(localizationManager.string(.wordsInCategory)) \(localizationManager.string(category.localizationKey).lowercased())")
                             .font(.system(size: 16))
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, 20)
-                    
+
                     Text("\(words.count) \(localizationManager.string(.words))")
                         .font(.system(size: 14))
                         .foregroundColor(.gray)
-                    
+
                     LazyVStack(spacing: 12) {
                         ForEach(words) { word in
                             CategoryWordRow(word: word)
@@ -711,7 +642,7 @@ struct CategoryWordsView: View {
         .navigationTitle(localizationManager.string(category.localizationKey))
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
     private var backgroundColor: Color {
         localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
     }
@@ -720,61 +651,64 @@ struct CategoryWordsView: View {
 // MARK: - Category Word Row
 struct CategoryWordRow: View {
     let word: Word
+
     @EnvironmentObject var localizationManager: LocalizationManager
-    @StateObject private var ttsManager = TTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     @State private var isExpanded = false
     @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
     @State private var showPermissionAlert = false
-    
+
+    private let sourceLanguage = "en"
+
     private var isIrregularVerb: Bool {
         word.category == .irregularVerbs
     }
-    
+
     private var irregularVerbForms: (base: String, past: String, pastParticiple: String)? {
         guard isIrregularVerb else { return nil }
         let components = word.original.components(separatedBy: " - ")
         guard components.count >= 3 else { return nil }
-        return (base: components[0].trimmingCharacters(in: .whitespaces),
-                past: components[1].trimmingCharacters(in: .whitespaces),
-                pastParticiple: components[2].trimmingCharacters(in: .whitespaces))
+        return (
+            base: components[0].trimmingCharacters(in: .whitespaces),
+            past: components[1].trimmingCharacters(in: .whitespaces),
+            pastParticiple: components[2].trimmingCharacters(in: .whitespaces)
+        )
     }
-    
+
     private var displayOriginal: String {
         if isIrregularVerb, let forms = irregularVerbForms {
             return forms.base
         }
         return word.original
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayOriginal)
                         .font(.system(size: 18, weight: .semibold))
-                    
+
                     Text(word.translation)
                         .font(.system(size: 16))
                         .foregroundColor(Color(hex: "#4ECDC4"))
-                    
+
                     if let transcription = word.transcription {
                         Text(transcription)
                             .font(.system(size: 14))
                             .foregroundColor(.gray)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 8) {
-                    // Listen button with permission check
                     Button {
                         checkAndSpeak()
                     } label: {
-                        let textToSpeak = isIrregularVerb ? (irregularVerbForms?.base ?? word.original) : word.original
-                        Image(systemName: ttsManager.isPlaying && ttsManager.currentText == textToSpeak ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
                             .font(.system(size: 16))
                             .foregroundColor(Color(hex: "#4ECDC4"))
                             .frame(width: 36, height: 36)
@@ -792,9 +726,9 @@ struct CategoryWordRow: View {
                     } message: {
                         Text(localizationManager.string(.audioPermissionMessage))
                     }
-                    
+
                     addButton
-                    
+
                     Button {
                         withAnimation(.spring(response: 0.35)) {
                             isExpanded.toggle()
@@ -807,7 +741,7 @@ struct CategoryWordRow: View {
                     .buttonStyle(PlainButtonStyle())
                 }
             }
-            
+
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
                     if isIrregularVerb, let forms = irregularVerbForms {
@@ -815,7 +749,7 @@ struct CategoryWordRow: View {
                             Text(localizationManager.string(.verbForms))
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
-                            
+
                             HStack(spacing: 16) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.base)
@@ -824,11 +758,11 @@ struct CategoryWordRow: View {
                                         .font(.system(size: 10))
                                         .foregroundColor(.gray)
                                 }
-                                
+
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 10))
                                     .foregroundColor(.gray)
-                                
+
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.past)
                                         .font(.system(size: 14, weight: .medium))
@@ -837,11 +771,11 @@ struct CategoryWordRow: View {
                                         .font(.system(size: 10))
                                         .foregroundColor(.gray)
                                 }
-                                
+
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 10))
                                     .foregroundColor(.gray)
-                                
+
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(forms.pastParticiple)
                                         .font(.system(size: 14, weight: .medium))
@@ -859,22 +793,22 @@ struct CategoryWordRow: View {
                             )
                         }
                     }
-                    
+
                     if let example = word.exampleSentence {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(localizationManager.string(.example))
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
-                            
+
                             HStack {
                                 Text("\"\(example)\"")
                                     .font(.system(size: 14))
                                     .italic()
-                                
+
                                 Spacer()
-                                
+
                                 Button {
-                                    ttsManager.speak(text: example, language: "en")
+                                    ttsManager.speak(text: example, language: sourceLanguage)
                                 } label: {
                                     Image(systemName: "speaker.wave.1")
                                         .font(.system(size: 12))
@@ -882,7 +816,7 @@ struct CategoryWordRow: View {
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
-                            
+
                             if let exampleTranslation = word.exampleTranslation {
                                 Text(exampleTranslation)
                                     .font(.system(size: 14))
@@ -890,19 +824,19 @@ struct CategoryWordRow: View {
                             }
                         }
                     }
-                    
+
                     if !word.synonyms.isEmpty {
                         HStack {
                             Text("\(localizationManager.string(.synonyms)): ")
                                 .font(.system(size: 13))
                                 .foregroundColor(.gray)
-                            
+
                             Text(word.synonyms.joined(separator: ", "))
                                 .font(.system(size: 13))
                                 .foregroundColor(Color(hex: "#4ECDC4"))
                         }
                     }
-                    
+
                     HStack {
                         Text(word.difficulty.displayName)
                             .font(.system(size: 12, weight: .medium))
@@ -935,25 +869,25 @@ struct CategoryWordRow: View {
             Text(localizationManager.string(.wordAlreadyInDictionary))
         }
     }
-    
+
     private func checkAndSpeak() {
         let textToSpeak = isIrregularVerb ? (irregularVerbForms?.base ?? word.original) : word.original
-        
+
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true)
-            ttsManager.speak(text: textToSpeak, language: "en")
+            ttsManager.speak(text: textToSpeak, language: sourceLanguage)
         } catch {
             print("⚠️ TTS audio session error: \(error)")
-            ttsManager.speak(text: textToSpeak, language: "en")
+            ttsManager.speak(text: textToSpeak, language: sourceLanguage)
         }
     }
-    
+
     private func updateAddedState() {
         isAdded = dictionaryVM.savedWords.contains { $0.id == word.id }
     }
-    
+
     private var addButton: some View {
         Button {
             addToDictionary(word)
@@ -965,7 +899,7 @@ struct CategoryWordRow: View {
         .buttonStyle(PlainButtonStyle())
         .disabled(isAdded)
     }
-    
+
     private func difficultyColor(_ level: DifficultyLevel) -> Color {
         switch level {
         case .a1: return .green
@@ -976,14 +910,14 @@ struct CategoryWordRow: View {
         case .c2: return .red
         }
     }
-    
+
     private func addToDictionary(_ word: Word) {
         let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
         guard !isInDictionary else {
             showAlreadyExistsAlert = true
             return
         }
-        
+
         let savedWord = SavedWordModel(
             id: word.id,
             original: word.original,
@@ -1002,9 +936,9 @@ struct CategoryWordRow: View {
             createdAt: Date(),
             userId: nil
         )
-        
+
         dictionaryVM.saveWord(savedWord)
-        
+
         withAnimation {
             isAdded = true
         }
@@ -1014,36 +948,37 @@ struct CategoryWordRow: View {
 // MARK: - Word Set Detail View
 struct WordSetDetailView: View {
     let set: WordSet
+
     @EnvironmentObject var localizationManager: LocalizationManager
-    @StateObject private var ttsManager = TTSManager.shared
-    
+    @StateObject private var ttsManager = TextToSpeechService.shared
+
     var body: some View {
         ZStack {
             backgroundColor
                 .ignoresSafeArea()
-            
+
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(spacing: 12) {
                         Text(set.emoji)
                             .font(.system(size: 60))
-                        
+
                         Text(set.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
                             .font(.system(size: 24, weight: .bold))
-                        
+
                         HStack(spacing: 16) {
                             Label("\(set.wordCount) \(localizationManager.string(.words))", systemImage: "text.word.spacing")
                                 .font(.system(size: 14))
-                            
+
                             Text("•")
-                            
+
                             Text(set.difficulty.description)
                                 .font(.system(size: 14))
                         }
                         .foregroundColor(.gray)
                     }
                     .padding(.top, 20)
-                    
+
                     LazyVStack(spacing: 12) {
                         ForEach(set.words) { word in
                             CategoryWordRow(word: word)
@@ -1056,9 +991,8 @@ struct WordSetDetailView: View {
         .navigationTitle(set.title(for: Locale.current.language.languageCode?.identifier ?? "en"))
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
     private var backgroundColor: Color {
         localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
     }
 }
-

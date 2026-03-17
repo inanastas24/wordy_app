@@ -164,7 +164,7 @@ enum LocalizableKey: String {
     case popularLanguages
     case otherLanguages
     
-    case originalWord, enterTranslation, transcription, optional, example, enterExample, preview, translationVariant, loading
+    case originalWord, enterTranslation, transcription, optional, example, enterExample, preview, translationVariant, loading, backTitle, statusLearned, deleteButton
     case wordAdded, wordUpdated, wordAddedMessage, wordUpdatedMessage, addAnother, done
     case selectLanguagePair, sourceLanguage, targetLanguage, changesSaved, unknownError
     case languagePair, translation, permissionPermissionNotificationTitle
@@ -390,6 +390,7 @@ public class LocalizationManager: ObservableObject {
         .myDictionary: [.ukrainian: "Мій словник", .english: "My Dictionary", .polish: "Mój słownik"],
         .learning: [.ukrainian: "На вивченні", .english: "Learning", .polish: "Do nauki"],
         .learned: [.ukrainian: "Вивчено", .english: "Learned", .polish: "Nauczone"],
+        // .delete: [.ukrainian: "Видалити", .english: "Delete", .polish: "Usunąć"],
         .totalWords: [.ukrainian: "Всього слів", .english: "Total words", .polish: "Wszystkie słowa"],
         .darkTheme: [.ukrainian: "Темна тема", .english: "Dark Theme", .polish: "Ciemny motyw"],
         .appLanguage: [.ukrainian: "Мова додатку", .english: "App Language", .polish: "Język aplikacji"],
@@ -1928,6 +1929,21 @@ public class LocalizationManager: ObservableObject {
                 .ukrainian: "Потрібен доступ до аудіо для програвання вимови",
                 .english: "Audio access needed for pronunciation playback",
                 .polish: "Potrzebny dostęp do audio do odtwarzania wymowy"
+            ],
+            .deleteButton: [
+                .ukrainian: "Видалити",
+                .english: "Delete",
+                .polish: "Usunąć"
+            ],
+            .statusLearned: [
+                .ukrainian: "Вивчено",
+                .english: "Learned",
+                .polish: "Uczony"
+            ],
+            .backTitle: [
+                .ukrainian: "Назад",
+                .english: "Back",
+                .polish: "Powrót"
             ]
         ]
 }
