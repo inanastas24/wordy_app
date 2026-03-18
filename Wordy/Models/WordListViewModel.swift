@@ -1,4 +1,4 @@
-//1
+//
 //  WordListViewModel.swift
 //  Wordy
 //
@@ -8,36 +8,32 @@
 import Foundation
 import Combine
 
-/// ViewModel для списку слів - делегує роботу DictionaryViewModel
-/// Цей клас можна використовувати для специфічної логіки списку слів
 @MainActor
-class WordListViewModel: ObservableObject {
+final class WordListViewModel: ObservableObject {
     static let shared = WordListViewModel()
-    
+
     @Published var words: [SavedWordModel] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    
-    // Делегуємо роботу DictionaryViewModel
+
     private let dictionaryVM = DictionaryViewModel.shared
     private var cancellables = Set<AnyCancellable>()
-    
+
     private init() {
-        // Слухаємо зміни в DictionaryViewModel
         dictionaryVM.$savedWords
             .receive(on: DispatchQueue.main)
             .sink { [weak self] words in
                 self?.words = words
             }
             .store(in: &cancellables)
-        
+
         dictionaryVM.$isLoading
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isLoading in
                 self?.isLoading = isLoading
             }
             .store(in: &cancellables)
-        
+
         dictionaryVM.$errorMessage
             .receive(on: DispatchQueue.main)
             .sink { [weak self] error in
@@ -45,66 +41,73 @@ class WordListViewModel: ObservableObject {
             }
             .store(in: &cancellables)
     }
-    
+
     // MARK: - Public Methods
-    
+
     func fetchWords() {
         dictionaryVM.fetchSavedWords()
     }
-    
+
     func addWord(_ word: SavedWordModel) {
         dictionaryVM.saveWord(word)
     }
-    
+
+    func addWords(_ words: [SavedWordModel]) {
+        dictionaryVM.saveWords(words)
+    }
+
+    func deleteWord(_ word: SavedWordModel) {
+        dictionaryVM.deleteWord(word)
+    }
+
     func deleteWord(id: String) {
-        dictionaryVM.deleteWord(id)
+        guard let word = dictionaryVM.savedWords.first(where: { $0.id == id }) else { return }
+        dictionaryVM.deleteWord(word)
     }
-    
+
     func updateWord(_ word: SavedWordModel) {
-        dictionaryVM.updateWord(word)
+        dictionaryVM.saveWord(word)
     }
-    
+
     func markAsLearned(wordId: String) {
         dictionaryVM.markAsLearned(wordId: wordId)
     }
-    
+
     func markAsUnlearned(wordId: String) {
         dictionaryVM.markAsUnlearned(wordId: wordId)
     }
-    
+
+    func stopListening() {
+        dictionaryVM.stopListening()
+    }
+
     // MARK: - Computed Properties
-    
+
     var learningWords: [SavedWordModel] {
         dictionaryVM.learningWords
     }
-    
+
     var learnedWords: [SavedWordModel] {
         dictionaryVM.learnedWords
     }
-    
+
     var learningCount: Int {
         dictionaryVM.learningCount
     }
-    
+
     var learnedCount: Int {
         dictionaryVM.learnedCount
     }
-    
+
     var totalWords: Int {
-        dictionaryVM.totalWords
+        dictionaryVM.savedWords.count
     }
-    
+
     var wordsDueForReview: [SavedWordModel] {
-        dictionaryVM.wordsDueForReview
+        dictionaryVM.learningWords.filter { $0.isDueForReview }
     }
-    
+
     var newWords: [SavedWordModel] {
-        dictionaryVM.newWords
-    }
-    
-    // MARK: - Cleanup
-    
-    func stopListening() {
-        dictionaryVM.stopListening()
+        dictionaryVM.learningWords.filter { $0.reviewCount == 0 }
     }
 }

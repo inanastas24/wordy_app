@@ -13,7 +13,7 @@ struct ProfileView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
-    @StateObject private var dictionaryVM = DictionaryViewModel.shared
+    @ObservedObject private var dictionaryVM = DictionaryViewModel.shared
     
     @State private var showMenu = false
     @State private var selectedTab: Int = 2
@@ -25,9 +25,9 @@ struct ProfileView: View {
     @State private var streakColor: String = "#F38BA8"
     @State private var streakTitle: String = "0 days"
     
-    private var totalWords: Int { dictionaryVM.totalWords }
-    private var learnedWords: Int { dictionaryVM.learnedCount }
-    private var learningWords: Int { dictionaryVM.learningCount }
+    private var totalWords: Int { dictionaryVM.savedWords.count }
+    private var learnedWords: Int { dictionaryVM.savedWords.filter { $0.isLearned }.count }
+    private var learningWords: Int { dictionaryVM.savedWords.filter { !$0.isLearned }.count }
     
     var body: some View {
         NavigationStack {
@@ -434,3 +434,4 @@ struct FirestoreActivityRow: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
+

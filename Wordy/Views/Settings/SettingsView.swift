@@ -108,7 +108,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(
-                    isFirstTime: true,
+                    isFirstTime: false,
                     onClose: {
                         showPaywall = false
                     },
@@ -117,6 +117,7 @@ struct SettingsView: View {
                     }
                 )
                 .environmentObject(subscriptionManager)
+                .environmentObject(localizationManager)
             }
             .fileImporter(
                 isPresented: $showImportPicker,
@@ -217,13 +218,18 @@ struct SettingsView: View {
             SettingsSubscriptionSection(
                 manager: subscriptionManager,
                 onManage: {
-                    if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                        UIApplication.shared.open(url)
+                    switch subscriptionManager.status {
+                    case .premium, .trial:
+                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                            UIApplication.shared.open(url)
+                        }
+                    case .unknown, .expired, .trialExpired, .billingRetry:
+                        showPaywall = true
                     }
                 },
                 onRestore: {
                     Task {
-                        await subscriptionManager.restorePurchases()
+                        _ = await subscriptionManager.restorePurchases()
                     }
                 }
             )

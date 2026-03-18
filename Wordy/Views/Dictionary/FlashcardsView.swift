@@ -13,7 +13,7 @@ struct FlashcardsView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var localizationManager: LocalizationManager
     
-    @StateObject private var viewModel = DictionaryViewModel.shared
+    private let viewModel = DictionaryViewModel.shared
     
     @State private var cards: [SavedWordModel] = []
     @State private var currentIndex = 0
@@ -460,14 +460,30 @@ struct FlashcardsView: View {
     }
     
     private func loadCards() {
-        // Отримуємо слова з ViewModel (вже завантажені з Firestore)
-        let dueWords = viewModel.wordsDueForReview
-        let newWords = viewModel.newWords
-        
+        let allWords = viewModel.savedWords
+
+        let now = Date()
+
+        let dueWords = allWords.filter { word in
+            if let nextDate = word.nextReviewDate {
+                return nextDate <= now && !word.isLearned
+            }
+            return word.srsRepetition > 0 && word.srsInterval > 0 && !word.isLearned
+        }
+
+        let newWords = allWords.filter { word in
+            (word.srsRepetition == 0 || word.srsInterval == 0) && !word.isLearned
+        }
+
         var sessionWords: [SavedWordModel] = []
         sessionWords.append(contentsOf: dueWords.prefix(10))
-        sessionWords.append(contentsOf: newWords.prefix(20 - sessionWords.count))
-        
+
+        let remainingSlots = max(0, 20 - sessionWords.count)
+        let newWordsToAdd = newWords.filter { newWord in
+            !sessionWords.contains(where: { $0.id == newWord.id })
+        }
+        sessionWords.append(contentsOf: newWordsToAdd.prefix(remainingSlots))
+
         cards = sessionWords.shuffled()
         currentIndex = 0
         isFlipped = false
@@ -477,7 +493,7 @@ struct FlashcardsView: View {
         showCompletion = false
         showAnswerButtons = false
         sessionStats = SessionStats()
-        
+
         if cards.isEmpty {
             showCompletion = true
         }

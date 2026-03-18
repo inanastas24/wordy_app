@@ -40,8 +40,8 @@ struct UserProfile: Codable {
 }
 
 // MARK: - Saved Word Model
-struct SavedWordModel: Identifiable, Codable {
-    @DocumentID var id: String?
+struct SavedWordModel: Identifiable, Codable, Equatable {
+    var id: String?
     var original: String
     var translation: String
     var transcription: String?
@@ -272,7 +272,14 @@ class FirestoreService {
             .getDocuments()
         
         return snapshot.documents.compactMap { doc in
-            try? doc.data(as: SavedWordModel.self)
+            do {
+                var word = try doc.data(as: SavedWordModel.self)
+                word.id = doc.documentID
+                return word
+            } catch {
+                print("❌ Failed to decode word: \(error)")
+                return nil
+            }
         }
     }
     
@@ -291,7 +298,14 @@ class FirestoreService {
             .getDocuments()
         
         return snapshot.documents.compactMap { doc in
-            try? doc.data(as: SavedWordModel.self)
+            do {
+                var word = try doc.data(as: SavedWordModel.self)
+                word.id = doc.documentID
+                return word
+            } catch {
+                print("❌ Failed to decode due word: \(error)")
+                return nil
+            }
         }
     }
     
@@ -308,7 +322,14 @@ class FirestoreService {
             .getDocuments()
         
         return snapshot.documents.compactMap { doc in
-            try? doc.data(as: SavedWordModel.self)
+            do {
+                var word = try doc.data(as: SavedWordModel.self)
+                word.id = doc.documentID
+                return word
+            } catch {
+                print("❌ Failed to decode new word: \(error)")
+                return nil
+            }
         }
     }
     
@@ -330,7 +351,14 @@ class FirestoreService {
                 }
                 
                 let words = documents.compactMap { doc -> SavedWordModel? in
-                    try? doc.data(as: SavedWordModel.self)
+                    do {
+                        var word = try doc.data(as: SavedWordModel.self)
+                        word.id = doc.documentID
+                        return word
+                    } catch {
+                        print("❌ Failed to decode listener word: \(error)")
+                        return nil
+                    }
                 }
                 
                 completion(words)

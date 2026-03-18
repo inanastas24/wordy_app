@@ -163,7 +163,7 @@ struct SearchView: View {
                         showPaywall = true
                     }
                 )
-                .environmentObject(subscriptionManager) 
+                .environmentObject(subscriptionManager)
             }
             .sheet(isPresented: $showVoiceSearch) {
                 VoiceSearchView { text in

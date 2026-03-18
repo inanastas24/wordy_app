@@ -11,6 +11,7 @@ struct ExportImportView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
+    @StateObject private var dictionaryViewModel = DictionaryViewModel.shared
     @State private var showingExporter = false
     @State private var showingImporter = false
     @State private var showingFormatPicker = false
@@ -64,12 +65,12 @@ struct ExportImportView: View {
                                     .foregroundColor(Color(hex: "#4ECDC4"))
                             }
                         }
-                        .disabled(appState.savedWords.isEmpty || isLoading)
+                        .disabled(dictionaryViewModel.savedWords.isEmpty || isLoading)
                     }
                 } header: {
                     Text(localizedExportSection)
                 } footer: {
-                    if appState.savedWords.isEmpty {
+                    if dictionaryViewModel.savedWords.isEmpty {
                         Text(localizedEmptyDictionary)
                             .foregroundColor(.orange)
                     }
@@ -112,11 +113,11 @@ struct ExportImportView: View {
                 }
 
                 // Статистика
-                if !appState.savedWords.isEmpty {
+                if !dictionaryViewModel.savedWords.isEmpty {
                     Section(localizedStatistics) {
-                        StatisticRow(title: localizedTotalWords, value: "\(appState.savedWords.count)")
-                        StatisticRow(title: localizedLearnedWords, value: "\(appState.savedWords.filter { $0.isLearned }.count)")
-                        StatisticRow(title: localizedLearningWords, value: "\(appState.savedWords.filter { !$0.isLearned }.count)")
+                        StatisticRow(title: localizedTotalWords, value: "\(dictionaryViewModel.savedWords.count)")
+                        StatisticRow(title: localizedLearnedWords, value: "\(dictionaryViewModel.savedWords.filter { $0.isLearned }.count)")
+                        StatisticRow(title: localizedLearningWords, value: "\(dictionaryViewModel.savedWords.filter { !$0.isLearned }.count)")
                     }
                 }
             }
@@ -170,7 +171,7 @@ struct ExportImportView: View {
         Task {
             do {
                 let url = try await DictionaryExportService.exportWords(
-                    appState.savedWords,
+                    dictionaryViewModel.savedWords,
                     format: selectedFormat,
                     language: currentLanguage
                 )
@@ -231,7 +232,7 @@ struct ExportImportView: View {
                 // НОВЕ: Передаємо існуючі слова для перевірки дублікатів
                 let result = try await DictionaryExportService.importWords(
                     from: url,
-                    existingWords: appState.savedWords,
+                    existingWords: dictionaryViewModel.savedWords,
                     language: currentLanguage
                 )
 
@@ -239,6 +240,7 @@ struct ExportImportView: View {
                 await MainActor.run {
                     // Зберігаємо через ViewModel для повної інтеграції з Firebase
                     DictionaryViewModel.shared.saveWords(result.words)
+                    DictionaryViewModel.shared.fetchSavedWords()
                     
                     self.importedCount = result.importedCount
                     self.duplicateCount = result.duplicateCount

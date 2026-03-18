@@ -61,10 +61,10 @@ struct SavedWordsView: View {
                     ProgressView()
                 }
             }
-            .alert("Помилка", isPresented: .constant(!viewModel.errorMessage.isEmpty)) {
+            .alert("Помилка", isPresented: .constant(!(viewModel.errorMessage ?? "").isEmpty)) {
                 Button("OK") { viewModel.errorMessage = "" }
             } message: {
-                Text(viewModel.errorMessage)
+                Text(viewModel.errorMessage ?? "")
             }
             .alert("Помилка виходу", isPresented: $showSignOutError) {
                 Button("OK") { }
@@ -78,7 +78,8 @@ struct SavedWordsView: View {
         for index in offsets {
             guard index < viewModel.savedWords.count else { continue }
             let word = viewModel.savedWords[index]
-            viewModel.deleteWord(word.id ?? "")
+            viewModel.deleteWord(word)
         }
     }
 }
+

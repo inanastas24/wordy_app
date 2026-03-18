@@ -163,7 +163,9 @@ struct RootView: View {
         case .learningLanguage:
             LearningLanguageSelectionView(onComplete: {
                 hasSelectedLanguagePair = true
-                currentFlow = .mainApp
+                withAnimation {
+                    determineNextFlow()
+                }
             })
             
         case .notifications:
@@ -178,7 +180,10 @@ struct RootView: View {
             PaywallView(
                 isFirstTime: true,
                 onClose: {
-                    print("⚠️ Paywall cannot be dismissed on first run")
+                    hasCompletedOnboarding = true
+                    withAnimation {
+                        currentFlow = .mainApp
+                    }
                 },
                 onSubscribe: {
                     hasCompletedOnboarding = true
@@ -346,21 +351,28 @@ struct RootView: View {
             nextFlow = .login
         } else if !hasSelectedLanguage || appLanguage.isEmpty {
             nextFlow = .appLanguage
-        } else if !hasSelectedLanguagePair {
-            // ✅ Перевіряємо LanguagePair (обидві мови)
+        } else if !hasSelectedLanguagePair || sourceLanguage.isEmpty || targetLanguage.isEmpty {
             nextFlow = .learningLanguage
         } else if !hasCompletedOnboarding {
             hasSeenNotifications = true
-            
-            if subscriptionManager.status == .unknown {
-                nextFlow = .paywall
-            } else {
+
+            switch subscriptionManager.status {
+            case .premium(_, let isInGracePeriod):
+                if isInGracePeriod {
+                    nextFlow = .paywall
+                } else {
+                    hasCompletedOnboarding = true
+                    nextFlow = .mainApp
+                }
+            case .trial:
                 hasCompletedOnboarding = true
                 nextFlow = .mainApp
+            case .unknown, .expired, .trialExpired, .billingRetry:
+                nextFlow = .paywall
             }
         } else {
             nextFlow = .mainApp
-            selectedTab = 0 
+            selectedTab = 0
         }
         
         print("➡️ Next flow: \(nextFlow)")

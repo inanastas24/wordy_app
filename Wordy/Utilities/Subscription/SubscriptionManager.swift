@@ -15,11 +15,11 @@ enum SubscriptionStatus: Equatable {
     
     var canUseApp: Bool {
         switch self {
-        case .premium, .trial:
+        case .trial:
             return true
-        case .billingRetry:
-            return true  // Grace period - ще можна користуватись
-        case .trialExpired, .expired, .unknown:
+        case .premium(_, let isInGracePeriod):
+            return !isInGracePeriod
+        case .billingRetry, .trialExpired, .expired, .unknown:
             return false
         }
     }
@@ -419,8 +419,9 @@ final class SubscriptionManager: ObservableObject {
                 let daysSinceExpiry = components.day ?? 0
                 
                 if daysSinceExpiry <= gracePeriodDays {
-                    status = .premium(expiryDate: expirationDate, isInGracePeriod: true)
-                    print("⚠️ In grace period")
+                    status = .billingRetry
+                    currentProduct = products.first { $0.id == transaction.productID }
+                    print("⚠️ Billing retry / grace period")
                 } else {
                     // 🆕 Підписка закінчилась
                     status = .expired(expiryDate: expirationDate)
