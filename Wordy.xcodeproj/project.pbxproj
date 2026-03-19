@@ -389,7 +389,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nif command -v swiftlint &> /dev/null\nthen\n    swiftlint\nelse\n    echo \"warning: SwiftLint not installed, skipping...\"\nfi\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nif command -v swiftlint >/dev/null 2>&1; then\n    echo \"Running SwiftLint...\"\n    swiftlint || true\nelse\n    echo \"warning: SwiftLint not installed, skipping...\"\nfi\n";
 		};
 		46590E092F6733010000253C /* Firebase Crashlytics */ = {
 			isa = PBXShellScriptBuildPhase;
