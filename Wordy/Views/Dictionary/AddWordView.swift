@@ -265,7 +265,7 @@ struct AddWordView: View {
         let trimmedExample = exampleSentence.isEmpty ? nil : exampleSentence.trimmingCharacters(in: .whitespacesAndNewlines)
         
         let wordModel = SavedWordModel(
-            id: existingWord?.id,
+            id: existingWord?.id ?? UUID().uuidString,
             original: trimmedOriginal,
             translation: trimmedTranslation,
             transcription: trimmedTranscription,

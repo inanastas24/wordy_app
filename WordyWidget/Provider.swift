@@ -64,22 +64,24 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<WordEntry>) -> Void) {
         let words = loadWords()
         var entries: [WordEntry] = []
-        
+
         let currentDate = Date()
-        for hourOffset in 0..<24 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            
-            let entry: WordEntry
-            if let randomWord = words.randomElement() {
-                entry = WordEntry(date: entryDate, word: randomWord, isEmpty: false)
-            } else {
-                entry = WordEntry(date: entryDate, word: nil, isEmpty: true)
-            }
-            
+
+        for index in 0..<24 {
+            let entryDate = Calendar.current.date(byAdding: .hour, value: index, to: currentDate)!
+
+            let word = words.isEmpty ? nil : words[index % words.count]
+
+            let entry = WordEntry(
+                date: entryDate,
+                word: word,
+                isEmpty: words.isEmpty
+            )
+
             entries.append(entry)
         }
-        
-        let timeline = Timeline(entries: entries, policy: .atEnd)
+
+        let timeline = Timeline(entries: entries, policy: .after(Date().addingTimeInterval(60 * 30)))
         completion(timeline)
     }
 }

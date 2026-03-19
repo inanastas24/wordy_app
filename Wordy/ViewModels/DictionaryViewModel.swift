@@ -50,26 +50,60 @@ final class DictionaryViewModel: ObservableObject {
     func fetchSavedWords() {
         isLoading = true
 
-        let localWords = readWordsFromStorage()
-        savedWords = deduplicate(localWords)
+        Task {
+            do {
+                let remoteWords = try await FirestoreService.shared.fetchWords()
+                let uniqueWords = deduplicate(remoteWords)
 
-        isLoading = false
+                await MainActor.run {
+                    self.savedWords = uniqueWords
+                    self.writeWordsToStorage(uniqueWords)
+                    self.syncWidgetWords()
+                    self.isLoading = false
+                }
 
-        startListeningIfNeeded()
+                startListeningIfNeeded()
+            } catch {
+                let localWords = readWordsFromStorage()
+                await MainActor.run {
+                    let uniqueLocalWords = deduplicate(localWords)
+                    self.savedWords = uniqueLocalWords
+                    self.syncWidgetWords()
+                    self.isLoading = false
+                    self.errorMessage = error.localizedDescription
+                }
+                print("❌ Failed to fetch remote words: \(error)")
+            }
+        }
     }
 
     func saveWord(_ word: SavedWordModel) {
         var updatedWords = savedWords
 
-        if let index = indexForExistingWord(word, in: updatedWords) {
-            let preserved = mergeWord(new: word, existing: updatedWords[index])
+        let normalized = normalizedWord(word)
+
+        if let index = indexForExistingWord(normalized, in: updatedWords) {
+            let preserved = mergeWord(new: normalized, existing: updatedWords[index])
             updatedWords[index] = preserved
         } else {
-            updatedWords.append(normalizedWord(word))
+            updatedWords.append(normalized)
         }
 
         applyAndPersist(updatedWords)
-    }
+
+        Task {
+                do {
+                    if let finalWord = updatedWords.first(where: {
+                        stableKey(for: $0) == stableKey(for: normalized)
+                    }) {
+                        try await FirestoreService.shared.saveWord(finalWord)
+                        print("✅ Saved to Firestore")
+                    }
+                } catch {
+                    print("❌ Firestore save error: \(error)")
+                }
+            }
+        }
 
     func saveWords(_ words: [SavedWordModel]) {
         guard !words.isEmpty else { return }
@@ -77,14 +111,23 @@ final class DictionaryViewModel: ObservableObject {
         var updatedWords = savedWords
 
         for word in words {
-            if let index = indexForExistingWord(word, in: updatedWords) {
-                updatedWords[index] = mergeWord(new: word, existing: updatedWords[index])
+            let normalized = normalizedWord(word)
+            if let index = indexForExistingWord(normalized, in: updatedWords) {
+                updatedWords[index] = mergeWord(new: normalized, existing: updatedWords[index])
             } else {
-                updatedWords.append(normalizedWord(word))
+                updatedWords.append(normalized)
             }
         }
 
         applyAndPersist(updatedWords)
+
+        Task {
+            do {
+                try await FirestoreService.shared.saveWordsBatch(updatedWords)
+            } catch {
+                print("❌ Failed to batch save words to Firestore: \(error)")
+            }
+        }
     }
 
     func deleteWord(_ word: SavedWordModel) {
@@ -93,6 +136,16 @@ final class DictionaryViewModel: ObservableObject {
         }
 
         applyAndPersist(updatedWords)
+
+        if let id = word.id {
+            Task {
+                do {
+                    try await FirestoreService.shared.deleteWord(wordId: id)
+                } catch {
+                    print("❌ Failed to delete word from Firestore: \(error)")
+                }
+            }
+        }
     }
 
     func markAsLearned(_ word: SavedWordModel) {
@@ -194,6 +247,7 @@ final class DictionaryViewModel: ObservableObject {
         DispatchQueue.main.async {
             self.savedWords = uniqueWords
             self.writeWordsToStorage(uniqueWords)
+            self.syncWidgetWords()
         }
     }
 
@@ -303,38 +357,37 @@ final class DictionaryViewModel: ObservableObject {
             print("❌ Failed to encode saved words: \(error)")
         }
     }
+    
+    private func syncWidgetWords() {
+        let widgetWords = savedWords.map {
+            WidgetDataService.WidgetWordItem(
+                id: $0.id ?? UUID().uuidString,
+                original: $0.original,
+                translation: $0.translation,
+                transcription: $0.transcription,
+                example: $0.exampleSentence,
+                languagePair: $0.languagePair
+            )
+        }
+
+        WidgetDataService.shared.updateWidgetWords(words: widgetWords)
+    }
 
     // MARK: - Firestore Listener (optional safe merge)
 
     private func startListeningIfNeeded() {
         stopListening()
 
-        guard let userId = Auth.auth().currentUser?.uid else { return }
+        listener = FirestoreService.shared.addWordsListener { [weak self] remoteWords in
+            guard let self = self else { return }
 
-        listener = Firestore.firestore()
-            .collection("users")
-            .document(userId)
-            .collection("words")
-            .addSnapshotListener { [weak self] _, error in
-                guard let self = self else { return }
+            let unique = self.deduplicate(remoteWords)
 
-                if let error = error {
-                    print("❌ Firestore listener error: \(error)")
-                    return
-                }
-
-                // Тут спеціально не парсимо snapshot напряму,
-                // щоб не зламати твій поточний формат документів.
-                // Якщо у тебе вже є окремий sync layer — лишай його.
-                // Поки що просто перечитуємо локальний storage,
-                // щоб UI не дублювався після локальних змін.
-
-                let localWords = self.readWordsFromStorage()
-                let unique = self.deduplicate(localWords)
-
-                DispatchQueue.main.async {
-                    self.savedWords = unique
-                }
+            DispatchQueue.main.async {
+                self.savedWords = unique
+                self.writeWordsToStorage(unique)
+                self.syncWidgetWords()
             }
+        }
     }
 }

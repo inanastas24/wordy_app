@@ -175,21 +175,28 @@ class FirestoreService {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw AuthError.userNotFound
         }
-        
-        var wordData = try Firestore.Encoder().encode(word)
-        wordData["createdAt"] = Timestamp(date: word.createdAt)
-        if let nextReview = word.nextReviewDate {
+
+        let wordId = word.id ?? UUID().uuidString
+        var wordToSave = word
+        wordToSave.id = wordId
+        wordToSave.userId = userId
+
+        var wordData = try Firestore.Encoder().encode(wordToSave)
+        wordData["createdAt"] = Timestamp(date: wordToSave.createdAt)
+
+        if let nextReview = wordToSave.nextReviewDate {
             wordData["nextReviewDate"] = Timestamp(date: nextReview)
         }
-        if let lastReview = word.lastReviewDate {
+        if let lastReview = wordToSave.lastReviewDate {
             wordData["lastReviewDate"] = Timestamp(date: lastReview)
         }
-        
+
         try await db.collection("users")
             .document(userId)
             .collection("words")
-            .addDocument(data: wordData)
-        
+            .document(wordId)
+            .setData(wordData, merge: true)
+
         NotificationCenter.default.post(name: .wordSaved, object: nil)
     }
     

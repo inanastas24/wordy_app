@@ -291,7 +291,7 @@ struct MenuView: View {
                 .padding(.horizontal, 20)
             
             HStack {
-                Text("Wordy v1.0")
+                Text("Wordy v1.1")
                     .font(.system(size: 12))
                     .foregroundColor(localizationManager.isDarkMode ? .gray.opacity(0.6) : Color(hex: "#7F8C8D").opacity(0.6))
                 
