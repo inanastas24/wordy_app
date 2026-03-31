@@ -49,30 +49,35 @@ final class DictionaryViewModel: ObservableObject {
 
     func fetchSavedWords() {
         isLoading = true
+        print("📚 Fetching words...")
 
         Task {
             do {
                 let remoteWords = try await FirestoreService.shared.fetchWords()
+                print("📚 Firestore returned: \(remoteWords.count) words")
+                print("📚 Words: \(remoteWords.map { $0.original })")
+                
                 let uniqueWords = deduplicate(remoteWords)
+                print("📚 After deduplication: \(uniqueWords.count) words")
+                print("📚 Words: \(uniqueWords.map { $0.original })")
 
                 await MainActor.run {
                     self.savedWords = uniqueWords
+                    print("💾 savedWords updated: \(self.savedWords.count) words")
                     self.writeWordsToStorage(uniqueWords)
                     self.syncWidgetWords()
                     self.isLoading = false
                 }
-
-                startListeningIfNeeded()
             } catch {
+                print("❌ Failed to fetch: \(error)")
                 let localWords = readWordsFromStorage()
                 await MainActor.run {
                     let uniqueLocalWords = deduplicate(localWords)
                     self.savedWords = uniqueLocalWords
+                    print("💾 Loaded from local: \(self.savedWords.count) words")
                     self.syncWidgetWords()
                     self.isLoading = false
-                    self.errorMessage = error.localizedDescription
                 }
-                print("❌ Failed to fetch remote words: \(error)")
             }
         }
     }
@@ -217,6 +222,7 @@ final class DictionaryViewModel: ObservableObject {
         listener?.remove()
         listener = nil
     }
+    
 
     // MARK: - Status Update
 
@@ -225,10 +231,6 @@ final class DictionaryViewModel: ObservableObject {
 
         var updatedWord = savedWords[index]
         updatedWord.isLearned = isLearned
-
-        // reviewCount не чіпаємо при ручному перенесенні між блоками
-        // щоб не надувати статистику просто від тапу в словнику.
-
         if isLearned {
             updatedWord.nextReviewDate = nil
         }
@@ -236,19 +238,27 @@ final class DictionaryViewModel: ObservableObject {
         var updatedWords = savedWords
         updatedWords[index] = updatedWord
 
-        applyAndPersist(updatedWords)
+        // 🔥 Просто оновлюємо масив - @Published сам сповістить SwiftUI
+        savedWords = deduplicate(updatedWords)
+        writeWordsToStorage(savedWords)
+        syncWidgetWords()
+        
+        // Синхронізуємо з Firestore асинхронно
+        Task {
+            do {
+                try await FirestoreService.shared.saveWord(updatedWord)
+                print("✅ Status updated: \(updatedWord.original) -> isLearned: \(isLearned)")
+            } catch {
+                print("❌ Failed to update status: \(error)")
+            }
+        }
     }
-
     // MARK: - Apply / Persist
 
-    private func applyAndPersist(_ words: [SavedWordModel]) {
-        let uniqueWords = deduplicate(words)
-
-        DispatchQueue.main.async {
-            self.savedWords = uniqueWords
-            self.writeWordsToStorage(uniqueWords)
-            self.syncWidgetWords()
-        }
+    // Погано:
+    func applyAndPersist(_ words: [SavedWordModel]) {
+        savedWords = words  // @Published сповіщає
+        objectWillChange.send()  // 🔥 Зайве! Може викликати подвійне оновлення
     }
 
     // MARK: - Deduplication
@@ -359,8 +369,11 @@ final class DictionaryViewModel: ObservableObject {
     }
     
     private func syncWidgetWords() {
+        print("📱 syncWidgetWords() called with \(savedWords.count) words")
+        print("📱 Words: \(savedWords.map { $0.original })")
+        
         let widgetWords = savedWords.map {
-            WidgetDataService.WidgetWordItem(
+            WidgetDataService.WidgetWord(
                 id: $0.id ?? UUID().uuidString,
                 original: $0.original,
                 translation: $0.translation,
@@ -369,10 +382,11 @@ final class DictionaryViewModel: ObservableObject {
                 languagePair: $0.languagePair
             )
         }
-
+        
+        print("📱 Sending \(widgetWords.count) words to WidgetDataService")
         WidgetDataService.shared.updateWidgetWords(words: widgetWords)
     }
-
+    
     // MARK: - Firestore Listener (optional safe merge)
 
     private func startListeningIfNeeded() {

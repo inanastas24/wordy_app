@@ -104,9 +104,6 @@ struct DictionaryView: View {
         .onChange(of: viewModel.learningCount) { _, count in
             onboardingManager.hasLearningWords = count > 0
         }
-        .onChange(of: viewModel.savedWords.count) { _, _ in
-            handleSavedWordsChange(viewModel.savedWords)
-        }
         .onAppear(perform: onAppearActions)
         .onDisappear(perform: onDisappearActions)
     }
@@ -362,7 +359,7 @@ struct DictionaryView: View {
                         speakWord(word)
                     }
                 )
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
             }
         }
     }
@@ -413,7 +410,7 @@ struct DictionaryView: View {
                         speakWord(word)
                     }
                 )
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 18)
             }
         }
     }
@@ -498,13 +495,35 @@ struct CompactWordRow: View {
     @EnvironmentObject var localizationManager: LocalizationManager
 
     @State private var offset: CGFloat = 0
+    @State private var localIsLearned: Bool
 
     private let buttonWidth: CGFloat = 80
     private let swipeThreshold: CGFloat = 50
     private let rowHeight: CGFloat = 76
     
+    init(word: SavedWordModel,
+         isDarkMode: Bool,
+         isSwiped: Bool,
+         onSwipeRight: @escaping () -> Void,
+         onSwipeLeft: @escaping () -> Void,
+         onMarkLearned: @escaping () -> Void,
+         onDelete: @escaping () -> Void,
+         onTap: @escaping () -> Void,
+         onSpeak: @escaping () -> Void) {
+        self.word = word
+        self.isDarkMode = isDarkMode
+        self.isSwiped = isSwiped
+        self.onSwipeRight = onSwipeRight
+        self.onSwipeLeft = onSwipeLeft
+        self.onMarkLearned = onMarkLearned
+        self.onDelete = onDelete
+        self.onTap = onTap
+        self.onSpeak = onSpeak
+        _localIsLearned = State(initialValue: word.isLearned)
+    }
+    
     private var leftActionTitle: String {
-        if word.isLearned {
+        if localIsLearned {
             switch localizationManager.currentLanguage {
             case .ukrainian: return "Назад"
             case .english: return "Back"
@@ -520,21 +539,26 @@ struct CompactWordRow: View {
     }
 
     private var leftActionIcon: String {
-        word.isLearned ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill"
+        localIsLearned ? "arrow.uturn.backward.circle.fill" : "checkmark.circle.fill"
     }
 
     private var leftActionColor: Color {
-        word.isLearned ? Color.orange : Color(hex: "#4ECDC4")
+        localIsLearned ? Color.orange : Color(hex: "#4ECDC4")
     }
 
     var body: some View {
         ZStack {
+            // Background buttons
             HStack(spacing: 0) {
-                Button(action: onMarkLearned) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3)) {
+                        localIsLearned.toggle()
+                    }
+                    onMarkLearned()
+                }) {
                     VStack(spacing: 4) {
                         Image(systemName: leftActionIcon)
                             .font(.system(size: 22))
-
                         Text(leftActionTitle)
                             .font(.system(size: 11))
                     }
@@ -550,7 +574,6 @@ struct CompactWordRow: View {
                     VStack(spacing: 4) {
                         Image(systemName: "trash.fill")
                             .font(.system(size: 22))
-
                         Text(localizationManager.string(.deleteButton))
                             .font(.system(size: 11))
                     }
@@ -561,6 +584,7 @@ struct CompactWordRow: View {
                 }
             }
 
+            // Main content
             HStack(spacing: 12) {
                 Button(action: onSpeak) {
                     Image(systemName: "speaker.wave.2")
@@ -578,7 +602,7 @@ struct CompactWordRow: View {
                             .font(.system(size: 17, weight: .semibold))
                             .lineLimit(1)
 
-                        if word.isDueForReview && !word.isLearned {
+                        if word.isDueForReview && !localIsLearned {
                             Circle()
                                 .fill(Color.orange)
                                 .frame(width: 6, height: 6)
@@ -598,11 +622,9 @@ struct CompactWordRow: View {
                                 HStack(spacing: 2) {
                                     Text(TranslationLanguage(rawValue: source)?.flag ?? "🏳️")
                                         .font(.system(size: 11))
-
                                     Image(systemName: "arrow.right")
                                         .font(.system(size: 8))
                                         .foregroundColor(.gray)
-
                                     Text(TranslationLanguage(rawValue: target)?.flag ?? "🏳️")
                                         .font(.system(size: 11))
                                 }
@@ -623,10 +645,11 @@ struct CompactWordRow: View {
 
                 Spacer()
 
-                if word.isLearned {
+                if localIsLearned {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 18))
                         .foregroundColor(Color(hex: "#4ECDC4"))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 14)
@@ -641,23 +664,18 @@ struct CompactWordRow: View {
                     .stroke(Color(hex: "#E0E0E0").opacity(isDarkMode ? 0.2 : 0.5), lineWidth: 0.5)
             )
             .offset(x: offset)
+            .animation(.spring(response: 0.3), value: offset)
+            .animation(.spring(response: 0.3), value: localIsLearned)
             .highPriorityGesture(
                 DragGesture(minimumDistance: 20, coordinateSpace: .local)
                     .onChanged { gesture in
                         let horizontal = gesture.translation.width
                         let vertical = abs(gesture.translation.height)
-
                         guard abs(horizontal) > vertical * 1.5 else { return }
-
-                        if horizontal > 0 {
-                            offset = min(horizontal, buttonWidth)
-                        } else {
-                            offset = max(horizontal, -buttonWidth)
-                        }
+                        offset = horizontal > 0 ? min(horizontal, buttonWidth) : max(horizontal, -buttonWidth)
                     }
                     .onEnded { gesture in
                         let horizontal = gesture.translation.width
-
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             if horizontal > swipeThreshold {
                                 offset = buttonWidth
@@ -683,8 +701,10 @@ struct CompactWordRow: View {
                         }
                     }
             )
-            .onChange(of: isSwiped) { _, newValue in
-                if !newValue {
+            .onChange(of: isSwiped) { oldValue, newValue in
+                // 🔥 Додай перевірку щоб уникнути зайвих анімацій
+                guard oldValue != newValue else { return }
+                if !newValue && abs(offset) > 0 {
                     withAnimation(.spring(response: 0.3)) {
                         offset = 0
                     }
@@ -770,9 +790,9 @@ struct WordDetailOverlay: View {
 
     private var nextReviewTitle: String {
         switch localizationManager.currentLanguage {
-        case .ukrainian: return "Наступне повторення"
-        case .polish: return "Następna powtórka"
-        case .english: return "Next review"
+        case .ukrainian: return "Наступне"
+        case .polish: return "Następna"
+        case .english: return "Next"
         }
     }
 
@@ -786,9 +806,9 @@ struct WordDetailOverlay: View {
 
     private var deleteAlertMessage: String {
         switch localizationManager.currentLanguage {
-        case .ukrainian: return "Це слово буде назавжди видалено з вашого словника"
-        case .polish: return "To słowo zostanie trwale usunięte ze słownika"
-        case .english: return "This word will be permanently deleted from your dictionary"
+        case .ukrainian: return "Це слово буде назавжди видалено"
+        case .polish: return "To słowo zostanie trwale usunięte"
+        case .english: return "This word will be permanently deleted"
         }
     }
 
@@ -824,7 +844,7 @@ struct WordDetailOverlay: View {
                         VStack(spacing: 20) {
                             headerButtons
                             sourceWordSection
-
+                            
                             if let ipa = word.transcription, !ipa.isEmpty {
                                 transcriptionView(ipa)
                             }
@@ -841,12 +861,12 @@ struct WordDetailOverlay: View {
 
                             Spacer(minLength: 20)
                         }
-                        .padding(24)
+                        .padding(20) // 🔥 Зменшили padding з 24 до 20
                         .background(overlayBackground)
-                        .frame(maxWidth: min(geometry.size.width - 40, 380))
+                        .frame(maxWidth: min(geometry.size.width - 32, 360)) // 🔥 Зменшили відступи та макс ширину
+                        .clipped() // 🔥 Обрізаємо все що вилазить
                         .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
                         .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 20)
 
                         Spacer(minLength: geometry.size.height * 0.05)
                     }
@@ -864,10 +884,10 @@ struct WordDetailOverlay: View {
     }
 
     private var headerButtons: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) { // 🔥 Зменшили spacing
             Button(action: onEdit) {
                 Image(systemName: "pencil.circle.fill")
-                    .font(.system(size: 28))
+                    .font(.system(size: 26)) // 🔥 Зменшили розмір
                     .foregroundColor(Color(hex: "#4ECDC4"))
             }
 
@@ -877,7 +897,7 @@ struct WordDetailOverlay: View {
                 showingDeleteConfirm = true
             }) {
                 Image(systemName: "trash.circle.fill")
-                    .font(.system(size: 28))
+                    .font(.system(size: 26)) // 🔥 Зменшили розмір
                     .foregroundColor(Color.red.opacity(0.8))
             }
 
@@ -885,9 +905,9 @@ struct WordDetailOverlay: View {
 
             Button(action: closeOverlay) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 14, weight: .bold)) // 🔥 Зменшили розмір
                     .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.6) : Color(hex: "#7F8C8D"))
-                    .padding(8)
+                    .padding(6) // 🔥 Зменшили padding
                     .background(Circle().fill(Color.gray.opacity(0.2)))
             }
         }
@@ -903,25 +923,26 @@ struct WordDetailOverlay: View {
 
     private func transcriptionView(_ ipa: String) -> some View {
         Text(ipa)
-            .font(.system(size: 18, design: .serif))
+            .font(.system(size: 16, design: .serif)) // 🔥 Зменшили розмір
             .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14) // 🔥 Зменшили
+            .padding(.vertical, 6) // 🔥 Зменшили
             .background(Color(hex: "#4ECDC4").opacity(0.1))
-            .cornerRadius(12)
+            .cornerRadius(10) // 🔥 Зменшили
     }
 
     private var overlayBackground: some View {
-        RoundedRectangle(cornerRadius: 24)
+        RoundedRectangle(cornerRadius: 20) // 🔥 Зменшили з 24 до 20
             .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color.white)
     }
 
     private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) { // 🔥 Зменшили spacing
             Text(text)
-                .font(.system(size: isPrimary ? 28 : 24, weight: isPrimary ? .bold : .semibold, design: .rounded))
+                .font(.system(size: isPrimary ? 26 : 22, weight: isPrimary ? .bold : .semibold, design: .rounded)) // 🔥 Зменшили розміри
                 .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")) : Color(hex: "#4ECDC4"))
                 .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2) // 🔥 Додали обмеження на 2 рядки
 
             Button(action: {
                 speak(text: text, language: language)
@@ -929,9 +950,9 @@ struct WordDetailOverlay: View {
                 let isSpeaking = ttsManager.isPlaying && ttsManager.currentLanguage == language
 
                 Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
-                    .font(.system(size: 16))
+                    .font(.system(size: 14)) // 🔥 Зменшили
                     .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32) // 🔥 Зменшили
                     .background(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
                     .clipShape(Circle())
             }
@@ -939,93 +960,106 @@ struct WordDetailOverlay: View {
     }
 
     private func examplesSection(original: String, originalLang: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) { // 🔥 Зменшили spacing
             Text(examplesTitle)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold)) // 🔥 Зменшили
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) { // 🔥 Зменшили spacing
                 Text("„\(original)\"")
-                    .font(.system(size: 16))
+                    .font(.system(size: 15)) // 🔥 Зменшили
                     .italic()
                     .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    .fixedSize(horizontal: false, vertical: true) // 🔥 Дозволяємо перенос
+                    .lineLimit(3) // 🔥 Обмеження на 3 рядки
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Button(action: {
                     speak(text: original, language: originalLang)
                 }) {
                     Image(systemName: "speaker.wave.1")
-                        .font(.system(size: 14))
+                        .font(.system(size: 12)) // 🔥 Зменшили
                         .foregroundColor(Color(hex: "#4ECDC4"))
+                        .frame(width: 28, height: 28) // 🔥 Фіксований розмір кнопки
+                        .background(Color(hex: "#4ECDC4").opacity(0.1))
+                        .clipShape(Circle())
                 }
             }
-            .padding()
+            .padding(12) // 🔥 Зменшили
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10) // 🔥 Зменшили
                     .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
             )
         }
     }
 
     private var learningInfoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) { // 🔥 Зменшили spacing
             Text(progressTitle)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold)) // 🔥 Зменшили
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(statusTitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-
-                    HStack(spacing: 6) {
-                        Image(systemName: word.isLearned ? "checkmark.seal.fill" : "graduationcap.fill")
-                            .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : .orange)
-
+            // 🔥 Використовуємо VStack замість HStack для компактності
+            VStack(alignment: .leading, spacing: 12) {
+                // Status
+                HStack(spacing: 8) {
+                    Image(systemName: word.isLearned ? "checkmark.seal.fill" : "graduationcap.fill")
+                        .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : .orange)
+                        .font(.system(size: 16))
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(statusTitle)
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
                         Text(word.isLearned ? statusLearned : statusLearning)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                     }
-                }
-
-                Divider().frame(height: 40)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(reviewsTitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-
-                    HStack(spacing: 6) {
+                    
+                    Spacer()
+                    
+                    // Reviews - тепер поруч зі статусом
+                    HStack(spacing: 8) {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(Color(hex: "#4ECDC4"))
-
-                        Text("\(word.reviewCount)")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                }
-
-                if let nextReview = word.nextReviewDate {
-                    Divider().frame(height: 40)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(nextReviewTitle)
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.orange)
-
-                            Text(timeString(from: nextReview))
-                                .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 16))
+                        
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(reviewsTitle)
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                            Text("\(word.reviewCount)")
+                                .font(.system(size: 13, weight: .medium))
                         }
                     }
                 }
+                
+                // Next Review - окремий рядок тільки якщо потрібно
+                if let nextReview = word.nextReviewDate {
+                    Divider()
+                        .opacity(0.3)
+                    
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.orange)
+                            .font(.system(size: 16))
+                        
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(nextReviewTitle)
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                            Text(timeString(from: nextReview))
+                                .font(.system(size: 13, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                    }
+                }
             }
-            .padding()
+            .padding(12) // 🔥 Зменшили
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10) // 🔥 Зменшили
                     .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
             )
         }
@@ -1047,3 +1081,4 @@ struct WordDetailOverlay: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
+

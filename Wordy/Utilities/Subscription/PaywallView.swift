@@ -56,6 +56,9 @@ struct PaywallView: View {
         .onAppear {
             selectDefaultProduct()
         }
+        .onChange(of: subscriptionManager.products) { _ in
+            selectDefaultProduct()
+        }
         .sheet(isPresented: $showHowTrialWorks) {
             HowTrialWorksView()
                 .environmentObject(localizationManager)
@@ -243,7 +246,10 @@ struct PaywallView: View {
 
     private func selectDefaultProduct() {
         guard selectedProduct == nil else { return }
-        selectedProduct = subscriptionManager.products.first(where: { $0.id.contains("year") })
+        guard !subscriptionManager.products.isEmpty else { return }
+
+        selectedProduct =
+            subscriptionManager.products.first(where: { $0.id.contains("year") })
             ?? subscriptionManager.products.first
     }
 

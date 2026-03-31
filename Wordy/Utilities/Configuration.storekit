@@ -34,7 +34,21 @@
     {
       "id" : "666567F4",
       "localizations" : [
-
+        {
+          "description" : "Unlimited translations and all features",
+          "displayName" : "Wordy Language Learning",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Nieograniczone tłumaczenia i wszystkie funkcje",
+          "displayName" : "Wordy Language Learning",
+          "locale" : "pl"
+        },
+        {
+          "description" : "Безмежні переклади та всі функції",
+          "displayName" : "Wordy Language Learning",
+          "locale" : "uk"
+        }
       ],
       "name" : "Wordy Premium",
       "subscriptions" : [
@@ -52,9 +66,19 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "Unlimited translations, scanning and voice search",
+              "displayName" : "Wordy Premium",
               "locale" : "en_US"
+            },
+            {
+              "description" : "Nieograniczone tłumaczenia, skanowanie i wyszukaj",
+              "displayName" : "Wordy Premium",
+              "locale" : "pl"
+            },
+            {
+              "description" : "Безмежні переклади, сканування та голосовий пошук",
+              "displayName" : "Wordy Premium",
+              "locale" : "uk"
             }
           ],
           "productID" : "com.wordy.monthly",
@@ -73,16 +97,26 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "14.99",
+          "displayPrice" : "19.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "10AB36C0",
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "",
-              "displayName" : "",
+              "description" : "Unlimited translations, scanning and search",
+              "displayName" : "Wordy Premium",
               "locale" : "en_US"
+            },
+            {
+              "description" : "Nieograniczone tłumaczenia, skanowanie i wyszukaj",
+              "displayName" : "Wordy Premium",
+              "locale" : "pl"
+            },
+            {
+              "description" : "Безмежні переклади, сканування та голосовий пошук",
+              "displayName" : "Wordy Premium",
+              "locale" : "uk"
             }
           ],
           "productID" : "com.wordy.yearly",

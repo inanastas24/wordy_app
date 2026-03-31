@@ -3,10 +3,12 @@ import WidgetKit
 
 final class WidgetDataService {
     static let shared = WidgetDataService()
+
     private let suiteName = "group.com.inzercreator.wordyapp"
     private let storageKey = "widgetWords"
+    private let rotationIndexKey = "widgetRotationIndex"
 
-    struct WidgetWordItem: Codable {
+    struct WidgetWord: Codable, Equatable {
         let id: String
         let original: String
         let translation: String
@@ -15,29 +17,63 @@ final class WidgetDataService {
         let languagePair: String
     }
 
-    func updateWidgetWords(words: [WidgetWordItem]) {
+    private var sharedDefaults: UserDefaults? {
+        UserDefaults(suiteName: suiteName)
+    }
+
+    func updateWidgetWords(words: [WidgetWord]) {
+        guard let defaults = sharedDefaults else {
+            print("❌ WidgetDataService: No shared defaults")
+            return
+        }
+
         do {
-            let data = try JSONEncoder().encode(words)
-
-            guard let defaults = UserDefaults(suiteName: suiteName) else {
-                print("❌ WidgetDataService: Не вдалося отримати UserDefaults для suite \(suiteName)")
-                return
-            }
-
+            let normalizedWords = Array(words.prefix(50))
+            print("📥 WidgetDataService received: \(words.count), using: \(normalizedWords.count)")
+            print("📥 Words: \(normalizedWords.map { $0.original })")
+            
+            let data = try JSONEncoder().encode(normalizedWords)
+            
+            let currentIndex = defaults.integer(forKey: rotationIndexKey)
+            let nextIndex = normalizedWords.isEmpty ? 0 :
+                           (currentIndex + 1) % max(normalizedWords.count, 1)
+            
             defaults.set(data, forKey: storageKey)
-            defaults.synchronize()
+            defaults.set(nextIndex, forKey: rotationIndexKey)
 
-            print("✅ WidgetDataService: Збережено \(words.count) слів у widget storage")
+            print("✅ Saved to UserDefaults: \(normalizedWords.count) words")
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            print("❌ WidgetDataService: Помилка кодування: \(error)")
+            print("❌ WidgetDataService encoding error: \(error)")
         }
     }
 
     func clearWidgetWords() {
-        guard let defaults = UserDefaults(suiteName: suiteName) else { return }
+        guard let defaults = sharedDefaults else { return }
+
         defaults.removeObject(forKey: storageKey)
-        defaults.synchronize()
+        defaults.removeObject(forKey: rotationIndexKey)
+
+        print("✅ WidgetDataService: Дані віджета очищено")
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    func loadWidgetWords() -> [WidgetWord] {
+        guard let defaults = sharedDefaults,
+              let data = defaults.data(forKey: storageKey) else {
+            return []
+        }
+
+        do {
+            return try JSONDecoder().decode([WidgetWord].self, from: data)
+        } catch {
+            print("❌ WidgetDataService: Помилка декодування: \(error)")
+            return []
+        }
+    }
+
+    func loadRotationIndex() -> Int {
+        guard let defaults = sharedDefaults else { return 0 }
+        return defaults.integer(forKey: rotationIndexKey)
     }
 }

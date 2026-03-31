@@ -44,6 +44,7 @@ final class SubscriptionManager: ObservableObject {
     private let db = Firestore.firestore()
     
     private var transactionListener: Task<Void, Never>?
+    private var lastKnownProductID: String?
 
     // MARK: - Helper Properties
     
@@ -113,29 +114,25 @@ final class SubscriptionManager: ObservableObject {
         // 🆕 Крок 0: Спочатку перевіряємо Firebase (для відновлених/перевстановлених додатків)
         await checkFirebaseSubscription()
         
-        // Якщо знайшли активну підписку в Firebase — синхронізуємо з StoreKit та виходимо
         if isPremium || isTrialActive {
-            print("✅ Found active subscription in Firebase, skipping StoreKit check")
-            // Завантажуємо продукти для UI, але не перевіряємо entitlements
-            await loadProductsWithTimeout()
-            
-            // Запускаємо слухач для майбутніх оновлень
-            if transactionListener == nil {
-                transactionListener = listenForTransactions()
-            }
-            
-            print("✅ SubscriptionManager.loadSubscriptionData() completed (Firebase): \(status)")
-            return
+            print("✅ Found active subscription in Firebase")
         }
         
-        // Крок 1: Якщо в Firebase немає — перевіряємо StoreKit (нові користувачі)
-        print("📦 No Firebase subscription, checking StoreKit...")
-        await loadProductsWithTimeout()
-        await checkStoreKitEntitlements()
+        // ✅ Завжди завантажуємо продукти, навіть якщо Firebase вже знайшов підписку
+        await loadProductsWithRetry()
         
-        // 🆕 Якщо знайшли в StoreKit — синхронізуємо в Firebase
-        if isPremium || isTrialActive {
-            await syncCurrentSubscriptionToFirebase()
+        // ✅ Після завантаження продуктів підв’язуємо currentProduct з Firebase / попереднього стану
+        syncCurrentProductFromStatus()
+        
+        // Якщо в Firebase не знайшли активну підписку — перевіряємо StoreKit
+        if !isPremium && !isTrialActive {
+            print("📦 No active Firebase subscription, checking StoreKit...")
+            await checkStoreKitEntitlements()
+            
+            // 🆕 Якщо знайшли в StoreKit — синхронізуємо в Firebase
+            if isPremium || isTrialActive {
+                await syncCurrentSubscriptionToFirebase()
+            }
         }
         
         // Крок 2: Запускаємо слухач транзакцій
@@ -169,6 +166,10 @@ final class SubscriptionManager: ObservableObject {
             let isActive = data["isActive"] as? Bool ?? false
             let expiryTimestamp = data["expiryDate"] as? Timestamp
             let productId = data["productId"] as? String ?? ""
+            
+            if !productId.isEmpty {
+                lastKnownProductID = productId
+            }
             
             guard isActive, let expiry = expiryTimestamp?.dateValue() else {
                 print("ℹ️ Firebase subscription inactive or no expiry")
@@ -220,6 +221,8 @@ final class SubscriptionManager: ObservableObject {
                       transaction.revocationDate == nil,
                       let expirationDate = transaction.expirationDate,
                       expirationDate > Date() else { continue }
+                
+                lastKnownProductID = transaction.productID
                 
                 let data: [String: Any] = [
                     "userId": userId,
@@ -314,11 +317,15 @@ final class SubscriptionManager: ObservableObject {
             // 🆕 Якщо знайшли — синхронізуємо в Firebase
             if isPremium || isTrialActive {
                 await syncCurrentSubscriptionToFirebase()
+                syncCurrentProductFromStatus()
                 return true
             }
             
             // 🆕 Якщо в StoreKit немає — перевіряємо Firebase (можливо підписка з іншого пристрою)
             await checkFirebaseSubscription()
+            
+            // ✅ Після restore ще раз підв’язуємо currentProduct
+            syncCurrentProductFromStatus()
             
             return isPremium
             
@@ -377,12 +384,15 @@ final class SubscriptionManager: ObservableObject {
                 // 🆕 Показуємо що підписка закінчилась, а не "невідомо"
                 await MainActor.run {
                     self.status = .expired(expiryDate: expired.expirationDate)
+                    self.lastKnownProductID = expired.productID
+                    self.syncCurrentProductFromStatus()
                     print("❌ Subscription expired on: \(expired.expirationDate ?? Date())")
                 }
             } else {
                 // Справді немає підписки (ніколи не купували)
                 await MainActor.run {
                     self.status = .unknown
+                    self.currentProduct = nil
                     print("ℹ️ No subscription history found")
                 }
             }
@@ -390,9 +400,12 @@ final class SubscriptionManager: ObservableObject {
     }
     
     private func handleVerifiedTransaction(_ transaction: StoreKit.Transaction) async {
+        lastKnownProductID = transaction.productID
+        
         if let revocationDate = transaction.revocationDate {
             print("⚠️ Subscription revoked on: \(revocationDate)")
             status = .expired(expiryDate: transaction.expirationDate)
+            syncCurrentProduct(for: transaction.productID)
             return
         }
         
@@ -425,12 +438,14 @@ final class SubscriptionManager: ObservableObject {
                 } else {
                     // 🆕 Підписка закінчилась
                     status = .expired(expiryDate: expirationDate)
+                    currentProduct = products.first { $0.id == transaction.productID }
                     print("❌ Subscription expired")
                 }
             }
         } else {
             // Lifetime
             status = .premium(expiryDate: nil, isInGracePeriod: false)
+            syncCurrentProduct(for: transaction.productID)
             print("✅ Lifetime subscription")
         }
     }
@@ -451,6 +466,8 @@ final class SubscriptionManager: ObservableObject {
         let userEmail = Auth.auth().currentUser?.email ?? ""
         
         let expirationDate = transaction.expirationDate ?? Date().addingTimeInterval(365 * 24 * 60 * 60)
+        
+        lastKnownProductID = product.id
         
         let data: [String: Any] = [
             "userId": userId,
@@ -491,6 +508,7 @@ final class SubscriptionManager: ObservableObject {
             try? await db.collection("subscriptions").document(userId).setData(data, merge: true)
         }
     }
+
     // MARK: - Transaction Listener
     private func listenForTransactions() -> Task<Void, Never> {
         Task.detached(priority: .background) { [weak self] in
@@ -520,40 +538,75 @@ final class SubscriptionManager: ObservableObject {
         }
     }
     
-    private func loadProductsWithTimeout() async {
+    private func loadProductsWithRetry() async {
         print("⏳ Loading products...")
         
-        do {
-            let ids = [monthlyProductID, yearlyProductID]
-            
-            let result = try await withTimeout(seconds: 10) {
-                try await Product.products(for: ids)
+        let ids = [monthlyProductID, yearlyProductID]
+        
+        for attempt in 1...3 {
+            do {
+                let result = try await Product.products(for: ids)
+                
+                await MainActor.run {
+                    self.products = result.sorted { $0.id.contains("year") && !$1.id.contains("year") }
+                    print("✅ Products loaded: \(self.products.count)")
+                    
+                    if self.products.isEmpty {
+                        print("⚠️ Products array is empty after load")
+                    } else {
+                        print("✅ Loaded product ids: \(self.products.map { $0.id })")
+                    }
+                }
+                
+                return
+            } catch {
+                print("❌ Failed to load products on attempt \(attempt): \(error.localizedDescription)")
+                
+                if attempt < 3 {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                }
             }
-            
-            await MainActor.run {
-                self.products = result.sorted { $0.id.contains("year") && !$1.id.contains("year") }
-                print("✅ Products loaded: \(self.products.count)")
-            }
-            
-        } catch {
-            print("❌ Failed to load products: \(error)")
-            await MainActor.run {
-                self.errorMessage = "Failed to load products."
-            }
+        }
+        
+        await MainActor.run {
+            self.errorMessage = "Failed to load products."
+            print("❌ All retries failed. Products not loaded.")
         }
     }
     
-    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await operation() }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                throw TimeoutError()
+    private func syncCurrentProduct(for productID: String) {
+        currentProduct = products.first { $0.id == productID }
+        if currentProduct == nil {
+            print("⚠️ Could not find currentProduct for id: \(productID)")
+        }
+    }
+    
+    private func syncCurrentProductFromStatus() {
+        guard !products.isEmpty else {
+            print("⚠️ Cannot sync currentProduct because products are empty")
+            return
+        }
+        
+        if let knownID = lastKnownProductID {
+            currentProduct = products.first { $0.id == knownID }
+            
+            if currentProduct != nil {
+                print("✅ Synced currentProduct from lastKnownProductID: \(knownID)")
+            } else {
+                print("⚠️ Could not sync currentProduct from lastKnownProductID: \(knownID)")
             }
             
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
+            return
+        }
+        
+        if let current = currentProduct?.id {
+            currentProduct = products.first { $0.id == current }
+            
+            if currentProduct != nil {
+                print("✅ Synced currentProduct from existing currentProduct id: \(current)")
+            } else {
+                print("⚠️ Could not sync currentProduct from existing id: \(current)")
+            }
         }
     }
     
@@ -566,5 +619,3 @@ enum StoreError: Error {
     case failedVerification
     case noActiveSubscription
 }
-
-struct TimeoutError: Error {}
