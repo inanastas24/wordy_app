@@ -11,6 +11,7 @@ struct StatBadge: View {
     let icon: String
     let count: Int
     let color: Color
+    @EnvironmentObject var localizationManager: LocalizationManager
     
     var body: some View {
         HStack(spacing: 6) {
@@ -20,7 +21,7 @@ struct StatBadge: View {
             
             Text("\(count)")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundColor(Color(hex: "#2C3E50"))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

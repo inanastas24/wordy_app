@@ -412,7 +412,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nRUN_SCRIPT=$(find \"${HOME}/Library/Developer/Xcode/DerivedData\" -name \"run\" -path \"*Wordy*/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\" 2>/dev/null | head -n 1)\n\nif [ -z \"$RUN_SCRIPT\" ]; then\n  echo \"Error: Crashlytics run script not found\"\n  exit 1\nfi\n\n\"$RUN_SCRIPT\"\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n#!/bin/sh\n\nRUN_SCRIPT=\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n\nif [ -f \"$RUN_SCRIPT\" ]; then\n  \"$RUN_SCRIPT\"\nelse\n  echo \"warning: Crashlytics run script not found, skipping\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

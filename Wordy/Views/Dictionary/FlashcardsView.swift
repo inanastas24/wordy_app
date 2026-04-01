@@ -139,9 +139,21 @@ struct FlashcardsView: View {
             
             if !cards.isEmpty && !showCompletion && currentIndex < cards.count {
                 HStack(spacing: 20) {
-                    StatBadge(icon: "star.fill", count: sessionStats.totalReviewed, color: Color(hex: "#4ECDC4"))
-                    StatBadge(icon: "checkmark.circle.fill", count: sessionStats.learned, color: Color(hex: "#95E1D3"))
-                    StatBadge(icon: "arrow.clockwise", count: sessionStats.againCount, color: Color(hex: "#F38BA8"))
+                    StatBadge(
+                        icon: "star.fill",
+                        count: sessionStats.totalReviewed,
+                        color: Color(hex: "#4ECDC4")
+                    )
+                    StatBadge(
+                        icon: "checkmark.circle.fill",
+                        count: sessionStats.knownCount,
+                        color: Color(hex: "#95E1D3")
+                    )
+                    StatBadge(
+                        icon: "arrow.clockwise",
+                        count: sessionStats.againCount,
+                        color: Color(hex: "#F38BA8")
+                    )
                 }
                 .padding(.top, 5)
             }
@@ -179,31 +191,31 @@ struct FlashcardsView: View {
         ZStack {
             // Фон "Не знаю" — червоний зліва
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#F38BA8").opacity(0.9))
-                .overlay(
-                    HStack {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.leading, 30)
-                        Spacer()
-                    }
-                )
-                .opacity(offset.width < -20 ? min(abs(Double(offset.width)) / 100.0, 1.0) : 0.0)
-            
-            // Фон "Знаю" — зелений справа
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#2ECC71").opacity(0.9))
-                .overlay(
-                    HStack {
-                        Spacer()
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.trailing, 30)
-                    }
-                )
-                .opacity(offset.width > 20 ? min(Double(offset.width) / 100.0, 1.0) : 0.0)
+                        .fill(Color(hex: "#2ECC71").opacity(0.9))
+                        .overlay(
+                            HStack {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 40, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.leading, 30)
+                                Spacer()
+                            }
+                        )
+                        .opacity(offset.width > 20 ? min(Double(offset.width) / 100.0, 1.0) : 0.0)
+                    
+                    // Фон "Не знаю" — ЧЕРВОНИЙ справа (при тязі вліво)
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(hex: "#F38BA8").opacity(0.9))
+                        .overlay(
+                            HStack {
+                                Spacer()
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 40, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.trailing, 30)
+                            }
+                        )
+                        .opacity(offset.width < -20 ? min(abs(Double(offset.width)) / 100.0, 1.0) : 0.0)
             
             // Основна картка
             FirestoreFlashcard(
@@ -404,27 +416,27 @@ struct FlashcardsView: View {
             
             VStack(spacing: 12) {
                 ResultRow(
-                    title: localizationManager.string(.averageQuality), // Використовуємо переклад
-                    value: String(format: "%.1f", sessionStats.averageQuality),
-                    color: Color(hex: "#4ECDC4"),
-                    icon: "star.fill"
-                )
+                        title: localizationManager.string(.averageQuality),
+                        value: String(format: "%.1f", sessionStats.averageQuality),
+                        color: Color(hex: "#4ECDC4"),
+                        icon: "star.fill"
+                    )
                 .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
                 
                 ResultRow(
-                    title: localizationManager.string(.learned),
-                    value: "\(sessionStats.learned)",
-                    color: Color(hex: "#95E1D3"),
-                    icon: "checkmark.circle.fill"
-                )
+                        title: "Known",
+                        value: "\(sessionStats.knownCount)",
+                        color: Color(hex: "#95E1D3"),
+                        icon: "checkmark.circle.fill"
+                    )
                 .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
                 
                 ResultRow(
-                    title: localizationManager.string(.again),
-                    value: "\(sessionStats.againCount)",
-                    color: Color(hex: "#F38BA8"),
-                    icon: "arrow.clockwise"
-                )
+                        title: "Again",
+                        value: "\(sessionStats.againCount)",
+                        color: Color(hex: "#F38BA8"),
+                        icon: "arrow.clockwise"
+                    )
                 .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
             }
             .padding(.horizontal, 30)
@@ -461,9 +473,9 @@ struct FlashcardsView: View {
     
     private func loadCards() {
         let allWords = viewModel.savedWords
-
         let now = Date()
 
+        // Фільтруємо слова для повторення
         let dueWords = allWords.filter { word in
             if let nextDate = word.nextReviewDate {
                 return nextDate <= now && !word.isLearned
@@ -471,19 +483,22 @@ struct FlashcardsView: View {
             return word.srsRepetition > 0 && word.srsInterval > 0 && !word.isLearned
         }
 
+        // Нові слова
         let newWords = allWords.filter { word in
             (word.srsRepetition == 0 || word.srsInterval == 0) && !word.isLearned
         }
 
+        // Формуємо сесію
         var sessionWords: [SavedWordModel] = []
         sessionWords.append(contentsOf: dueWords.prefix(10))
-
+        
         let remainingSlots = max(0, 20 - sessionWords.count)
         let newWordsToAdd = newWords.filter { newWord in
             !sessionWords.contains(where: { $0.id == newWord.id })
         }
         sessionWords.append(contentsOf: newWordsToAdd.prefix(remainingSlots))
 
+        // Встановлюємо стан
         cards = sessionWords.shuffled()
         currentIndex = 0
         isFlipped = false
@@ -492,7 +507,9 @@ struct FlashcardsView: View {
         cardScale = 1.0
         showCompletion = false
         showAnswerButtons = false
-        sessionStats = SessionStats()
+        
+        // ⭐ НОВЕ: скидаємо статистику
+        sessionStats.reset()
 
         if cards.isEmpty {
             showCompletion = true
@@ -503,27 +520,15 @@ struct FlashcardsView: View {
         guard !cards.isEmpty && currentIndex < cards.count else { return }
         
         let word = cards[currentIndex]
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(quality >= 3 ? .success : .error)
         
-        let direction: CGFloat = quality >= 3 ? 500 : -500
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            offset = CGSize(width: direction, height: 0)
-            cardScale = 0.8
-        }
+        // Додаємо відповідь до статистики
+        sessionStats.addReview(quality: quality)
         
-        sessionStats.totalReviewed += 1
-        sessionStats.qualityDistribution[quality, default: 0] += 1
-        
-        // Використовуємо ViewModel для оновлення SRS
+        // Оновлюємо SRS у ViewModel
         viewModel.processReview(for: word, quality: quality)
         
-        if quality >= 3 && word.srsRepetition + 1 >= 3 {
-            sessionStats.learned += 1
-        }
-        
+        // Додаємо картку назад якщо "Не знаю" (і не перевищили ліміт повторів)
         if quality < 3 {
-            sessionStats.againCount += 1
             let repeatCount = cards[0..<currentIndex].filter { $0.id == word.id }.count
             if repeatCount < maxCardRepeats {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -532,6 +537,17 @@ struct FlashcardsView: View {
             }
         }
         
+        // Анімація
+        let direction: CGFloat = quality >= 3 ? 500 : -500
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(quality >= 3 ? .success : .error)
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            offset = CGSize(width: direction, height: 0)
+            cardScale = 0.8
+        }
+        
+        // Наступна картка
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             self.currentIndex += 1
             self.offset = .zero
