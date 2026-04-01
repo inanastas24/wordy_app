@@ -398,10 +398,6 @@ struct RootView: View {
     }
 }
 
-extension Notification.Name {
-    static let userDidLogout = Notification.Name("userDidLogout")
-}
-
 struct BiometricAuthView: View {
     let onComplete: () -> Void
     @EnvironmentObject var authViewModel: AuthViewModel

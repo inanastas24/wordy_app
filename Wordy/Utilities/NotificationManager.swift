@@ -8,114 +8,211 @@
 import Foundation
 import UserNotifications
 import Combine
+import UIKit
 
 class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
-    
+
     @Published var hasPermission = false
-    
+    @Published var permissionError: Error?
+
+    // MARK: - Constants
+    private enum NotificationIdentifiers {
+        static let trialWelcome = "trial_welcome"
+        static let trialReminder24h = "trial_reminder_24h"
+        static let trialBillingCompleted = "trial_billing_completed"
+        static let subscriptionConfirmed = "subscription_confirmed"
+
+        static let allTrialIdentifiers = [
+            trialWelcome,
+            trialReminder24h,
+            trialBillingCompleted
+        ]
+    }
+
     override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
+        // 🗑️ Прибрано registerNotificationCategories()
     }
-    
+
+    // MARK: - Permission
     func requestPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, error in
             DispatchQueue.main.async {
-                self.hasPermission = granted
+                self?.hasPermission = granted
+                if let error = error {
+                    self?.permissionError = error
+                    print("❌ Notification permission error: \(error.localizedDescription)")
+                } else {
+                    print("✅ Notification permission: \(granted)")
+                }
             }
         }
     }
-    
-    // MARK: - 🆕 Головний метод для планування нотифікацій trial
+
+    // MARK: - Trial Notifications
     func scheduleTrialNotifications(trialStartDate: Date) {
-        removeAllNotifications()
-        
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                guard settings.authorizationStatus == .authorized else {
+                    print("⚠️ Cannot schedule notifications: permission not granted")
+                    return
+                }
+
+                self?.performScheduleTrialNotifications(trialStartDate: trialStartDate)
+            }
+        }
+    }
+
+    private func performScheduleTrialNotifications(trialStartDate: Date) {
+        removeTrialNotifications()
+
         let calendar = Calendar.current
         let now = Date()
-        let trialEndDate = calendar.date(byAdding: .day, value: 3, to: trialStartDate)!
-        
-        // 1. Нагадування за 24 години до закінчення trial
-        let reminderDate = calendar.date(byAdding: .hour, value: -24, to: trialEndDate)!
+
+        // Безпечне обчислення дат
+        guard let trialEndDate = calendar.date(byAdding: .day, value: 3, to: trialStartDate) else {
+            print("❌ Failed to calculate trialEndDate")
+            return
+        }
+
+        guard let welcomeDate = calendar.date(byAdding: .minute, value: 5, to: now) else {
+            print("❌ Failed to calculate welcomeDate")
+            return
+        }
+
+        guard let reminderDate = calendar.date(byAdding: .hour, value: -24, to: trialEndDate) else {
+            print("❌ Failed to calculate reminderDate")
+            return
+        }
+
+        guard let billingCompletedDate = calendar.date(byAdding: .minute, value: 1, to: trialEndDate) else {
+            print("❌ Failed to calculate billingCompletedDate")
+            return
+        }
+
+        print("📅 Trial schedule: start=\(trialStartDate), billingDate=\(trialEndDate)")
+
+        // 1. Welcome notification (+5 min)
+        if welcomeDate > now {
+            scheduleNotification(
+                identifier: NotificationIdentifiers.trialWelcome,
+                titleKey: "trial_welcome_title",
+                bodyKey: "trial_welcome_body",
+                date: welcomeDate
+            )
+        }
+
+        // 2. Reminder (-24h before billing)
         if reminderDate > now {
             scheduleNotification(
-                identifier: "trial_reminder_24h",
+                identifier: NotificationIdentifiers.trialReminder24h,
                 titleKey: "trial_reminder_title",
                 bodyKey: "trial_reminder_body",
                 date: reminderDate
             )
         }
-        
-        // 2. Нагадування в день закінчення trial
-        if trialEndDate > now {
+
+        // 3. Billing completed (+1 min after trial ends)
+        if billingCompletedDate > now {
             scheduleNotification(
-                identifier: "trial_ended",
-                titleKey: "trial_ended_title",
-                bodyKey: "trial_ended_body",
-                date: trialEndDate
+                identifier: NotificationIdentifiers.trialBillingCompleted,
+                titleKey: "trial_billing_completed_title",
+                bodyKey: "trial_billing_completed_body",
+                date: billingCompletedDate
             )
         }
-        
-        // 3. Привітальна нотифікація про початок trial
-        let welcomeDate = calendar.date(byAdding: .minute, value: 5, to: now)!
-        scheduleNotification(
-            identifier: "trial_welcome",
-            titleKey: "trial_welcome_title",
-            bodyKey: "trial_welcome_body",
-            date: welcomeDate
-        )
-        
-        print("✅ Scheduled trial notifications. Trial ends at: \(trialEndDate)")
+
+        print("✅ Scheduled: Welcome=\(welcomeDate), Reminder=\(reminderDate), Billing=\(billingCompletedDate)")
     }
-    
+
     func cancelTrialNotifications() {
-        removeAllNotifications()
+        removeTrialNotifications()
         print("✅ Trial notifications cancelled")
     }
-    
-    func scheduleSubscriptionConfirmed() {
-        scheduleNotification(
-            identifier: "subscription_confirmed",
-            titleKey: "subscription_confirmed_title",
-            bodyKey: "subscription_confirmed_body",
-            date: Date() // Одразу
+
+    private func removeTrialNotifications() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: NotificationIdentifiers.allTrialIdentifiers
         )
     }
-    
-    // 🆕 ВИПРАВЛЕНО: Зберігаємо ключі, а не готові рядки
-    private func scheduleNotification(identifier: String, titleKey: String, bodyKey: String, date: Date) {
+
+    // MARK: - Immediate Notification
+    func scheduleSubscriptionConfirmed() {
         let content = UNMutableNotificationContent()
-        
-        // 🆕 Локалізація відбувається тут, при створенні нотифікації
-        // Використовуємо поточну мову з LocalizationManager
-        content.title = localizedString(for: titleKey)
-        content.body = localizedString(for: bodyKey)
+        content.title = localizedString(for: "subscription_confirmed_title")
+        content.body = localizedString(for: "subscription_confirmed_body")
         content.sound = .default
-        
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-        
-        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        
+        content.badge = 1
+
+        // 🆕 TimeInterval для миттєвої нотифікації
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+
+        let request = UNNotificationRequest(
+            identifier: NotificationIdentifiers.subscriptionConfirmed,
+            content: content,
+            trigger: trigger
+        )
+
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to schedule notification \(identifier): \(error)")
+                print("❌ Failed to schedule: \(error)")
             } else {
-                print("✅ Scheduled: \(identifier) at \(date) with language: \(LocalizationManager.shared.currentLanguage.rawValue)")
+                print("✅ Subscription confirmed notification scheduled")
             }
         }
     }
-    
+
+    // MARK: - Badge
+    func clearBadge() {
+        DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+                UNUserNotificationCenter.current().setBadgeCount(0)
+            } else {
+                UIApplication.shared.applicationIconBadgeNumber = 0
+            }
+        }
+    }
+
+    // MARK: - Helper
+    private func scheduleNotification(
+        identifier: String,
+        titleKey: String,
+        bodyKey: String,
+        date: Date
+    ) {
+        let content = UNMutableNotificationContent()
+        content.title = localizedString(for: titleKey)
+        content.body = localizedString(for: bodyKey)
+        content.sound = .default
+        // 🗑️ Прибрано categoryIdentifier
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to schedule \(identifier): \(error)")
+            } else {
+                print("✅ Scheduled: \(identifier) at \(date)")
+            }
+        }
+    }
+
     func removeAllNotifications() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        clearBadge()
     }
-    
-    // MARK: - Localization 🆕 ОНОВЛЕНО: Централізований метод
+
+    // MARK: - Localization
     private func localizedString(for key: String) -> String {
         let lang = LocalizationManager.shared.currentLanguage
-        
+
         switch key {
-        // Welcome
         case "trial_welcome_title":
             switch lang {
             case .ukrainian: return "🎉 Пробний період активовано!"
@@ -124,40 +221,37 @@ class NotificationManager: NSObject, ObservableObject {
             }
         case "trial_welcome_body":
             switch lang {
-            case .ukrainian: return "У вас є 3 дні безкоштовного користування. Насолоджуйтесь всіма функціями!"
-            case .polish: return "Masz 3 dni bezpłatnego użytkowania. Korzystaj ze wszystkich funkcji!"
-            case .english: return "You have 3 days of free usage. Enjoy all features!"
+            case .ukrainian: return "У вас є 3 дні безкоштовного користування. Насолоджуйтесь всіма функціями! Кошти будуть списані через 3 дні."
+            case .polish: return "Masz 3 dni bezpłatnego użytkowania. Korzystaj ze wszystkich funkcji! Opłata zostanie pobrana za 3 dni."
+            case .english: return "You have 3 days of free usage. Enjoy all features! You will be charged in 3 days."
             }
-            
-        // Reminder (24h before)
+
         case "trial_reminder_title":
             switch lang {
-            case .ukrainian: return "⏰ Пробний період скоро закінчиться"
-            case .polish: return "⏰ Okres próbny wkrótce się skończy"
-            case .english: return "⏰ Trial ending soon"
+            case .ukrainian: return "⏰ Завтра буде списано кошти"
+            case .polish: return "⏰ Jutro nastąpi obciążenie"
+            case .english: return "⏰ Billing tomorrow"
             }
         case "trial_reminder_body":
             switch lang {
-            case .ukrainian: return "Залишився 1 день безкоштовного користування. Підписка почнеться автоматично завтра. Можна скасувати в налаштуваннях."
-            case .polish: return "Pozostał 1 dzień bezpłatnego użytkowania. Subskrypcja rozpocznie się automatycznie jutro. Można anulować w ustawieniach."
-            case .english: return "1 day left of free trial. Subscription will start automatically tomorrow. You can cancel in settings."
+            case .ukrainian: return "Завтра Apple спише кошти за підписку Wordy. Якщо не хочете продовжувати — скасуйте в налаштуваннях App Store."
+            case .polish: return "Jutro Apple pobierze opłatę za subskrypcję Wordy. Jeśli nie chcesz kontynuować — anuluj w ustawieniach App Store."
+            case .english: return "Apple will charge you for Wordy subscription tomorrow. Cancel in App Store settings if you don't want to continue."
             }
-            
-        // Trial ended
-        case "trial_ended_title":
+
+        case "trial_billing_completed_title":
             switch lang {
-            case .ukrainian: return "💳 Пробний період закінчився"
-            case .polish: return "💳 Okres próbny zakończony"
-            case .english: return "💳 Trial period ended"
+            case .ukrainian: return "💳 Підписку оформлено"
+            case .polish: return "💳 Subskrypcja potwierdzona"
+            case .english: return "💳 Subscription confirmed"
             }
-        case "trial_ended_body":
+        case "trial_billing_completed_body":
             switch lang {
-            case .ukrainian: return "Ваша підписка активована! Дякуємо за підтримку. Можна скасувати будь-коли в налаштуваннях."
-            case .polish: return "Twoja subskrypcja jest aktywna! Dziękujemy za wsparcie. Można anulować w dowolnym momencie w ustawieniach."
-            case .english: return "Your subscription is active! Thank you for your support. You can cancel anytime in settings."
+            case .ukrainian: return "Кошти успішно списано. Дякуємо за підтримку! Ваша підписка активна."
+            case .polish: return "Opłata pobrana pomyślnie. Dziękujemy za wsparcie! Twoja subskrypcja jest aktywna."
+            case .english: return "Payment successful. Thank you for your support! Your subscription is active."
             }
-            
-        // Subscription confirmed
+
         case "subscription_confirmed_title":
             switch lang {
             case .ukrainian: return "✅ Підписку оформлено"
@@ -170,36 +264,33 @@ class NotificationManager: NSObject, ObservableObject {
             case .polish: return "Dziękujemy! Masz teraz pełny dostęp do wszystkich funkcji Wordy."
             case .english: return "Thank you! You now have full access to all Wordy features."
             }
-            
+
         default:
             return key
         }
     }
 }
 
+// MARK: - UNUserNotificationCenterDelegate
 extension NotificationManager: UNUserNotificationCenterDelegate {
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        
-        switch response.actionIdentifier {
-        case "BUY_PREMIUM":
-            NotificationCenter.default.post(name: .openPaywallFromNotification, object: nil)
-        case "CANCEL_TRIAL":
-            NotificationCenter.default.post(name: .cancelTrialRequested, object: nil)
-        case "LATER", "CLOSE":
-            break
-        default:
-            break
-        }
-        
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        // 🗑️ Прибрано обробку actionIdentifier (кнопок)
+        // Користувач просто тапає на нотифікацію і відкривається додаток
+
+        print("🔔 Notification tapped: \(response.notification.request.identifier)")
+        clearBadge()
         completionHandler()
     }
-    
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
         completionHandler([.banner, .sound, .badge])
     }
-}
-
-extension Notification.Name {
-    static let openPaywallFromNotification = Notification.Name("openPaywallFromNotification")
-    static let cancelTrialRequested = Notification.Name("cancelTrialRequested")
 }
