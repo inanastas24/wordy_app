@@ -25,7 +25,7 @@ struct DictionaryView: View {
     @State private var showAddWord = false
     @State private var wordToEdit: SavedWordModel?
 
-    @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
 
     @State private var selectedWord: SavedWordModel?
     @State private var showWordDetail = false
@@ -429,7 +429,8 @@ struct DictionaryView: View {
     private func speakWord(_ word: SavedWordModel) {
         let components = word.languagePair.components(separatedBy: "-")
         let sourceLang = components.first ?? "en"
-        ttsManager.speak(text: word.original, language: sourceLang)
+        let utteranceID = "dictionary-\(word.id ?? "")"
+        ttsManager.toggle(text: word.original, language: sourceLang, utteranceID: utteranceID)
     }
 
     private var studyButton: some View {
@@ -493,6 +494,7 @@ struct CompactWordRow: View {
     let onSpeak: () -> Void
 
     @EnvironmentObject var localizationManager: LocalizationManager
+    @StateObject private var ttsManager = TextToSpeechService.shared
 
     @State private var offset: CGFloat = 0
     @State private var localIsLearned: Bool
@@ -586,13 +588,16 @@ struct CompactWordRow: View {
 
             // Main content
             HStack(spacing: 12) {
+                let utteranceID = "dictionary-\(word.id ?? "")"
                 Button(action: onSpeak) {
-                    Image(systemName: "speaker.wave.2")
+                    Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .font(.system(size: 16))
                         .foregroundColor(Color(hex: "#4ECDC4"))
                         .frame(width: 32, height: 32)
                         .background(Color(hex: "#4ECDC4").opacity(0.15))
                         .clipShape(Circle())
+                        .scaleEffect(ttsManager.isActive(utteranceID) ? 0.92 : 1.0)
+                        .animation(.spring(response: 0.18, dampingFraction: 0.75), value: ttsManager.isActive(utteranceID))
                 }
                 .buttonStyle(PlainButtonStyle())
 
@@ -727,7 +732,7 @@ struct WordDetailOverlay: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
 
-    @StateObject private var ttsManager = FirebaseTTSManager.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     @State private var showingDeleteConfirm = false
 
     private var sourceLanguage: String {
@@ -863,10 +868,10 @@ struct WordDetailOverlay: View {
                         }
                         .padding(20) // 🔥 Зменшили padding з 24 до 20
                         .background(overlayBackground)
-                        .frame(maxWidth: min(geometry.size.width - 32, 360)) // 🔥 Зменшили відступи та макс ширину
-                        .clipped() // 🔥 Обрізаємо все що вилазить
+                        .frame(maxWidth: min(geometry.size.width - 24, 420)) // 🔥 Зменшили відступи та макс ширину
                         .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
                         .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+                        .padding(.horizontal, 12)
 
                         Spacer(minLength: geometry.size.height * 0.05)
                     }
@@ -937,58 +942,62 @@ struct WordDetailOverlay: View {
     }
 
     private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
-        HStack(spacing: 10) { // 🔥 Зменшили spacing
+        HStack(spacing: 10) {
             Text(text)
-                .font(.system(size: isPrimary ? 26 : 22, weight: isPrimary ? .bold : .semibold, design: .rounded)) // 🔥 Зменшили розміри
+                .font(.system(size: isPrimary ? 28 : 24, weight: isPrimary ? .bold : .semibold, design: .rounded))
                 .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")) : Color(hex: "#4ECDC4"))
                 .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(2) // 🔥 Додали обмеження на 2 рядки
+                .lineLimit(2)
 
             Button(action: {
-                speak(text: text, language: language)
+                speak(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation")
             }) {
-                let isSpeaking = ttsManager.isPlaying && ttsManager.currentLanguage == language
-
-                Image(systemName: isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
-                    .font(.system(size: 14)) // 🔥 Зменшили
+                Image(systemName: isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation") ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    .font(.system(size: 14))
                     .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
-                    .frame(width: 32, height: 32) // 🔥 Зменшили
+                    .frame(width: 32, height: 32)
                     .background(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
                     .clipShape(Circle())
+                    .scaleEffect(isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation") ? 0.92 : 1.0)
+                    .animation(.spring(response: 0.18, dampingFraction: 0.75),
+                               value: isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation"))
             }
         }
     }
 
     private func examplesSection(original: String, originalLang: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) { // 🔥 Зменшили spacing
+        VStack(alignment: .leading, spacing: 10) {
             Text(examplesTitle)
-                .font(.system(size: 13, weight: .semibold)) // 🔥 Зменшили
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
 
-            HStack(spacing: 10) { // 🔥 Зменшили spacing
+            HStack(spacing: 10) {
                 Text("„\(original)\"")
-                    .font(.system(size: 15)) // 🔥 Зменшили
+                    .font(.system(size: 15))
                     .italic()
                     .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .fixedSize(horizontal: false, vertical: true) // 🔥 Дозволяємо перенос
-                    .lineLimit(3) // 🔥 Обмеження на 3 рядки
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(3)
 
                 Spacer(minLength: 0)
 
                 Button(action: {
-                    speak(text: original, language: originalLang)
+                    speak(text: original, language: originalLang, prefix: "dictionary-example")
                 }) {
-                    Image(systemName: "speaker.wave.1")
-                        .font(.system(size: 12)) // 🔥 Зменшили
+                    Image(systemName: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? "speaker.wave.2.fill" : "speaker.wave.1")
+                        .font(.system(size: 12))
                         .foregroundColor(Color(hex: "#4ECDC4"))
-                        .frame(width: 28, height: 28) // 🔥 Фіксований розмір кнопки
+                        .frame(width: 28, height: 28)
                         .background(Color(hex: "#4ECDC4").opacity(0.1))
                         .clipShape(Circle())
+                        .scaleEffect(isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? 0.92 : 1.0)
+                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
+                                   value: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example"))
                 }
             }
-            .padding(12) // 🔥 Зменшили
+            .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 10) // 🔥 Зменшили
+                RoundedRectangle(cornerRadius: 10)
                     .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
             )
         }
@@ -1065,8 +1074,18 @@ struct WordDetailOverlay: View {
         }
     }
 
-    private func speak(text: String, language: String) {
-        ttsManager.speak(text: text, language: language)
+    private func utteranceID(text: String, language: String, prefix: String) -> String {
+        "\(prefix)|\(word.id ?? "unknown")|\(language)|\(text.lowercased())"
+    }
+
+    private func speak(text: String, language: String, prefix: String) {
+        let id = utteranceID(text: text, language: language, prefix: prefix)
+        ttsManager.toggle(text: text, language: language, utteranceID: id)
+    }
+
+    private func isSpeaking(text: String, language: String, prefix: String) -> Bool {
+        let id = utteranceID(text: text, language: language, prefix: prefix)
+        return ttsManager.isActive(id)
     }
 
     private func closeOverlay() {

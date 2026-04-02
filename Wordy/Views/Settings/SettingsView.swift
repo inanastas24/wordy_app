@@ -210,7 +210,7 @@ struct SettingsView: View {
     
     private var subscriptionSection: some View {
         VStack(alignment: .leading, spacing: 15) {
-            Text("Підписка")
+            Text(localizationManager.string(.subscription))
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                 .padding(.horizontal, 20)

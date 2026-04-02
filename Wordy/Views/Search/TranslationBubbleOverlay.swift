@@ -219,15 +219,20 @@ struct TranslationBubbleOverlay: View {
             Text("розмовне:")
                 .font(.system(size: 12))
                 .foregroundColor(.gray)
+
             Text(informal)
                 .font(.system(size: 16))
                 .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
                 .italic()
 
-            Button(action: { speak(text: informal, language: translationLanguage) }) {
-                Image(systemName: "speaker.wave.2")
+            Button(action: {
+                speak(text: informal, language: translationLanguage, prefix: "informal")
+            }) {
+                Image(systemName: isSpeaking(text: informal, language: translationLanguage, prefix: "informal") ? "speaker.wave.2.fill" : "speaker.wave.2")
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#4ECDC4"))
+                    .scaleEffect(isSpeaking(text: informal, language: translationLanguage, prefix: "informal") ? 0.92 : 1.0)
+                    .animation(.spring(response: 0.18, dampingFraction: 0.75), value: isSpeaking(text: informal, language: translationLanguage, prefix: "informal"))
             }
         }
         .padding(.top, -10)
@@ -244,13 +249,17 @@ struct TranslationBubbleOverlay: View {
                     .lineLimit(nil)
                     .multilineTextAlignment(.center)
 
-                Button(action: { speak(text: text, language: language) }) {
-                    Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
+                Button(action: {
+                    speak(text: text, language: language, prefix: isPrimary ? "original-word" : "translated-word")
+                }) {
+                    Image(systemName: isSpeaking(text: text, language: language, prefix: isPrimary ? "original-word" : "translated-word") ? "speaker.wave.2.fill" : "speaker.wave.2")
                         .font(.system(size: 16))
                         .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
                         .frame(width: 36, height: 36)
                         .background(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
                         .clipShape(Circle())
+                        .scaleEffect(isSpeaking(text: text, language: language, prefix: isPrimary ? "original-word" : "translated-word") ? 0.92 : 1.0)
+                        .animation(.spring(response: 0.18, dampingFraction: 0.75), value: isSpeaking(text: text, language: language, prefix: isPrimary ? "original-word" : "translated-word"))
                 }
             }
         }
@@ -289,10 +298,14 @@ struct TranslationBubbleOverlay: View {
                     .italic()
                     .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.9) : Color(hex: "#2C3E50"))
                 Spacer()
-                Button(action: { speak(text: original, language: originalLang) }) {
-                    Image(systemName: "speaker.wave.1")
+                Button(action: {
+                    speak(text: original, language: originalLang, prefix: "example-original")
+                }) {
+                    Image(systemName: isSpeaking(text: original, language: originalLang, prefix: "example-original") ? "speaker.wave.2.fill" : "speaker.wave.1")
                         .font(.system(size: 12))
                         .foregroundColor(Color(hex: "#4ECDC4"))
+                        .scaleEffect(isSpeaking(text: original, language: originalLang, prefix: "example-original") ? 0.92 : 1.0)
+                        .animation(.spring(response: 0.18, dampingFraction: 0.75), value: isSpeaking(text: original, language: originalLang, prefix: "example-original"))
                 }
             }
 
@@ -302,10 +315,14 @@ struct TranslationBubbleOverlay: View {
                         .font(.system(size: 14))
                         .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#4ECDC4").opacity(0.9) : Color(hex: "#4ECDC4"))
                     Spacer()
-                    Button(action: { speak(text: translation, language: transLang) }) {
-                        Image(systemName: "speaker.wave.1")
+                    Button(action: {
+                        speak(text: translation, language: transLang, prefix: "example-translation")
+                    }) {
+                        Image(systemName: isSpeaking(text: translation, language: transLang, prefix: "example-translation") ? "speaker.wave.2.fill" : "speaker.wave.1")
                             .font(.system(size: 12))
                             .foregroundColor(Color(hex: "#4ECDC4").opacity(0.7))
+                            .scaleEffect(isSpeaking(text: translation, language: transLang, prefix: "example-translation") ? 0.92 : 1.0)
+                            .animation(.spring(response: 0.18, dampingFraction: 0.75), value: isSpeaking(text: translation, language: transLang, prefix: "example-translation"))
                     }
                 }
             }
@@ -313,7 +330,8 @@ struct TranslationBubbleOverlay: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5)))
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
+        )
     }
 
     // MARK: - Synonyms Section
@@ -518,14 +536,17 @@ struct TranslationBubbleOverlay: View {
                         .multilineTextAlignment(.center)
 
                     Button(action: {
-                        speak(text: detail.word, language: detail.language)
+                        speak(text: detail.word, language: detail.language, prefix: "synonym-detail")
                     }) {
-                        Image(systemName: "speaker.wave.2.fill")
+                        Image(systemName: isSpeaking(text: detail.word, language: detail.language, prefix: "synonym-detail") ? "speaker.wave.2.fill" : "speaker.wave.2")
                             .font(.system(size: 20))
                             .foregroundColor(Color(hex: "#4ECDC4"))
                             .frame(width: 44, height: 44)
                             .background(Color(hex: "#4ECDC4").opacity(0.15))
                             .clipShape(Circle())
+                            .scaleEffect(isSpeaking(text: detail.word, language: detail.language, prefix: "synonym-detail") ? 0.92 : 1.0)
+                            .animation(.spring(response: 0.18, dampingFraction: 0.75),
+                                       value: isSpeaking(text: detail.word, language: detail.language, prefix: "synonym-detail"))
                     }
                 }
 
@@ -670,8 +691,8 @@ struct TranslationBubbleOverlay: View {
     private func loadSynonymTranslations() {
         guard !filteredSynonyms.isEmpty else { return }
 
-        let sourceLang = result.toLanguage
-        let targetLang = result.fromLanguage
+        let sourceLang = result.fromLanguage
+        let targetLang = result.toLanguage
 
         isLoadingSynonyms = true
 
@@ -707,7 +728,7 @@ struct TranslationBubbleOverlay: View {
                     word: detail.word,
                     ipaTranscription: detail.ipaTranscription,
                     translation: newDetail.translation,
-                    language: translationLanguage
+                    language: originalLanguage
                 )
                 self.synonymTranslations[detail.word] = newDetail.translation
             }
@@ -725,7 +746,7 @@ struct TranslationBubbleOverlay: View {
                 translation: detail.translation,
                 transcription: detail.ipaTranscription,
                 exampleSentence: nil,
-                languagePair: "\(result.toLanguage)-\(result.fromLanguage)",
+                languagePair: "\(result.fromLanguage)-\(result.toLanguage)",
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -842,7 +863,7 @@ struct TranslationBubbleOverlay: View {
                 word: synonym,
                 ipaTranscription: ipa,
                 translation: finalTranslation,
-                language: translationLanguage
+                language: originalLanguage
             )
             showSynonymModal()
         }
@@ -891,6 +912,20 @@ struct TranslationBubbleOverlay: View {
             }
         }
     }
+    
+    private func utteranceID(text: String, language: String, prefix: String) -> String {
+        "\(prefix)|\(language)|\(text.lowercased())"
+    }
+
+    private func speak(text: String, language: String, prefix: String = "translation-card") {
+        let id = utteranceID(text: text, language: language, prefix: prefix)
+        ttsManager.toggle(text: text, language: language, utteranceID: id)
+    }
+
+    private func isSpeaking(text: String, language: String, prefix: String = "translation-card") -> Bool {
+        let id = utteranceID(text: text, language: language, prefix: prefix)
+        return ttsManager.isActive(id)
+    }
 
     private func closeCard() {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -899,15 +934,6 @@ struct TranslationBubbleOverlay: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             translationResult = nil
         }
-    }
-
-    private func speak(text: String, language: String) {
-        print("🔊 DEBUG: speaking '\(text)' with language '\(language)'")
-        print("🔊 DEBUG: detail.language = '\(selectedSynonymDetail?.language ?? "nil")'")
-        print("🔊 DEBUG: originalLanguage = '\(originalLanguage)'")
-        print("🔊 DEBUG: result.fromLanguage = '\(result.fromLanguage)'")
-        print("🔊 DEBUG: result.toLanguage = '\(result.toLanguage)'")
-        ttsManager.speak(text: text, language: language)
     }
 }
 

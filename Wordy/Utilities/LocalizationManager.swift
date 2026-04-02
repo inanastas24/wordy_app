@@ -132,7 +132,7 @@ enum LocalizableKey: String {
     case freeTrial, daysLeft, upgrade
     case termsOfService
     case privacyPolicy
-    case upgradeToPremium, trialExplanation, noPaymentNow, trialWelcomeTitle, trialWelcomeBody, trialReminderBody, trialEndedBody, subscriptionConfirmed
+    case upgradeToPremium, trialExplanation, noPaymentNow, trialWelcomeTitle, trialWelcomeBody, trialReminderBody, trialEndedBody, subscriptionConfirmed, subscription
     
     // MARK: - Subscription Keys
     case subscriptionExpired
@@ -974,6 +974,11 @@ public class LocalizationManager: ObservableObject {
             .ukrainian: "Ваша підписка активована! Дякуємо. Можна скасувати будь-коли.",
             .english: "Your subscription is active! Thank you. Cancel anytime.",
             .polish: "Twoja subskrypcja jest aktywna! Dziękujemy. Anuluj w dowolnym momencie."
+        ],
+        .subscription: [
+            .ukrainian: "Підписка",
+            .english: "Subscription",
+            .polish: "Subskrypcja"
         ],
         .subscriptionConfirmed: [
             .ukrainian: "✅ Підписку оформлено",

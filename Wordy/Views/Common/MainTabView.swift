@@ -109,6 +109,34 @@ struct MainTabView: View {
             .environmentObject(localizationManager)
         }
     }
+    // MARK: - Sets Tab Item з BETA бейджем
+        private var setsTabItem: some View {
+            ZStack {
+                // Основний контент таба
+                VStack(spacing: 2) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 22))
+                        
+                        // BETA плашка над іконкою
+                        Text("BETA")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(hex: "#FF6B6B"))
+                            )
+                            .offset(x: 10, y: -10)
+                            .rotationEffect(.degrees(-5)) // Легкий нахил як на прикладі
+                    }
+                    
+                    Text(localizationManager.string(.sets))
+                        .font(.system(size: 10))
+                }
+            }
+        }
     
     private func setupTabBarAppearance() {
         let appearance = UITabBarAppearance()

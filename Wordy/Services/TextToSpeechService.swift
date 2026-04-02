@@ -1,10 +1,3 @@
-//
-//  TextToSpeechService.swift
-//  Wordy
-//
-//  Created by Anastasiia Inzer on 17.03.2026.
-//
-
 import AVFoundation
 import NaturalLanguage
 import Combine
@@ -12,11 +5,11 @@ import Foundation
 
 @MainActor
 final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
-
     static let shared = TextToSpeechService()
 
-    @Published var isPlaying = false
-    @Published var currentLanguage: String?
+    @Published private(set) var isPlaying = false
+    @Published private(set) var currentLanguage: String?
+    @Published private(set) var activeUtteranceID: String?
 
     private let synthesizer = AVSpeechSynthesizer()
 
@@ -25,7 +18,7 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         synthesizer.delegate = self
     }
 
-    func speak(text: String, language: String) {
+    func speak(text: String, language: String, utteranceID: String? = nil) {
         let cleaned = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -33,6 +26,7 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         guard !cleaned.isEmpty else { return }
 
         let resolvedLang = resolveLanguage(for: cleaned, preferred: language)
+        let finalID = utteranceID ?? makeUtteranceID(text: cleaned, language: resolvedLang)
 
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
@@ -43,18 +37,44 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         utterance.rate = 0.5
 
         currentLanguage = resolvedLang
+        activeUtteranceID = finalID
         isPlaying = true
 
         synthesizer.speak(utterance)
+    }
+
+    func toggle(text: String, language: String, utteranceID: String? = nil) {
+        let cleaned = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+
+        guard !cleaned.isEmpty else { return }
+
+        let resolvedLang = resolveLanguage(for: cleaned, preferred: language)
+        let finalID = utteranceID ?? makeUtteranceID(text: cleaned, language: resolvedLang)
+
+        if isPlaying && activeUtteranceID == finalID {
+            stop()
+            return
+        }
+
+        speak(text: cleaned, language: language, utteranceID: finalID)
+    }
+
+    func isActive(_ utteranceID: String) -> Bool {
+        isPlaying && activeUtteranceID == utteranceID
     }
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
         isPlaying = false
         currentLanguage = nil
+        activeUtteranceID = nil
     }
 
-    // MARK: - Language logic (КЛЮЧОВЕ)
+    private func makeUtteranceID(text: String, language: String) -> String {
+        "\(language)|\(text.lowercased())"
+    }
 
     private func resolveLanguage(for text: String, preferred: String) -> String {
         if !preferred.isEmpty {
@@ -110,15 +130,15 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         }
     }
 
-    // MARK: - Delegate
-
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         isPlaying = false
         currentLanguage = nil
+        activeUtteranceID = nil
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         isPlaying = false
         currentLanguage = nil
+        activeUtteranceID = nil
     }
 }

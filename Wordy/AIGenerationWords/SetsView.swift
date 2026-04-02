@@ -369,12 +369,14 @@ struct SearchResultWordRow: View {
             Button {
                 checkAndSpeak()
             } label: {
-                Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
+                Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
                     .font(.system(size: 16))
                     .foregroundColor(Color(hex: "#4ECDC4"))
                     .frame(width: 36, height: 36)
                     .background(Color(hex: "#4ECDC4").opacity(0.15))
                     .clipShape(Circle())
+                    .scaleEffect(ttsManager.isActive(utteranceID) ? 0.92 : 1.0)
+                    .animation(.spring(response: 0.18, dampingFraction: 0.75), value: ttsManager.isActive(utteranceID))
             }
             .buttonStyle(PlainButtonStyle())
             .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
@@ -408,15 +410,19 @@ struct SearchResultWordRow: View {
         }
     }
 
+    private var utteranceID: String {
+        "set-search-\(word.id)"
+    }
+    
     private func checkAndSpeak() {
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true)
-            ttsManager.speak(text: word.original, language: sourceLanguage)
+            ttsManager.toggle(text: word.original, language: sourceLanguage, utteranceID: utteranceID)
         } catch {
             print("⚠️ TTS audio session error: \(error)")
-            ttsManager.speak(text: word.original, language: sourceLanguage)
+            ttsManager.toggle(text: word.original, language: sourceLanguage, utteranceID: utteranceID)
         }
     }
 
@@ -566,6 +572,7 @@ struct CategoryCard: View {
     }
 }
 
+
 struct SelectableFilterChip: View {
     let title: String
     let isSelected: Bool
@@ -676,7 +683,11 @@ struct CategoryWordRow: View {
             pastParticiple: components[2].trimmingCharacters(in: .whitespaces)
         )
     }
-
+    
+    private var utteranceID: String {
+        "set-detail-\(word.id)"
+    }
+    
     private var displayOriginal: String {
         if isIrregularVerb, let forms = irregularVerbForms {
             return forms.base
@@ -708,7 +719,7 @@ struct CategoryWordRow: View {
                     Button {
                         checkAndSpeak()
                     } label: {
-                        Image(systemName: ttsManager.isPlaying ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
                             .font(.system(size: 16))
                             .foregroundColor(Color(hex: "#4ECDC4"))
                             .frame(width: 36, height: 36)
@@ -808,11 +819,18 @@ struct CategoryWordRow: View {
                                 Spacer()
 
                                 Button {
-                                    ttsManager.speak(text: example, language: sourceLanguage)
+                                    ttsManager.toggle(
+                                        text: example,
+                                        language: sourceLanguage,
+                                        utteranceID: "set-example-\(word.id)"
+                                    )
                                 } label: {
-                                    Image(systemName: "speaker.wave.1")
+                                    Image(systemName: ttsManager.isActive("set-example-\(word.id)") ? "speaker.wave.2.fill" : "speaker.wave.1")
                                         .font(.system(size: 12))
                                         .foregroundColor(Color(hex: "#4ECDC4"))
+                                        .scaleEffect(ttsManager.isActive("set-example-\(word.id)") ? 0.92 : 1.0)
+                                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
+                                                   value: ttsManager.isActive("set-example-\(word.id)"))
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
@@ -877,10 +895,10 @@ struct CategoryWordRow: View {
         do {
             try audioSession.setCategory(.playback, mode: .default, options: [])
             try audioSession.setActive(true)
-            ttsManager.speak(text: textToSpeak, language: sourceLanguage)
+            ttsManager.toggle(text: word.original, language: sourceLanguage, utteranceID: utteranceID)
         } catch {
             print("⚠️ TTS audio session error: \(error)")
-            ttsManager.speak(text: textToSpeak, language: sourceLanguage)
+            ttsManager.toggle(text: word.original, language: sourceLanguage, utteranceID: utteranceID)
         }
     }
 
