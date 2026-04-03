@@ -763,9 +763,16 @@ struct SearchView: View {
     private func executeTranslation(word: String, fromLang: TranslationLanguage, toLang: TranslationLanguage) {
         isSearchFocused = false
         isLoading = true
+
+        let normalized = QueryNormalizer.normalize(
+            word,
+            language: fromLang.rawValue
+        )
+
+        let queryToUse = normalized.isEmpty ? word : normalized
         
         translationService.translate(
-            word: word,
+            word: queryToUse,
             fromLanguage: fromLang.rawValue,
             toLanguage: toLang.rawValue
         ) { result in

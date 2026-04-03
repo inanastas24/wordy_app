@@ -22,6 +22,8 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         let cleaned = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "`", with: "'")
 
         guard !cleaned.isEmpty else { return }
 
@@ -34,7 +36,7 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
 
         let utterance = AVSpeechUtterance(string: cleaned)
         utterance.voice = bestVoice(for: resolvedLang)
-        utterance.rate = 0.5
+        utterance.rate = preferredRate(for: resolvedLang)
 
         currentLanguage = resolvedLang
         activeUtteranceID = finalID
@@ -43,6 +45,19 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         synthesizer.speak(utterance)
     }
 
+    private func preferredRate(for code: String) -> Float {
+        switch code {
+        case "uk-UA":
+            return 0.46
+        case "pl-PL":
+            return 0.48
+        case "de-DE", "fr-FR", "it-IT", "es-ES":
+            return 0.49
+        default:
+            return 0.5
+        }
+    }
+    
     func toggle(text: String, language: String, utteranceID: String? = nil) {
         let cleaned = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,14 +135,24 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     }
 
     private func bestVoice(for code: String) -> AVSpeechSynthesisVoice? {
-        if let exact = AVSpeechSynthesisVoice(language: code) {
-            return exact
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+
+        // 1. exact match
+        let exactMatches = allVoices.filter { $0.language == code }
+        if let preferred = exactMatches.first {
+            return preferred
         }
 
+        // 2. same language prefix
         let prefix = String(code.prefix(2))
-        return AVSpeechSynthesisVoice.speechVoices().first {
-            $0.language.hasPrefix(prefix)
+        let prefixMatches = allVoices.filter { $0.language.hasPrefix(prefix) }
+
+        if let preferred = prefixMatches.first {
+            return preferred
         }
+
+        // 3. system fallback
+        return AVSpeechSynthesisVoice(language: code)
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {

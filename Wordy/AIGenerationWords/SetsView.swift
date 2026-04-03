@@ -51,7 +51,12 @@ struct SetsView: View {
         if searchText.isEmpty {
             return []
         }
-        return PredefinedWordSets.searchWords(query: searchText)
+        let normalized = QueryNormalizer.normalize(
+            searchText,
+            language: "en" // або source мова
+        )
+
+        return PredefinedWordSets.searchWords(query: normalized)
     }
 
     var body: some View {

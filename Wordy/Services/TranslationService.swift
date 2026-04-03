@@ -32,17 +32,20 @@ class TranslationService {
             return
         }
 
+        let normalizedWord = QueryNormalizer.normalize(word, language: fromLanguage)
+        let query = normalizedWord.isEmpty ? word : normalizedWord
+        
         // Конвертуємо коди мов
         let sourceLang = fromLanguage.lowercased()
         let targetLang = toLanguage.lowercased()
 
         print("🔍 === ПЕРЕКЛАД ===")
-        print("   Слово: '\(word)'")
+        print("   Слово: '\(query)'")
         print("   Напрямок: \(sourceLang) → \(targetLang)")
 
-        fetchEnrichedData(word: word, sourceLang: sourceLang, targetLang: targetLang) { [weak self] enrichedData in
+        fetchEnrichedData(word: query, sourceLang: sourceLang, targetLang: targetLang) { [weak self] enrichedData in
             self?.performDeepLTranslation(
-                word: word,
+                word: query,
                 sourceLang: sourceLang,
                 targetLang: targetLang,
                 enrichedData: enrichedData,
