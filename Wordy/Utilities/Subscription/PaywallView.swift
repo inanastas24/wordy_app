@@ -264,7 +264,6 @@ struct PaywallView: View {
                 isPurchasing = false
 
                 if success {
-                    NotificationManager.shared.scheduleTrialNotifications(trialStartDate: Date())
                     onSubscribe?()
                     dismissIfNeeded()
                 }
