@@ -73,19 +73,19 @@ struct WidgetTheme {
     var isDarkMode: Bool = false
     
     var backgroundColor: Color {
-        Color(hex: "#FFFDF5")
+        Color(hex: "#F6F9F7")
     }
     
     var cardBackground: Color {
-        Color.white
+        Color.white.opacity(0.92)
     }
     
     var textPrimary: Color {
-        Color(hex: "#2C3E50")
+        Color(hex: "#16323F")
     }
     
     var textSecondary: Color {
-        Color(hex: "#7F8C8D")
+        Color(hex: "#6F7E86")
     }
     
     var accentColor: Color {
@@ -93,11 +93,35 @@ struct WidgetTheme {
     }
     
     var dividerColor: Color {
-        Color(hex: "#E0E0E0")
+        Color(hex: "#D9E6E2")
     }
     
     var buttonBackground: Color {
-        Color(hex: "#F8F9FA")
+        Color.white.opacity(0.84)
+    }
+
+    var gradientTop: Color {
+        Color(hex: "#F9FFFD")
+    }
+
+    var gradientBottom: Color {
+        Color(hex: "#EAF5F1")
+    }
+
+    var accentSoft: Color {
+        Color(hex: "#DDF7F4")
+    }
+
+    var warmAccent: Color {
+        Color(hex: "#FFD76A")
+    }
+
+    var borderColor: Color {
+        Color.white.opacity(0.7)
+    }
+
+    var shadowColor: Color {
+        Color(hex: "#2AAFA7").opacity(0.12)
     }
 }
 
@@ -112,8 +136,11 @@ struct WidgetView: View {
     var body: some View {
         content
             .containerBackground(for: .widget) {
-                // Фон для віджета
-                theme.backgroundColor
+                LinearGradient(
+                    colors: [theme.gradientTop, theme.gradientBottom],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             }
     }
     
@@ -136,81 +163,56 @@ struct WidgetView: View {
 struct SmallWidgetView: View {
     let entry: WordEntry
     let theme: WidgetTheme
-    private let loc = WidgetLocalization.self
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             if let word = entry.word {
-                VStack(spacing: 6) {
-                    Text(word.original)
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(theme.textPrimary)
-                        .lineLimit(1)
-                    
-                    Text(word.translation)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(theme.accentColor)
-                        .lineLimit(1)
-                    
-                    if let transcription = word.transcription {
-                        Text(transcription)
-                            .font(.system(size: 11))
-                            .foregroundColor(theme.textSecondary)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
-            } else {
-                VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(theme.accentColor.opacity(0.15))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: "book.closed")
-                            .font(.system(size: 24))
-                            .foregroundColor(theme.accentColor)
-                    }
-                    
-                    Text(loc.string(.addWords))
-                        .font(.system(size: 12, weight: .medium))
+                Text(word.original)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.76)
+
+                Text(word.translation)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.accentColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.76)
+
+                if let transcription = word.transcription, !transcription.isEmpty {
+                    Text(transcription)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(theme.textSecondary)
-                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.78)
                 }
-                .padding(.top, 8)
+
+                Spacer(minLength: 0)
+            } else {
+                EmptyStateView(theme: theme, isCompact: true)
+                Spacer(minLength: 0)
             }
-            
-            Spacer()
-            
-            HStack(spacing: 16) {
-                Link(destination: URL(string: "wordy://camera")!) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: "#A8D8EA"))
-                            .frame(width: 40, height: 40)
-                            .shadow(color: Color(hex: "#A8D8EA").opacity(0.3), radius: 4, x: 0, y: 2)
-                        
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                Link(destination: URL(string: "wordy://voice")!) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: "#FFD93D"))
-                            .frame(width: 40, height: 40)
-                            .shadow(color: Color(hex: "#FFD93D").opacity(0.3), radius: 4, x: 0, y: 2)
-                        
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white)
-                    }
-                }
+
+            HStack(spacing: 8) {
+                Spacer()
+
+                PremiumActionCapsule(
+                    icon: "camera.viewfinder",
+                    color: Color(hex: "#7EC9E7"),
+                    url: "wordy://camera"
+                )
+
+                PremiumActionCapsule(
+                    icon: "mic.fill",
+                    color: theme.warmAccent,
+                    url: "wordy://voice"
+                )
+
+                Spacer()
             }
-            .padding(.bottom, 12)
         }
+        .padding(12)
+        .background(widgetPanelBackground(theme: theme, cornerRadius: 24))
     }
 }
 
@@ -221,67 +223,80 @@ struct MediumWidgetView: View {
     private let loc = WidgetLocalization.self
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             if let word = entry.word {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(loc.string(.wordOfDay))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(theme.textSecondary)
-                            .textCase(.uppercase)
-                            .tracking(0.5)
-                        
-                        Spacer()
-                    }
-                    
+                VStack(alignment: .leading, spacing: 10) {
+                    premiumHeader(compact: false)
+
+                    Spacer(minLength: 0)
+
                     Text(word.original)
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.system(size: 23, weight: .bold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
-                    
-                    Text(word.translation)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(theme.accentColor)
-                    
-                    if let transcription = word.transcription {
-                        Text(transcription)
-                            .font(.system(size: 13))
-                            .foregroundColor(theme.textSecondary)
-                    }
-                    
-                    if let example = word.example {
-                        Text(example)
-                            .font(.system(size: 12))
-                            .foregroundColor(theme.textSecondary)
-                            .italic()
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.68)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(word.translation)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(theme.accentColor)
                             .lineLimit(2)
+                            .minimumScaleFactor(0.72)
+
+                        if let transcription = word.transcription, !transcription.isEmpty {
+                            Text(word.transcription ?? "")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(theme.textSecondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule()
+                                        .fill(theme.accentSoft)
+                                )
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+
+                        if let example = word.example, !example.isEmpty {
+                            Text(example)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(theme.textSecondary)
+                                .italic()
+                                .lineLimit(2)
+                        }
                     }
+
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
             } else {
-                EmptyStateView(theme: theme)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                EmptyStateView(theme: theme, isCompact: false)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .padding(.vertical, 2)
             }
-            
-            Spacer()
-            
-            VStack(spacing: 12) {
-                ActionButton(
-                    icon: "camera.fill",
+
+            VStack(spacing: 10) {
+                PremiumSideAction(
+                    icon: "camera.viewfinder",
                     title: loc.string(.scan),
-                    color: Color(hex: "#A8D8EA"),
+                    color: Color(hex: "#7EC9E7"),
                     url: "wordy://camera",
                     theme: theme
                 )
-                
-                ActionButton(
+
+                PremiumSideAction(
                     icon: "mic.fill",
                     title: loc.string(.voice),
-                    color: Color(hex: "#FFD93D"),
+                    color: theme.warmAccent,
                     url: "wordy://voice",
                     theme: theme
                 )
             }
+            .frame(width: 72)
         }
-        .padding(16)
+        .padding(10)
+        .background(widgetPanelBackground(theme: theme, cornerRadius: 26))
     }
 }
 
@@ -293,15 +308,15 @@ struct LargeWidgetView: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            // Header компактніший
             HStack {
-                HStack(spacing: 4) {
-                    Text("🫧")
-                        .font(.system(size: 16))
-                    
-                    Text("Wordy")
-                        .font(.system(size: 16, weight: .bold))
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(theme.accentColor)
+
+                    Text("Wordy")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(theme.textPrimary)
                 }
                 
                 Spacer()
@@ -313,59 +328,18 @@ struct LargeWidgetView: View {
                     .tracking(0.5)
             }
             
-            // Основна картка зі словом - займає більше місця
             if let word = entry.word {
-                VStack(spacing: 8) {
-                    // Слово з переносом на новий рядок
-                    Text(word.original)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(theme.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.7)
-                    
-                    if let transcription = word.transcription {
-                        Text(transcription)
-                            .font(.system(size: 14))
-                            .foregroundColor(theme.textSecondary)
-                    }
-                    
-                    Divider()
-                        .background(theme.dividerColor)
-                        .padding(.horizontal, 16)
-                    
-                    Text(word.translation)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(theme.accentColor)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    
-                    if let example = word.example {
-                        Text(example)
-                            .font(.system(size: 13))
-                            .foregroundColor(theme.textSecondary)
-                            .italic()
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                    }
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 12)
-                .background(theme.cardBackground)
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+                LargeWordCard(word: word, theme: theme, title: nil)
             } else {
-                EmptyStateView(theme: theme)
+                EmptyStateView(theme: theme, isCompact: false)
                     .frame(maxHeight: .infinity)
             }
             
             Spacer(minLength: 4)
             
-            // Кнопки в ряд з іконками та компактними текстами
             HStack(spacing: 10) {
                 CompactActionButton(
-                    icon: "camera.fill",
+                    icon: "camera.viewfinder",
                     title: loc.string(.scan),
                     color: Color(hex: "#A8D8EA"),
                     url: "wordy://camera"
@@ -407,8 +381,12 @@ struct CompactActionButton: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(Color(hex: "#F8F9FA"))
-            .cornerRadius(10)
+            .background(Color.white.opacity(0.76))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.7), lineWidth: 1)
+            )
+            .cornerRadius(12)
         }
     }
 }
@@ -439,6 +417,16 @@ struct ActionButton: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(theme.textPrimary)
             }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(theme.buttonBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(theme.borderColor, lineWidth: 1)
+            )
         }
     }
 }
@@ -486,6 +474,7 @@ struct LargeActionButton: View {
 
 struct EmptyStateView: View {
     let theme: WidgetTheme
+    let isCompact: Bool
     private let loc = WidgetLocalization.self
     
     var body: some View {
@@ -496,21 +485,257 @@ struct EmptyStateView: View {
                     .frame(width: 60, height: 60)
                 
                 Image(systemName: "book.closed")
-                    .font(.system(size: 30))
+                    .font(.system(size: isCompact ? 24 : 30))
                     .foregroundColor(theme.accentColor)
             }
             
             Text(loc.string(.emptyDictionary))
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
                 .foregroundColor(theme.textPrimary)
                 .multilineTextAlignment(.center)
             
             Text(loc.string(.addWordsInApp))
-                .font(.system(size: 13))
+                .font(.system(size: isCompact ? 11 : 13))
                 .foregroundColor(theme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, isCompact ? 10 : 20)
+        .padding(.horizontal, isCompact ? 6 : 0)
+    }
+}
+
+private struct CompactWordCard: View {
+    let word: WidgetWidgetWordModel
+    let theme: WidgetTheme
+    let alignment: HorizontalAlignment
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: 6) {
+            Text(word.original)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            Text(word.translation)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.accentColor)
+                .lineLimit(2)
+
+            if let transcription = word.transcription, !transcription.isEmpty {
+                Text(transcription)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(theme.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(theme.cardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(theme.borderColor, lineWidth: 1)
+        )
+        .shadow(color: theme.shadowColor, radius: 16, x: 0, y: 10)
+    }
+}
+
+private struct LargeWordCard: View {
+    let word: WidgetWidgetWordModel
+    let theme: WidgetTheme
+    let title: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(theme.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.7)
+            }
+
+            Text(word.original)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(theme.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            HStack(alignment: .center, spacing: 10) {
+                if let transcription = word.transcription, !transcription.isEmpty {
+                    Text(transcription)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(theme.textSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(theme.accentSoft)
+                        )
+                }
+
+                Spacer()
+            }
+
+            Divider()
+                .background(theme.dividerColor)
+
+            Text(word.translation)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundColor(theme.accentColor)
+                .lineLimit(2)
+
+            if let example = word.example, !example.isEmpty {
+                Text(example)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(theme.textSecondary)
+                    .italic()
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(theme.cardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(theme.borderColor, lineWidth: 1)
+        )
+        .shadow(color: theme.shadowColor, radius: 18, x: 0, y: 10)
+    }
+}
+
+private struct PillActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let url: String
+    let theme: WidgetTheme
+
+    var body: some View {
+        Link(destination: URL(string: url)!) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(color)
+                    .clipShape(Circle())
+
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(
+                Capsule()
+                    .fill(theme.buttonBackground)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(theme.borderColor, lineWidth: 1)
+            )
+        }
+    }
+}
+
+private struct PremiumActionCapsule: View {
+    let icon: String
+    let color: Color
+    let url: String
+
+    var body: some View {
+        Link(destination: URL(string: url)!) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(color)
+                )
+        }
+    }
+}
+
+private struct PremiumSideAction: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let url: String
+    let theme: WidgetTheme
+
+    var body: some View {
+        Link(destination: URL(string: url)!) {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 36, height: 36)
+
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
+
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(theme.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(theme.borderColor, lineWidth: 1)
+            )
+            .shadow(color: theme.shadowColor.opacity(0.7), radius: 8, x: 0, y: 5)
+        }
+    }
+}
+
+private extension View {
+    func widgetPanelBackground(theme: WidgetTheme, cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white.opacity(0.82))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.58), lineWidth: 0.8)
+            )
+            .shadow(color: theme.shadowColor.opacity(0.75), radius: 14, x: 0, y: 8)
+    }
+
+    func premiumHeader(compact: Bool) -> some View {
+        HStack {
+            Text("Wordy")
+                .font(.system(size: compact ? 11 : 11, weight: .bold, design: .rounded))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
+            Spacer()
+
+            Text(WidgetLocalization.string(.wordOfDay))
+                .font(.system(size: compact ? 7 : 8, weight: .bold))
+                .foregroundColor(Color(hex: "#6F7E86"))
+                .textCase(.uppercase)
+                .tracking(compact ? 0.45 : 0.55)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
     }
 }

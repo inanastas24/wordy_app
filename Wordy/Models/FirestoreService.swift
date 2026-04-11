@@ -40,6 +40,45 @@ struct UserProfile: Codable {
 }
 
 // MARK: - Saved Word Model
+struct WordDictionaryModel: Identifiable, Codable, Equatable, Hashable {
+    var id: String?
+    var name: String
+    var createdAt: Date
+    var userId: String?
+
+    init(
+        id: String? = nil,
+        name: String,
+        createdAt: Date = Date(),
+        userId: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.userId = userId
+    }
+    
+    // Hashable & Equatable conformance for Navigation and Sets
+    static func == (lhs: WordDictionaryModel, rhs: WordDictionaryModel) -> Bool {
+        // Prefer stable id if available
+        if let lid = lhs.id, let rid = rhs.id { return lid == rid }
+        // Fallback to name + createdAt when ids are missing (e.g., prior to persistence)
+        return lhs.name == rhs.name && lhs.createdAt == rhs.createdAt && lhs.userId == rhs.userId
+    }
+
+    func hash(into hasher: inout Hasher) {
+        if let id = id {
+            hasher.combine("id:")
+            hasher.combine(id)
+        } else {
+            hasher.combine("fallback:")
+            hasher.combine(name)
+            hasher.combine(createdAt.timeIntervalSince1970)
+            hasher.combine(userId ?? "")
+        }
+    }
+}
+
 struct SavedWordModel: Identifiable, Codable, Equatable {
     var id: String?
     var original: String
@@ -47,6 +86,7 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
     var transcription: String?
     var exampleSentence: String?
     var languagePair: String
+    var dictionaryId: String?
     var isLearned: Bool
     var reviewCount: Int
     var srsInterval: Double
@@ -64,6 +104,7 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
          transcription: String? = nil,
          exampleSentence: String? = nil,
          languagePair: String,
+         dictionaryId: String? = nil,
          isLearned: Bool = false,
          reviewCount: Int = 0,
          srsInterval: Double = 0,
@@ -80,6 +121,7 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
         self.transcription = transcription
         self.exampleSentence = exampleSentence
         self.languagePair = languagePair
+        self.dictionaryId = dictionaryId
         self.isLearned = isLearned
         self.reviewCount = reviewCount
         self.srsInterval = srsInterval
@@ -106,6 +148,24 @@ class FirestoreService {
     private let db = Firestore.firestore()
     
     private init() {}
+
+    private func userDocument(userId: String) -> DocumentReference {
+        db.collection("users").document(userId)
+    }
+
+    private func rootWordsCollection(userId: String) -> CollectionReference {
+        userDocument(userId: userId).collection("words")
+    }
+
+    private func dictionariesCollection(userId: String) -> CollectionReference {
+        userDocument(userId: userId).collection("dictionaries")
+    }
+
+    private func dictionaryWordsCollection(userId: String, dictionaryId: String) -> CollectionReference {
+        dictionariesCollection(userId: userId)
+            .document(dictionaryId)
+            .collection("words")
+    }
     
     // MARK: - User Profile Methods
     
@@ -170,14 +230,78 @@ class FirestoreService {
     }
     
     // MARK: - Word Methods
-    
+
+    func saveDictionary(_ dictionary: WordDictionaryModel) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw AuthError.userNotFound
+        }
+
+        let dictionaryId = dictionary.id ?? UUID().uuidString
+        var dictionaryToSave = dictionary
+        dictionaryToSave.id = dictionaryId
+        dictionaryToSave.userId = userId
+
+        var dictionaryData = try Firestore.Encoder().encode(dictionaryToSave)
+        dictionaryData["createdAt"] = Timestamp(date: dictionaryToSave.createdAt)
+
+        try await dictionariesCollection(userId: userId)
+            .document(dictionaryId)
+            .setData(dictionaryData, merge: true)
+
+        print("☁️ saveDictionary id='\(dictionaryId)' name='\(dictionaryToSave.name)'")
+    }
+
+    func fetchDictionaries() async throws -> [WordDictionaryModel] {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw AuthError.userNotFound
+        }
+
+        let snapshot = try await dictionariesCollection(userId: userId)
+            .order(by: "createdAt", descending: false)
+            .getDocuments()
+
+        return snapshot.documents.compactMap { doc in
+            do {
+                var dictionary = try doc.data(as: WordDictionaryModel.self)
+                dictionary.id = doc.documentID
+                return dictionary
+            } catch {
+                print("❌ Failed to decode dictionary: \(error)")
+                return nil
+            }
+        }
+    }
+
     func saveWord(_ word: SavedWordModel) async throws {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw AuthError.userNotFound
         }
 
-        let wordId = word.id ?? UUID().uuidString
         var wordToSave = word
+        var wordId = word.id ?? UUID().uuidString
+        print("☁️ saveWord start original='\(word.original)' id='\(word.id ?? "nil")' dictionaryId='\(word.dictionaryId ?? "nil")'")
+
+        let existingDocument = try await db.collection("users")
+            .document(userId)
+            .collection("words")
+            .document(wordId)
+            .getDocument()
+
+        if existingDocument.exists {
+            let existingDictionaryId = existingDocument.data()?["dictionaryId"] as? String
+            let normalizedExistingDictionaryId = existingDictionaryId?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedIncomingDictionaryId = wordToSave.dictionaryId?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let normalizedExistingDictionaryId,
+               !normalizedExistingDictionaryId.isEmpty,
+               normalizedExistingDictionaryId != normalizedIncomingDictionaryId {
+                print("☁️ saveWord id conflict existingDict='\(normalizedExistingDictionaryId)' incomingDict='\(normalizedIncomingDictionaryId ?? "nil")' -> generating new id")
+                wordId = UUID().uuidString
+            }
+        }
+
         wordToSave.id = wordId
         wordToSave.userId = userId
 
@@ -191,11 +315,18 @@ class FirestoreService {
             wordData["lastReviewDate"] = Timestamp(date: lastReview)
         }
 
-        try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        try await rootWordsCollection(userId: userId)
             .document(wordId)
             .setData(wordData, merge: true)
+
+        if let dictionaryId = wordToSave.dictionaryId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !dictionaryId.isEmpty {
+            try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+                .document(wordId)
+                .setData(wordData, merge: true)
+        }
+
+        print("☁️ saveWord stored original='\(wordToSave.original)' id='\(wordId)' dictionaryId='\(wordToSave.dictionaryId ?? "nil")'")
 
         NotificationCenter.default.post(name: .wordSaved, object: nil)
     }
@@ -218,11 +349,16 @@ class FirestoreService {
             wordData["lastReviewDate"] = Timestamp(date: lastReview)
         }
         
-        try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        try await rootWordsCollection(userId: userId)
             .document(wordId)
             .setData(wordData, merge: true)
+
+        if let dictionaryId = word.dictionaryId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !dictionaryId.isEmpty {
+            try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+                .document(wordId)
+                .setData(wordData, merge: true)
+        }
     }
     
     func updateWordStatus(wordId: String, isLearned: Bool) async throws {
@@ -260,10 +396,58 @@ class FirestoreService {
             throw AuthError.userNotFound
         }
         
-        try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        try await rootWordsCollection(userId: userId)
             .document(wordId)
+            .delete()
+    }
+
+    func deleteWord(_ word: SavedWordModel) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw AuthError.userNotFound
+        }
+
+        guard let wordId = word.id else {
+            throw AuthError.wordNotFound
+        }
+
+        try await rootWordsCollection(userId: userId)
+            .document(wordId)
+            .delete()
+
+        if let dictionaryId = word.dictionaryId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !dictionaryId.isEmpty {
+            try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+                .document(wordId)
+                .delete()
+        }
+    }
+
+    func deleteDictionary(dictionaryId: String) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw AuthError.userNotFound
+        }
+
+        let rootWordsSnapshot = try await rootWordsCollection(userId: userId)
+            .whereField("dictionaryId", isEqualTo: dictionaryId)
+            .getDocuments()
+
+        for document in rootWordsSnapshot.documents {
+            try await rootWordsCollection(userId: userId)
+                .document(document.documentID)
+                .delete()
+        }
+
+        let dictionaryWordsSnapshot = try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+            .getDocuments()
+
+        for document in dictionaryWordsSnapshot.documents {
+            try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+                .document(document.documentID)
+                .delete()
+        }
+
+        try await dictionariesCollection(userId: userId)
+            .document(dictionaryId)
             .delete()
     }
     
@@ -272,9 +456,7 @@ class FirestoreService {
             throw AuthError.userNotFound
         }
         
-        let snapshot = try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        let snapshot = try await rootWordsCollection(userId: userId)
             .order(by: "createdAt", descending: true)
             .getDocuments()
         
@@ -297,9 +479,7 @@ class FirestoreService {
         
         let now = Timestamp(date: Date())
         
-        let snapshot = try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        let snapshot = try await rootWordsCollection(userId: userId)
             .whereField("isLearned", isEqualTo: false)
             .whereField("nextReviewDate", isLessThanOrEqualTo: now)
             .getDocuments()
@@ -321,9 +501,7 @@ class FirestoreService {
             throw AuthError.userNotFound
         }
         
-        let snapshot = try await db.collection("users")
-            .document(userId)
-            .collection("words")
+        let snapshot = try await rootWordsCollection(userId: userId)
             .whereField("srsRepetition", isEqualTo: 0)
             .whereField("reviewCount", isEqualTo: 0)
             .getDocuments()
@@ -347,9 +525,7 @@ class FirestoreService {
             return nil
         }
         
-        return db.collection("users")
-            .document(userId)
-            .collection("words")
+        return rootWordsCollection(userId: userId)
             .order(by: "createdAt", descending: true)
             .addSnapshotListener { snapshot, error in
                 guard let documents = snapshot?.documents else {
@@ -370,6 +546,28 @@ class FirestoreService {
                 
                 completion(words)
             }
+    }
+
+    func fetchWords(in dictionaryId: String) async throws -> [SavedWordModel] {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw AuthError.userNotFound
+        }
+
+        let snapshot = try await dictionaryWordsCollection(userId: userId, dictionaryId: dictionaryId)
+            .order(by: "createdAt", descending: true)
+            .getDocuments()
+
+        return snapshot.documents.compactMap { doc in
+            do {
+                var word = try doc.data(as: SavedWordModel.self)
+                word.id = doc.documentID
+                word.dictionaryId = dictionaryId
+                return word
+            } catch {
+                print("❌ Failed to decode dictionary word: \(error)")
+                return nil
+            }
+        }
     }
     
     // MARK: - Search History

@@ -28,6 +28,12 @@ struct ProfileView: View {
     private var totalWords: Int { dictionaryVM.savedWords.count }
     private var learnedWords: Int { dictionaryVM.savedWords.filter { $0.isLearned }.count }
     private var learningWords: Int { dictionaryVM.savedWords.filter { !$0.isLearned }.count }
+    private var recentActivityWords: [SavedWordModel] {
+        dictionaryVM.savedWords
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(5)
+            .map { $0 }
+    }
     
     var body: some View {
         NavigationStack {
@@ -57,6 +63,7 @@ struct ProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
+                    .environmentObject(appState)
                     .environmentObject(subscriptionManager)
             }
             .sheet(isPresented: $showPaywall) {
@@ -290,7 +297,7 @@ struct ProfileView: View {
     
     private var activitySection: some View {
         Group {
-            if !dictionaryVM.savedWords.isEmpty {
+            if !recentActivityWords.isEmpty {
                 VStack(alignment: .leading, spacing: 15) {
                     Text(localizationManager.currentLanguage == .ukrainian ? "Остання активність" :
                          localizationManager.currentLanguage == .polish ? "Ostatnia aktywność" : "Recent activity")
@@ -298,7 +305,7 @@ struct ProfileView: View {
                         .foregroundColor(localizationManager.isDarkMode ? .white : .primary)
                         .padding(.horizontal, 20)
                     
-                    ForEach(dictionaryVM.savedWords.prefix(5)) { word in
+                    ForEach(recentActivityWords) { word in
                         FirestoreActivityRow(word: word, isDarkMode: localizationManager.isDarkMode)
                     }
                 }
@@ -434,4 +441,3 @@ struct FirestoreActivityRow: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
-

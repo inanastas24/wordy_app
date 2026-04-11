@@ -13,6 +13,9 @@ struct FlashcardsView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var localizationManager: LocalizationManager
     
+    let dictionaryId: String?
+    let dictionaryName: String?
+
     private let viewModel = DictionaryViewModel.shared
     
     @State private var cards: [SavedWordModel] = []
@@ -29,6 +32,11 @@ struct FlashcardsView: View {
     private let cardWidth: CGFloat = 320
     private let cardHeight: CGFloat = 420
     private let maxCardRepeats = 2
+
+    init(dictionaryId: String? = nil, dictionaryName: String? = nil) {
+        self.dictionaryId = dictionaryId
+        self.dictionaryName = dictionaryName
+    }
     
     var body: some View {
         ZStack {
@@ -93,6 +101,13 @@ struct FlashcardsView: View {
                 Text(localizationManager.string(.reviewing))
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+
+                if let dictionaryName, !dictionaryName.isEmpty {
+                    Text(dictionaryName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                        .lineLimit(1)
+                }
                 
                 Spacer()
                 
@@ -472,7 +487,7 @@ struct FlashcardsView: View {
     }
     
     private func loadCards() {
-        let allWords = viewModel.savedWords
+        let allWords = dictionaryId == nil ? viewModel.savedWords : viewModel.words(in: dictionaryId)
         let now = Date()
 
         // Фільтруємо слова для повторення
@@ -494,7 +509,7 @@ struct FlashcardsView: View {
         
         let remainingSlots = max(0, 20 - sessionWords.count)
         let newWordsToAdd = newWords.filter { newWord in
-            !sessionWords.contains(where: { $0.id == newWord.id })
+            !sessionWords.contains(where: { sessionKey(for: $0) == sessionKey(for: newWord) })
         }
         sessionWords.append(contentsOf: newWordsToAdd.prefix(remainingSlots))
 
@@ -529,7 +544,9 @@ struct FlashcardsView: View {
         
         // Додаємо картку назад якщо "Не знаю" (і не перевищили ліміт повторів)
         if quality < 3 {
-            let repeatCount = cards[0..<currentIndex].filter { $0.id == word.id }.count
+            let repeatCount = cards[0..<currentIndex]
+                .filter { sessionKey(for: $0) == sessionKey(for: word) }
+                .count
             if repeatCount < maxCardRepeats {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     cards.append(word)
@@ -593,6 +610,10 @@ struct FlashcardsView: View {
     
     private func resetSession() {
         loadCards()
+    }
+
+    private func sessionKey(for word: SavedWordModel) -> String {
+        "\(word.id ?? word.original)|\(word.dictionaryId ?? "default")"
     }
 }
 
@@ -697,4 +718,3 @@ struct FirestoreCardFace: View {
 extension Notification.Name {
     static let switchToSearchTab = Notification.Name("switchToSearchTab")
 }
-

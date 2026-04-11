@@ -19,11 +19,13 @@ struct TranslationBubbleOverlay: View {
     @State private var showingSynonymAlert = false
     @State private var selectedSynonym = ""
     @State private var saveState: SaveState = .idle
+    @State private var showSaveDictionaryPicker = false
 
     @State private var showingSynonymDetail = false
     @State private var selectedSynonymDetail: SynonymDetail?
     @State private var synonymSaveState: SaveState = .idle
     @State private var synonymScale: CGFloat = 1.0
+    @State private var showSynonymDictionaryPicker = false
 
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
 
@@ -39,6 +41,13 @@ struct TranslationBubbleOverlay: View {
 
     private var originalLanguage: String { result.fromLanguage }
     private var translationLanguage: String { result.toLanguage }
+    private var dictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Словник"
+        case .polish: return "Slownik"
+        case .english: return "Dictionary"
+        }
+    }
 
     private var allSynonyms: [String] {
         var syns = result.synonyms
@@ -70,6 +79,35 @@ struct TranslationBubbleOverlay: View {
         }
         .onAppear {
             loadSynonymTranslations()
+        }
+        .sheet(isPresented: $showSaveDictionaryPicker) {
+            DictionarySelectionSheet(
+                dictionaries: dictionaryVM.dictionaries,
+                selectedDictionaryId: dictionaryVM.defaultDictionaryId(),
+                title: dictionaryTitle
+            ) { dictionary in
+                let resolvedId = dictionaryVM.resolvedSelectionDictionaryId(for: dictionary)
+                print("🎯 SEARCH selected dictionary name='\(dictionary.name)' rawId='\(dictionary.id ?? "nil")' resolvedId='\(resolvedId)' word='\(result.original)'")
+                saveWordWithCloud(dictionaryId: resolvedId)
+            }
+            .environmentObject(localizationManager)
+        }
+        .sheet(isPresented: $showSynonymDictionaryPicker) {
+            DictionarySelectionSheet(
+                dictionaries: dictionaryVM.dictionaries,
+                selectedDictionaryId: dictionaryVM.defaultDictionaryId(),
+                title: dictionaryTitle
+            ) { dictionary in
+                if let detail = selectedSynonymDetail {
+                    let resolvedId = dictionaryVM.resolvedSelectionDictionaryId(for: dictionary)
+                    print("🎯 SYNONYM selected dictionary name='\(dictionary.name)' rawId='\(dictionary.id ?? "nil")' resolvedId='\(resolvedId)' word='\(detail.word)'")
+                    saveSynonymToDictionary(
+                        detail,
+                        dictionaryId: resolvedId
+                    )
+                }
+            }
+            .environmentObject(localizationManager)
         }
         .disabled(onboardingManager.isBlockingInteraction &&
                   onboardingManager.currentStep == .addToDictionary)
@@ -431,7 +469,10 @@ struct TranslationBubbleOverlay: View {
     // MARK: - Save Button
 
     private var saveButton: some View {
-        Button(action: saveWordWithCloud) {
+        Button(action: {
+            guard saveState != .loading && saveState != .success else { return }
+            showSaveDictionaryPicker = true
+        }) {
             HStack(spacing: 10) {
                 saveButtonContent
             }
@@ -488,20 +529,38 @@ struct TranslationBubbleOverlay: View {
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
                 .onTapGesture { closeSynonymDetail() }
+                .transition(.opacity)
 
-            VStack(spacing: 0) {
-                modalHeader
-                modalContent(detail: detail)
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    ViewThatFits(in: .vertical) {
+                        synonymModalContainer(detail: detail)
+                        ScrollView(showsIndicators: false) {
+                            synonymModalContainer(detail: detail)
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
+                        .frame(maxHeight: geometry.size.height * 0.72)
+                    }
+                    .background(modalBackground)
+                    .frame(maxWidth: min(geometry.size.width - 28, 380))
+                    .scaleEffect(synonymScale)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: synonymScale)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
+                }
             }
-            .background(modalBackground)
-            .frame(width: 320, height: 420)
-            .scaleEffect(synonymScale)
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: synonymScale)
-            .transition(.asymmetric(
-                insertion: .scale(scale: 0.8).combined(with: .opacity),
-                removal: .scale(scale: 0.9).combined(with: .opacity)
-            ))
         }
+    }
+
+    private func synonymModalContainer(detail: SynonymDetail) -> some View {
+        VStack(spacing: 0) {
+            modalHeader
+            modalContent(detail: detail)
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var modalHeader: some View {
@@ -565,9 +624,6 @@ struct TranslationBubbleOverlay: View {
                 .padding(.horizontal, 20)
 
             translationSection(detail: detail)
-
-            Spacer(minLength: 10)
-
             saveSynonymButton(detail: detail)
                 .padding(.horizontal, 20)
 
@@ -736,9 +792,15 @@ struct TranslationBubbleOverlay: View {
     }
 
     private func saveSynonymToDictionary(_ detail: SynonymDetail) {
+        guard synonymSaveState != .loading && synonymSaveState != .success else { return }
+        showSynonymDictionaryPicker = true
+    }
+
+    private func saveSynonymToDictionary(_ detail: SynonymDetail, dictionaryId: String) {
         guard synonymSaveState != .loading else { return }
 
         synonymSaveState = .loading
+        print("🎯 SYNONYM save word='\(detail.word)' dictionaryId='\(dictionaryId)'")
 
         Task {
             let wordModel = SavedWordModel(
@@ -747,6 +809,7 @@ struct TranslationBubbleOverlay: View {
                 transcription: detail.ipaTranscription,
                 exampleSentence: nil,
                 languagePair: "\(result.fromLanguage)-\(result.toLanguage)",
+                dictionaryId: dictionaryId,
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -876,10 +939,11 @@ struct TranslationBubbleOverlay: View {
         }
     }
 
-    private func saveWordWithCloud() {
+    private func saveWordWithCloud(dictionaryId: String) {
         guard saveState != .loading else { return }
 
         saveState = .loading
+        print("🎯 SEARCH save word='\(result.original)' dictionaryId='\(dictionaryId)'")
 
         Task {
             let wordModel = SavedWordModel(
@@ -888,6 +952,7 @@ struct TranslationBubbleOverlay: View {
                 transcription: result.ipaTranscription,
                 exampleSentence: result.exampleSentence,
                 languagePair: result.languagePair,
+                dictionaryId: dictionaryId,
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -936,4 +1001,3 @@ struct TranslationBubbleOverlay: View {
         }
     }
 }
-

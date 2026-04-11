@@ -28,18 +28,17 @@ final class WidgetDataService {
         }
 
         do {
-            let normalizedWords = Array(words.prefix(50))
+            let normalizedWords = words
             print("📥 WidgetDataService received: \(words.count), using: \(normalizedWords.count)")
             print("📥 Words: \(normalizedWords.map { $0.original })")
             
             let data = try JSONEncoder().encode(normalizedWords)
             
             let currentIndex = defaults.integer(forKey: rotationIndexKey)
-            let nextIndex = normalizedWords.isEmpty ? 0 :
-                           (currentIndex + 1) % max(normalizedWords.count, 1)
+            let normalizedIndex = normalizedWords.isEmpty ? 0 : currentIndex % normalizedWords.count
             
             defaults.set(data, forKey: storageKey)
-            defaults.set(nextIndex, forKey: rotationIndexKey)
+            defaults.set(normalizedIndex, forKey: rotationIndexKey)
 
             print("✅ Saved to UserDefaults: \(normalizedWords.count) words")
             WidgetCenter.shared.reloadAllTimelines()

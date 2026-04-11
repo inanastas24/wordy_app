@@ -58,6 +58,7 @@ struct BiometricSettingsRow: View {
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var subscriptionManager: SubscriptionManager
@@ -327,6 +328,7 @@ struct SettingsView: View {
             NavigationLink {
                 ExportImportView()
                     .environmentObject(localizationManager)
+                    .environmentObject(appState)
             } label: {
                 SettingsRow(
                     icon: "arrow.up.arrow.down.square",
@@ -664,4 +666,3 @@ struct SettingsRow: View {
         )
     }
 }
-

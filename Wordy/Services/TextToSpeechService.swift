@@ -12,6 +12,7 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     @Published private(set) var activeUtteranceID: String?
 
     private let synthesizer = AVSpeechSynthesizer()
+    private let audioSession = AVAudioSession.sharedInstance()
 
     override init() {
         super.init()
@@ -33,6 +34,8 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+
+        configureAudioSessionForPlayback()
 
         let utterance = AVSpeechUtterance(string: cleaned)
         utterance.voice = bestVoice(for: resolvedLang)
@@ -82,9 +85,8 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
-        isPlaying = false
-        currentLanguage = nil
-        activeUtteranceID = nil
+        resetPlaybackState()
+        deactivateAudioSession()
     }
 
     private func makeUtteranceID(text: String, language: String) -> String {
@@ -122,6 +124,10 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     }
 
     private func mapToApple(_ code: String) -> String {
+        if code.contains("-") {
+            return code
+        }
+
         switch code {
         case "uk": return "uk-UA"
         case "en": return "en-US"
@@ -132,6 +138,29 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         case "it": return "it-IT"
         default: return "en-US"
         }
+    }
+
+    private func configureAudioSessionForPlayback() {
+        do {
+            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ Failed to configure playback audio session: \(error)")
+        }
+    }
+
+    private func deactivateAudioSession() {
+        do {
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ Failed to deactivate playback audio session: \(error)")
+        }
+    }
+
+    private func resetPlaybackState() {
+        isPlaying = false
+        currentLanguage = nil
+        activeUtteranceID = nil
     }
 
     private func bestVoice(for code: String) -> AVSpeechSynthesisVoice? {
@@ -156,14 +185,12 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        isPlaying = false
-        currentLanguage = nil
-        activeUtteranceID = nil
+        resetPlaybackState()
+        deactivateAudioSession()
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        isPlaying = false
-        currentLanguage = nil
-        activeUtteranceID = nil
+        resetPlaybackState()
+        deactivateAudioSession()
     }
 }

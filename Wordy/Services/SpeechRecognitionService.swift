@@ -13,8 +13,10 @@ class SpeechRecognitionService: ObservableObject {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    private let audioSession = AVAudioSession.sharedInstance()
     
     private var completion: ((String?) -> Void)?
+    private var hasCompletedRecognition = false
     
     // 🆕 Доступні мови для розпізнавання
     let availableLanguages: [(code: String, name: String, flag: String)] = [
@@ -31,11 +33,17 @@ class SpeechRecognitionService: ObservableObject {
     
     /// 🆕 Запис з явно вибраною мовою
     func startRecording(language: String, completion: @escaping (String?) -> Void) {
+        reset()
+
         self.selectedLanguage = language
         self.completion = completion
+        self.hasCompletedRecognition = false
         
-        reset()
-        
+        DispatchQueue.main.async {
+            self.recognizedText = ""
+            self.error = nil
+        }
+
         requestAuthorization { [weak self] authorized in
             guard let self = self, authorized else {
                 DispatchQueue.main.async {
@@ -78,8 +86,7 @@ class SpeechRecognitionService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self else { return }
             if self.isRecording {
-                self.recognitionTask?.cancel()
-                self.isRecording = false
+                self.finishRecognition(with: self.recognizedText, cancelTask: true)
             }
         }
     }
@@ -97,7 +104,7 @@ class SpeechRecognitionService: ObservableObject {
             // Fallback на англійську
             speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
             guard let fallbackRecognizer = speechRecognizer, fallbackRecognizer.isAvailable else {
-                DispatchQueue.main.async { self.completion?(nil) }
+                finishRecognition(with: nil, cancelTask: true)
                 return  // 🆕 Виходимо з методу
             }
             // Продовжуємо з fallback розпізнавачем
@@ -107,7 +114,7 @@ class SpeechRecognitionService: ObservableObject {
         
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else {
-            DispatchQueue.main.async { self.completion?(nil) }
+            finishRecognition(with: nil, cancelTask: true)
             return
         }
         
@@ -124,18 +131,12 @@ class SpeechRecognitionService: ObservableObject {
                 }
                 
                 if result.isFinal {
-                    DispatchQueue.main.async {
-                        self.isRecording = false
-                        self.completion?(text)
-                    }
+                    self.finishRecognition(with: text)
                 }
             }
             
             if error != nil {
-                DispatchQueue.main.async {
-                    self.isRecording = false
-                    self.completion?(self.recognizedText)
-                }
+                self.finishRecognition(with: self.recognizedText, cancelTask: true)
             }
         }
         
@@ -149,9 +150,7 @@ class SpeechRecognitionService: ObservableObject {
             }
         } catch {
             print("❌ Audio engine error: \(error)")
-            DispatchQueue.main.async {
-                self.completion?(nil)
-            }
+            finishRecognition(with: nil, cancelTask: true)
         }
     }
     
@@ -195,7 +194,6 @@ class SpeechRecognitionService: ObservableObject {
     
     private func setupAudioSession() {
         do {
-            let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
@@ -214,6 +212,8 @@ class SpeechRecognitionService: ObservableObject {
     }
     
     private func reset() {
+        hasCompletedRecognition = true
+        completion = nil
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
@@ -221,6 +221,44 @@ class SpeechRecognitionService: ObservableObject {
         if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
+        }
+
+        deactivateAudioSession()
+    }
+
+    private func finishRecognition(with text: String?, cancelTask: Bool = false) {
+        guard !hasCompletedRecognition else { return }
+        hasCompletedRecognition = true
+
+        if cancelTask {
+            recognitionTask?.cancel()
+        }
+
+        cleanupRecognitionResources()
+
+        DispatchQueue.main.async {
+            self.isRecording = false
+            self.completion?(text)
+        }
+    }
+
+    private func cleanupRecognitionResources() {
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionTask = nil
+        recognitionRequest = nil
+        deactivateAudioSession()
+    }
+
+    private func deactivateAudioSession() {
+        do {
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ Failed to deactivate recording audio session: \(error)")
         }
     }
     

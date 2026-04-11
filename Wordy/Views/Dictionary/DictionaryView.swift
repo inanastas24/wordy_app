@@ -17,48 +17,20 @@ struct DictionaryView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var onboardingManager: OnboardingManager
 
-    @State private var isButtonPulsing = false
     @State private var showMenu = false
     @State private var selectedTab: Int = 1
     @State private var showSettings = false
 
     @State private var showAddWord = false
+    @State private var showCreateDictionary = false
+    @State private var showExportImport = false
     @State private var wordToEdit: SavedWordModel?
-
-    @StateObject private var ttsManager = TextToSpeechService.shared
-
-    @State private var selectedWord: SavedWordModel?
-    @State private var showWordDetail = false
-    @State private var swipedWordId: String? = nil
+    @State private var selectedDictionary: WordDictionaryModel?
+    @State private var dictionaryToRename: WordDictionaryModel?
+    @State private var dictionaryToDelete: WordDictionaryModel?
 
     private var backgroundColor: Color {
         Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
-    }
-
-    private var studyButtonTitle: String {
-        switch localizationManager.currentLanguage {
-        case .ukrainian: return "Час повторити!"
-        case .polish: return "Czas na powtórkę!"
-        case .english: return "Time to review!"
-        }
-    }
-
-    private var studyButtonSubtitle: String {
-        let count = viewModel.learningCount
-        switch localizationManager.currentLanguage {
-        case .ukrainian:
-            if count == 1 { return "1 картка чекає" }
-            else if count >= 2 && count <= 4 { return "\(count) картки чекають" }
-            else { return "\(count) карток чекають" }
-
-        case .polish:
-            if count == 1 { return "1 karta czeka" }
-            else if count >= 2 && count <= 4 { return "\(count) karty czekają" }
-            else { return "\(count) kart czeka" }
-
-        case .english:
-            return count == 1 ? "1 card waiting" : "\(count) cards waiting"
-        }
     }
 
     private var emptyTitle: String {
@@ -88,7 +60,6 @@ struct DictionaryView: View {
             backgroundLayer
             contentColumn
             menuOverlay
-            wordDetailOverlay
         }
         .navigationTitle("")
         .navigationBarHidden(true)
@@ -98,8 +69,55 @@ struct DictionaryView: View {
         .sheet(isPresented: $showAddWord, onDismiss: onAddWordDismiss) {
             addWordSheetContent
         }
+        .sheet(isPresented: $showCreateDictionary) {
+            CreateDictionarySheet { name in
+                viewModel.createDictionary(named: name)
+            }
+            .environmentObject(localizationManager)
+        }
+        .sheet(isPresented: $showExportImport) {
+            ExportImportView()
+                .environmentObject(localizationManager)
+                .environmentObject(appState)
+        }
+        .sheet(item: $dictionaryToRename) { dictionary in
+            CreateDictionarySheet(
+                onCreate: { name in
+                    viewModel.renameDictionary(dictionary, to: name)
+                },
+                initialName: dictionary.name,
+                customTitle: renameDictionaryTitle,
+                customConfirmText: renameDictionaryConfirmTitle
+            )
+            .environmentObject(localizationManager)
+        }
         .fullScreenCover(isPresented: $showSettings) {
             settingsScreen
+        }
+        .alert(deleteDictionaryTitle, isPresented: Binding(
+            get: { dictionaryToDelete != nil },
+            set: { newValue in
+                if !newValue {
+                    dictionaryToDelete = nil
+                }
+            }
+        ), presenting: dictionaryToDelete) { dictionary in
+            Button(deleteDictionaryConfirmTitle, role: .destructive) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    viewModel.deleteDictionary(dictionary)
+                }
+                dictionaryToDelete = nil
+            }
+            Button(cancelTitle, role: .cancel) {
+                dictionaryToDelete = nil
+            }
+        } message: { dictionary in
+            Text(deleteDictionaryMessage(for: dictionary))
+        }
+        .navigationDestination(item: $selectedDictionary) { dictionary in
+            DictionaryWordsListView(dictionary: dictionary)
+                .environmentObject(localizationManager)
+                .environmentObject(appState)
         }
         .onChange(of: viewModel.learningCount) { _, count in
             onboardingManager.hasLearningWords = count > 0
@@ -111,16 +129,12 @@ struct DictionaryView: View {
     private var settingsScreen: some View {
         SettingsView()
             .environmentObject(localizationManager)
+            .environmentObject(appState)
     }
 
     private var addWordSheetContent: some View {
         AddWordView(existingWord: wordToEdit) {
             viewModel.fetchSavedWords()
-
-            if let edited = wordToEdit,
-               let updated = viewModel.savedWords.first(where: { $0.id == edited.id }) {
-                selectedWord = updated
-            }
         }
         .environmentObject(localizationManager)
         .environmentObject(appState)
@@ -140,6 +154,8 @@ struct DictionaryView: View {
                 .environmentObject(localizationManager)
 
             HStack {
+                createDictionaryButton
+                exportImportButton
                 Spacer()
                 addWordButton
                     .padding(.horizontal, 20)
@@ -154,11 +170,7 @@ struct DictionaryView: View {
 
     @ViewBuilder
     private var contentBody: some View {
-        if viewModel.savedWords.isEmpty && !viewModel.isLoading {
-            emptyStateView
-        } else {
-            listView
-        }
+        dictionariesGrid
     }
 
     @ViewBuilder
@@ -171,66 +183,8 @@ struct DictionaryView: View {
     }
 
     @ViewBuilder
-    private var wordDetailOverlay: some View {
-        if showWordDetail {
-            if let word = selectedWord {
-                detailOverlayView(for: word)
-            }
-        }
-    }
-
-    private func detailOverlayView(for word: SavedWordModel) -> some View {
-        WordDetailOverlay(
-            word: word,
-            isShowing: $showWordDetail,
-            onEdit: {
-                wordToEdit = word
-                showAddWord = true
-            },
-            onDelete: {
-                viewModel.deleteWord(word)
-                showWordDetail = false
-                selectedWord = nil
-            }
-        )
-        .environmentObject(localizationManager)
-        .environmentObject(appState)
-        .transition(.opacity)
-        .zIndex(200)
-    }
-
-    @ViewBuilder
     private var studyInset: some View {
-        if viewModel.learningCount > 0 && !showMenu && !showWordDetail {
-            VStack(spacing: 0) {
-                studyButton
-                    .onboardingStep(.flashcards)
-                    .allowsHitTesting(!(onboardingManager.isBlockingInteraction && onboardingManager.currentStep == .flashcards))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 10)
-            }
-            .background(
-                backgroundColor
-                    .opacity(0.9)
-                    .ignoresSafeArea()
-            )
-        }
-    }
-
-    private func handleSavedWordsChange(_ newWords: [SavedWordModel]) {
-        if let current = selectedWord {
-            if let updated = newWords.first(where: { $0.id == current.id }) {
-                selectedWord = updated
-            } else {
-                selectedWord = nil
-                showWordDetail = false
-            }
-        }
-
-        if let swipedId = swipedWordId,
-           !newWords.contains(where: { $0.id == swipedId }) {
-            swipedWordId = nil
-        }
+        EmptyView()
     }
 
     private func onAppearActions() {
@@ -266,11 +220,84 @@ struct DictionaryView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    private var createDictionaryButton: some View {
+        Button {
+            showCreateDictionary = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "books.vertical.fill")
+                    .font(.system(size: 14, weight: .semibold))
+
+                Text(createDictionaryTitle)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundColor(Color(hex: "#4ECDC4"))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .padding(.leading, 20)
+        .padding(.top, 8)
+    }
+
+    private var exportImportButton: some View {
+        Button {
+            showExportImport = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.up.on.square.fill")
+                    .font(.system(size: 14, weight: .bold))
+                Text(exportImportShortTitle)
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "#4ECDC4"), Color(hex: "#2FB3AA")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .shadow(color: Color(hex: "#4ECDC4").opacity(0.26), radius: 14, x: 0, y: 8)
+            .padding(.leading, 12)
+            .padding(.top, 8)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel(exportImportTitle)
+    }
+
     private var addWordButtonTitle: String {
         switch localizationManager.currentLanguage {
         case .ukrainian: return "Додати"
         case .polish: return "Dodaj"
         case .english: return "Add"
+        }
+    }
+
+    private var createDictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Додати словник"
+        case .polish: return "Dodaj slownik"
+        case .english: return "Add Dictionary"
+        }
+    }
+
+    private var exportImportTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Експорт та імпорт"
+        case .polish: return "Eksport i import"
+        case .english: return "Export and Import"
+        }
+    }
+
+    private var exportImportShortTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Експорт"
+        case .polish: return "Eksport"
+        case .english: return "Export"
         }
     }
 
@@ -305,179 +332,173 @@ struct DictionaryView: View {
         .padding(.top, 100)
     }
 
-    private var listView: some View {
+    private var dictionariesGrid: some View {
         ScrollView {
-            LazyVStack(spacing: 8) {
-                learningSection
-                learnedSection
-            }
-            .padding(.vertical, 8)
-        }
-    }
-
-    @ViewBuilder
-    private var learningSection: some View {
-        if !viewModel.learningWords.isEmpty {
-            sectionHeader(title: "\(localizationManager.string(.learning)) (\(viewModel.learningCount))")
-
-            ForEach(viewModel.learningWords) { word in
-                CompactWordRow(
-                    word: word,
-                    isDarkMode: localizationManager.isDarkMode,
-                    isSwiped: swipedWordId == word.id,
-                    onSwipeRight: {
-                        withAnimation(.spring(response: 0.3)) {
-                            swipedWordId = word.id
-                        }
-                    },
-                    onSwipeLeft: {
-                        withAnimation(.spring(response: 0.3)) {
-                            swipedWordId = word.id
-                        }
-                    },
-                    onMarkLearned: {
-                        viewModel.markAsLearned(word)
-                        withAnimation {
-                            swipedWordId = nil
-                        }
-                    },
-                    onDelete: {
-                        viewModel.deleteWord(word)
-                        withAnimation {
-                            swipedWordId = nil
-                        }
-                    },
-                    onTap: {
-                        let impact = UIImpactFeedbackGenerator(style: .light)
-                        impact.impactOccurred()
-                        selectedWord = word
-                        withAnimation(.spring(response: 0.35)) {
-                            showWordDetail = true
-                        }
-                    },
-                    onSpeak: {
-                        speakWord(word)
+            LazyVStack(spacing: 14) {
+                if viewModel.dictionaries.isEmpty && !viewModel.isLoading {
+                    emptyStateView
+                } else {
+                    ForEach(viewModel.dictionaries) { dictionary in
+                        dictionaryTile(dictionary)
                     }
-                )
-                .padding(.horizontal, 18)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var learnedSection: some View {
-        if !viewModel.learnedWords.isEmpty {
-            sectionHeader(title: "\(localizationManager.string(.learned)) ✅ (\(viewModel.learnedCount))")
-
-            ForEach(viewModel.learnedWords) { word in
-                CompactWordRow(
-                    word: word,
-                    isDarkMode: localizationManager.isDarkMode,
-                    isSwiped: swipedWordId == word.id,
-                    onSwipeRight: {
-                        withAnimation(.spring(response: 0.3)) {
-                            swipedWordId = word.id
-                        }
-                    },
-                    onSwipeLeft: {
-                        withAnimation(.spring(response: 0.3)) {
-                            swipedWordId = word.id
-                        }
-                    },
-                    onMarkLearned: {
-                        viewModel.markAsLearning(word)
-                        withAnimation {
-                            swipedWordId = nil
-                        }
-                    },
-                    onDelete: {
-                        let impact = UIImpactFeedbackGenerator(style: .rigid)
-                        impact.impactOccurred()
-                        viewModel.deleteWord(word)
-                        withAnimation {
-                            swipedWordId = nil
-                        }
-                    },
-                    onTap: {
-                        let impact = UIImpactFeedbackGenerator(style: .light)
-                        impact.impactOccurred()
-                        selectedWord = word
-                        withAnimation(.spring(response: 0.35)) {
-                            showWordDetail = true
-                        }
-                    },
-                    onSpeak: {
-                        speakWord(word)
-                    }
-                )
-                .padding(.horizontal, 18)
-            }
-        }
-    }
-
-    private func sectionHeader(title: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Color(hex: "#4ECDC4"))
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-    }
-
-    private func speakWord(_ word: SavedWordModel) {
-        let components = word.languagePair.components(separatedBy: "-")
-        let sourceLang = components.first ?? "en"
-        let utteranceID = "dictionary-\(word.id ?? "")"
-        ttsManager.toggle(text: word.original, language: sourceLang, utteranceID: utteranceID)
-    }
-
-    private var studyButton: some View {
-        NavigationLink(
-            destination: FlashcardsView()
-                .environmentObject(localizationManager)
-                .navigationBarHidden(true)
-        ) {
-            HStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "#4ECDC4").opacity(0.2))
-                        .frame(width: 50, height: 50)
-
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 24))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                        .scaleEffect(isButtonPulsing ? 1.1 : 1.0)
                 }
+            }
+            .padding(.vertical, 12)
+        }
+    }
 
+    private func dictionaryTile(_ dictionary: WordDictionaryModel) -> some View {
+        let words = viewModel.words(in: dictionary.id)
+        let learningCount = viewModel.learningWords(in: dictionary.id).count
+        let learnedCount = viewModel.learnedWords(in: dictionary.id).count
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(studyButtonTitle)
-                        .font(.system(size: 17, weight: .bold))
+                    Text(dictionary.name)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
 
-                    Text(studyButtonSubtitle)
-                        .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                    Text(dictionarySubtitle(words.count))
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
+                HStack(spacing: 10) {
+                    Button {
+                        dictionaryToDelete = dictionary
+                    } label: {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.82))
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .background(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-            .cornerRadius(20)
-            .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
+
+            HStack(spacing: 10) {
+                dictionaryStatPill(title: localizationManager.string(.words), value: "\(words.count)")
+                dictionaryStatPill(title: localizationManager.string(.learning), value: "\(learningCount)")
+                dictionaryStatPill(title: localizationManager.string(.learned), value: "\(learnedCount)")
+            }
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                isButtonPulsing = true
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+        )
+        .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.1 : 0.06), radius: 16, x: 0, y: 8)
+        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .onTapGesture {
+            selectedDictionary = dictionary
+        }
+        .padding(.horizontal, 18)
+        .contextMenu {
+            Button {
+                dictionaryToRename = dictionary
+            } label: {
+                Label(renameDictionaryTitle, systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                dictionaryToDelete = dictionary
+            } label: {
+                Label(deleteDictionaryConfirmTitle, systemImage: "trash")
             }
         }
     }
+
+    private func dictionaryStatPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.gray)
+            Text(value)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(hex: "#4ECDC4"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(hex: "#4ECDC4").opacity(0.12))
+        )
+    }
+
+    private func dictionarySubtitle(_ count: Int) -> String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian:
+            return count == 1 ? "1 слово" : "\(count) слів"
+        case .polish:
+            return count == 1 ? "1 slowo" : "\(count) slow"
+        case .english:
+            return count == 1 ? "1 word" : "\(count) words"
+        }
+    }
+
+    private var renameDictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Редагувати назву"
+        case .polish: return "Edytuj nazwe"
+        case .english: return "Rename Dictionary"
+        }
+    }
+
+    private var renameDictionaryConfirmTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Зберегти"
+        case .polish: return "Zapisz"
+        case .english: return "Save"
+        }
+    }
+
+    private var deleteDictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Видалити словник?"
+        case .polish: return "Usunąć słownik?"
+        case .english: return "Delete dictionary?"
+        }
+    }
+
+    private var deleteDictionaryConfirmTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Видалити словник"
+        case .polish: return "Usuń słownik"
+        case .english: return "Delete Dictionary"
+        }
+    }
+
+    private var cancelTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Скасувати"
+        case .polish: return "Anuluj"
+        case .english: return "Cancel"
+        }
+    }
+
+    private func deleteDictionaryMessage(for dictionary: WordDictionaryModel) -> String {
+        let count = viewModel.wordCount(in: dictionary.id)
+
+        switch localizationManager.currentLanguage {
+        case .ukrainian:
+            return "Словник \"\(dictionary.name)\" і всі \(count) слів у ньому буде видалено з пристрою та з хмари."
+        case .polish:
+            return "Słownik \"\(dictionary.name)\" i wszystkie \(count) słów w nim zostaną usunięte z urządzenia i z chmury."
+        case .english:
+            return "The dictionary \"\(dictionary.name)\" and all \(count) words inside it will be deleted from the device and the cloud."
+        }
+    }
+
 }
 
 // MARK: - Compact Word Row
@@ -840,46 +861,32 @@ struct WordDetailOverlay: View {
                 .onTapGesture {
                     closeOverlay()
                 }
+                .transition(.opacity)
 
             GeometryReader { geometry in
-                ScrollView {
-                    VStack {
-                        Spacer(minLength: geometry.size.height * 0.05)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
 
-                        VStack(spacing: 20) {
-                            headerButtons
-                            sourceWordSection
-                            
-                            if let ipa = word.transcription, !ipa.isEmpty {
-                                transcriptionView(ipa)
-                            }
-
-                            Divider().opacity(0.5)
-
-                            targetWordSection
-
-                            if let example = word.exampleSentence, !example.isEmpty {
-                                examplesSection(original: example, originalLang: sourceLanguage)
-                            }
-
-                            learningInfoSection
-
-                            Spacer(minLength: 20)
+                    ViewThatFits(in: .vertical) {
+                        overlayContent
+                        ScrollView(showsIndicators: false) {
+                            overlayContent
                         }
-                        .padding(20) // 🔥 Зменшили padding з 24 до 20
-                        .background(overlayBackground)
-                        .frame(maxWidth: min(geometry.size.width - 24, 420)) // 🔥 Зменшили відступи та макс ширину
-                        .shadow(color: Color(hex: "#4ECDC4").opacity(0.1), radius: 40, x: 0, y: 20)
-                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-                        .padding(.horizontal, 12)
-
-                        Spacer(minLength: geometry.size.height * 0.05)
+                        .scrollBounceBehavior(.basedOnSize)
+                        .frame(maxHeight: geometry.size.height * 0.74)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: geometry.size.height)
+                    .frame(maxWidth: min(geometry.size.width - 24, 420))
+                    .background(overlayBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 12)
+                    .shadow(color: Color(hex: "#4ECDC4").opacity(0.08), radius: 18, x: 0, y: 8)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isShowing)
         .alert(deleteAlertTitle, isPresented: $showingDeleteConfirm) {
             Button(cancelTitle, role: .cancel) { }
             Button(deleteTitle, role: .destructive, action: onDelete)
@@ -888,11 +895,44 @@ struct WordDetailOverlay: View {
         }
     }
 
+    private var overlayContent: some View {
+        VStack(spacing: 18) {
+            dragIndicator
+            headerButtons
+            sourceWordSection
+            
+            if let ipa = word.transcription, !ipa.isEmpty {
+                transcriptionView(ipa)
+            }
+
+            Divider().opacity(0.35)
+
+            targetWordSection
+
+            if let example = word.exampleSentence, !example.isEmpty {
+                examplesSection(original: example, originalLang: sourceLanguage)
+            }
+
+            learningInfoSection
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 24)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var dragIndicator: some View {
+        Capsule()
+            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.14) : Color.black.opacity(0.12))
+            .frame(width: 38, height: 5)
+            .frame(maxWidth: .infinity)
+    }
+
     private var headerButtons: some View {
-        HStack(spacing: 12) { // 🔥 Зменшили spacing
+        HStack(spacing: 12) {
             Button(action: onEdit) {
                 Image(systemName: "pencil.circle.fill")
-                    .font(.system(size: 26)) // 🔥 Зменшили розмір
+                    .font(.system(size: 26))
                     .foregroundColor(Color(hex: "#4ECDC4"))
             }
 
@@ -910,10 +950,10 @@ struct WordDetailOverlay: View {
 
             Button(action: closeOverlay) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold)) // 🔥 Зменшили розмір
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.6) : Color(hex: "#7F8C8D"))
-                    .padding(6) // 🔥 Зменшили padding
-                    .background(Circle().fill(Color.gray.opacity(0.2)))
+                    .padding(8)
+                    .background(Circle().fill(Color.gray.opacity(0.18)))
             }
         }
     }
@@ -928,16 +968,16 @@ struct WordDetailOverlay: View {
 
     private func transcriptionView(_ ipa: String) -> some View {
         Text(ipa)
-            .font(.system(size: 16, design: .serif)) // 🔥 Зменшили розмір
+            .font(.system(size: 16, design: .serif))
             .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-            .padding(.horizontal, 14) // 🔥 Зменшили
-            .padding(.vertical, 6) // 🔥 Зменшили
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
             .background(Color(hex: "#4ECDC4").opacity(0.1))
-            .cornerRadius(10) // 🔥 Зменшили
+            .cornerRadius(10)
     }
 
     private var overlayBackground: some View {
-        RoundedRectangle(cornerRadius: 20) // 🔥 Зменшили з 24 до 20
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
             .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color.white)
     }
 
@@ -947,7 +987,7 @@ struct WordDetailOverlay: View {
                 .font(.system(size: isPrimary ? 28 : 24, weight: isPrimary ? .bold : .semibold, design: .rounded))
                 .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")) : Color(hex: "#4ECDC4"))
                 .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(2)
+                .lineLimit(nil)
 
             Button(action: {
                 speak(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation")
@@ -1004,14 +1044,12 @@ struct WordDetailOverlay: View {
     }
 
     private var learningInfoSection: some View {
-        VStack(alignment: .leading, spacing: 10) { // 🔥 Зменшили spacing
+        VStack(alignment: .leading, spacing: 10) {
             Text(progressTitle)
-                .font(.system(size: 13, weight: .semibold)) // 🔥 Зменшили
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
 
-            // 🔥 Використовуємо VStack замість HStack для компактності
             VStack(alignment: .leading, spacing: 12) {
-                // Status
                 HStack(spacing: 8) {
                     Image(systemName: word.isLearned ? "checkmark.seal.fill" : "graduationcap.fill")
                         .foregroundColor(word.isLearned ? Color(hex: "#4ECDC4") : .orange)
@@ -1027,7 +1065,6 @@ struct WordDetailOverlay: View {
                     
                     Spacer()
                     
-                    // Reviews - тепер поруч зі статусом
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(Color(hex: "#4ECDC4"))
@@ -1043,7 +1080,6 @@ struct WordDetailOverlay: View {
                     }
                 }
                 
-                // Next Review - окремий рядок тільки якщо потрібно
                 if let nextReview = word.nextReviewDate {
                     Divider()
                         .opacity(0.3)
@@ -1066,9 +1102,9 @@ struct WordDetailOverlay: View {
                     }
                 }
             }
-            .padding(12) // 🔥 Зменшили
+            .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 10) // 🔥 Зменшили
+                RoundedRectangle(cornerRadius: 10)
                     .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
             )
         }
@@ -1100,4 +1136,3 @@ struct WordDetailOverlay: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
-

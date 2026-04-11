@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import AVFoundation
 import Combine
 
 
@@ -22,7 +21,6 @@ struct TranslationResultView: View {
     @Environment(\.presentationMode) private var presentationMode
     @EnvironmentObject var localizationManager: LocalizationManager
     
-    @State private var isSilentModeEnabled = false
     @State private var isDismissing = false  // прапорець закриття
     
     var body: some View {
@@ -35,10 +33,6 @@ struct TranslationResultView: View {
                             .font(.system(size: 28))
                             .foregroundColor(Color(hex: "#7F8C8D"))
                     }
-                }
-                
-                if isSilentModeEnabled {
-                    silentModeWarning
                 }
                 
                 wordSection(
@@ -94,7 +88,6 @@ struct TranslationResultView: View {
         .background(Color(hex: "#FFFDF5"))
         .onAppear {
             print("👀 TranslationResultView з'явився")
-            checkSilentMode()
             isDismissing = false  // Скидаємо прапорець
         }
         //зупиняємо при будь-якому зникненні з екрану
@@ -129,20 +122,6 @@ struct TranslationResultView: View {
         ttsManager.stop()
     }
     
-    private var silentModeWarning: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "speaker.slash.fill")
-                .foregroundColor(.orange)
-            Text("Вимкніть беззвучний режим для озвучування")
-                .font(.system(size: 12))
-                .foregroundColor(.orange)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(8)
-    }
-    
     private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
         HStack(spacing: 16) {
             Text(text)
@@ -156,7 +135,6 @@ struct TranslationResultView: View {
                 guard !isDismissing else { return }
                 
                 print("🔊 Кнопка слова натиснута: '\(text)' (\(language))")
-                checkSilentMode()
                 speakText(text: text, language: language)
             }) {
                 Image(systemName: iconName(for: language))
@@ -244,7 +222,6 @@ struct TranslationResultView: View {
         Button(action: {
             guard !isDismissing else { return }
             print("🔊 Кнопка прикладу натиснута: '\(text)' (\(language))")
-            checkSilentMode()
             speakText(text: text, language: language)
         }) {
             Image(systemName: "speaker.wave.1")
@@ -292,10 +269,6 @@ struct TranslationResultView: View {
         }
     }
     
-    private func checkSilentMode() {
-        isSilentModeEnabled = AVAudioSession.sharedInstance().secondaryAudioShouldBeSilencedHint
-    }
-    
     private func closeView() {
         guard !isDismissing else { return }
         
@@ -306,4 +279,3 @@ struct TranslationResultView: View {
         dismiss()
     }
 }
-

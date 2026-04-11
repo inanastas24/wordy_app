@@ -86,6 +86,59 @@ struct ImportResult {
     let words: [SavedWordModel]
 }
 
+struct DictionaryTransferPackage: Identifiable {
+    let id = UUID()
+    let dictionaryName: String
+    let createdAt: Date
+    let sourceDictionaryId: String?
+    let words: [SavedWordModel]
+}
+
+struct ParsedDictionaryImport {
+    let packages: [DictionaryTransferPackage]
+    let format: ExportFormat
+    let sourceName: String
+}
+
+struct DictionaryImportSummary {
+    let importedWordCount: Int
+    let duplicateCount: Int
+    let importedDictionaryCount: Int
+    let format: ExportFormat
+}
+
+private struct DictionaryExportBundle: Codable {
+    let schemaVersion: Int
+    let exportedAt: String
+    let app: String
+    let dictionaries: [DictionaryExportPayload]
+}
+
+private struct DictionaryExportPayload: Codable {
+    let id: String?
+    let name: String
+    let createdAt: String
+    let words: [DictionaryExportWordPayload]
+}
+
+private struct DictionaryExportWordPayload: Codable {
+    let id: String?
+    let original: String
+    let translation: String
+    let transcription: String?
+    let exampleSentence: String?
+    let languagePair: String
+    let isLearned: Bool
+    let reviewCount: Int
+    let srsInterval: Double
+    let srsRepetition: Int
+    let srsEasinessFactor: Double
+    let nextReviewDate: String?
+    let lastReviewDate: String?
+    let averageQuality: Double
+    let createdAt: String
+}
+
 // MARK: - Export Format
 enum ExportFormat: String, CaseIterable, Identifiable {
     case json = "json"
@@ -176,6 +229,48 @@ struct ImportWord {
 actor DictionaryExportService {
     
     // MARK: - Export Methods
+
+    static func exportPackages(
+        _ packages: [DictionaryTransferPackage],
+        scopeName: String,
+        format: ExportFormat = .json,
+        language: AppLanguage = .english
+    ) async throws -> URL {
+        let nonEmptyPackages = packages.filter { !$0.words.isEmpty }
+        guard !nonEmptyPackages.isEmpty else {
+            throw ExportImportError.noWordsToExport
+        }
+
+        let data: Data
+        switch format {
+        case .json:
+            data = try exportStructuredJSON(nonEmptyPackages)
+        case .csv:
+            data = try exportStructuredCSV(nonEmptyPackages, language: language)
+        case .txt:
+            data = try exportStructuredTXT(nonEmptyPackages, language: language)
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm"
+        let dateString = dateFormatter.string(from: Date())
+
+        let safeScope = sanitizedFileComponent(scopeName)
+        let filename = "wordy_\(safeScope)_\(dateString).\(format.fileExtension)"
+        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = path.appendingPathComponent(filename)
+
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            throw ExportImportError.fileCreationFailed
+        }
+    }
     
     static func exportWords(
         _ words: [SavedWordModel],
@@ -215,6 +310,21 @@ actor DictionaryExportService {
         } catch {
             throw ExportImportError.fileCreationFailed
         }
+    }
+
+    static func importPackages(
+        from urls: [URL],
+        language: AppLanguage = .english
+    ) async throws -> [ParsedDictionaryImport] {
+        guard !urls.isEmpty else {
+            throw ExportImportError.noWordsImported
+        }
+
+        var parsed: [ParsedDictionaryImport] = []
+        for url in urls {
+            parsed.append(try await importPackages(from: url, language: language))
+        }
+        return parsed
     }
     
     // MARK: - JSON Export
@@ -355,7 +465,125 @@ actor DictionaryExportService {
         }
         return data
     }
-    
+
+    private static func exportStructuredJSON(_ packages: [DictionaryTransferPackage]) throws -> Data {
+        let isoFormatter = ISO8601DateFormatter()
+        let bundle = DictionaryExportBundle(
+            schemaVersion: 2,
+            exportedAt: isoFormatter.string(from: Date()),
+            app: "Wordy",
+            dictionaries: packages.map { package in
+                DictionaryExportPayload(
+                    id: package.sourceDictionaryId,
+                    name: package.dictionaryName,
+                    createdAt: isoFormatter.string(from: package.createdAt),
+                    words: package.words.map { word in
+                        DictionaryExportWordPayload(
+                            id: word.id,
+                            original: word.original,
+                            translation: word.translation,
+                            transcription: word.transcription,
+                            exampleSentence: word.exampleSentence,
+                            languagePair: word.languagePair,
+                            isLearned: word.isLearned,
+                            reviewCount: word.reviewCount,
+                            srsInterval: word.srsInterval,
+                            srsRepetition: word.srsRepetition,
+                            srsEasinessFactor: word.srsEasinessFactor,
+                            nextReviewDate: word.nextReviewDate.map { isoFormatter.string(from: $0) },
+                            lastReviewDate: word.lastReviewDate.map { isoFormatter.string(from: $0) },
+                            averageQuality: word.averageQuality,
+                            createdAt: isoFormatter.string(from: word.createdAt)
+                        )
+                    }
+                )
+            }
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(bundle)
+    }
+
+    private static func exportStructuredCSV(
+        _ packages: [DictionaryTransferPackage],
+        language: AppLanguage
+    ) throws -> Data {
+        var lines: [String] = []
+        let header: String
+
+        switch language {
+        case .ukrainian:
+            header = "Словник;Слово;Транскрипція;Переклад;Приклад;Мова"
+        case .polish:
+            header = "Słownik;Słowo;Transkrypcja;Tłumaczenie;Przykład;Język"
+        case .english:
+            header = "Dictionary;Word;Transcription;Translation;Example;Language"
+        }
+
+        lines.append(header)
+
+        for package in packages {
+            for word in package.words {
+                lines.append([
+                    escapeCSV(package.dictionaryName),
+                    escapeCSV(word.original),
+                    escapeCSV(word.transcription ?? ""),
+                    escapeCSV(word.translation),
+                    escapeCSV(word.exampleSentence ?? ""),
+                    escapeCSV(word.languagePair)
+                ].joined(separator: ";"))
+            }
+        }
+
+        guard let data = lines.joined(separator: "\n").data(using: .utf8) else {
+            throw ExportImportError.encodingFailed
+        }
+        return data
+    }
+
+    private static func exportStructuredTXT(
+        _ packages: [DictionaryTransferPackage],
+        language: AppLanguage
+    ) throws -> Data {
+        var lines: [String] = []
+        let title: String
+        let dictionaryLabel: String
+
+        switch language {
+        case .ukrainian:
+            title = "📚 Експорт словників Wordy"
+            dictionaryLabel = "Словник"
+        case .polish:
+            title = "📚 Eksport słowników Wordy"
+            dictionaryLabel = "Słownik"
+        case .english:
+            title = "📚 Wordy Dictionary Export"
+            dictionaryLabel = "Dictionary"
+        }
+
+        lines.append(title)
+        lines.append("")
+
+        for package in packages {
+            lines.append("## \(dictionaryLabel): \(package.dictionaryName)")
+            for (index, word) in package.words.enumerated() {
+                let transcription = (word.transcription ?? "").isEmpty ? "" : " [\(word.transcription!)]"
+                lines.append("\(index + 1). \(word.original)\(transcription) - \(word.translation)")
+                lines.append("   [\(word.languagePair)]")
+                if let example = word.exampleSentence, !example.isEmpty {
+                    lines.append("   • \(example)")
+                }
+                lines.append("")
+            }
+        }
+
+        guard let data = lines.joined(separator: "\n").data(using: .utf8) else {
+            throw ExportImportError.encodingFailed
+        }
+        return data
+    }
+
     // MARK: - Helper Methods
     
     private static func escapeCSV(_ string: String) -> String {
@@ -390,9 +618,78 @@ actor DictionaryExportService {
         
         return result
     }
+
+    private static func sanitizedFileComponent(_ value: String) -> String {
+        let cleaned = value
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9а-яіїєґ]+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        return cleaned.isEmpty ? "dictionary" : cleaned
+    }
     
     // MARK: - Import Methods
-    
+
+    private static func importPackages(
+        from url: URL,
+        language: AppLanguage
+    ) async throws -> ParsedDictionaryImport {
+        let shouldStopAccessing = url.startAccessingSecurityScopedResource()
+
+        defer {
+            if shouldStopAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw ExportImportError.importFailed
+        }
+
+        let fallbackName = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension.lowercased()
+
+        switch ext {
+        case "json":
+            if let structured = try? importStructuredJSONPackages(data) {
+                return ParsedDictionaryImport(packages: structured, format: .json, sourceName: fallbackName)
+            }
+            let words = try await importJSON(data, language: language)
+            return ParsedDictionaryImport(
+                packages: [DictionaryTransferPackage(dictionaryName: fallbackName, createdAt: Date(), sourceDictionaryId: nil, words: words)],
+                format: .json,
+                sourceName: fallbackName
+            )
+        case "csv":
+            return ParsedDictionaryImport(
+                packages: try importStructuredCSVPackages(data, fallbackName: fallbackName),
+                format: .csv,
+                sourceName: fallbackName
+            )
+        case "txt":
+            return ParsedDictionaryImport(
+                packages: try await importStructuredTXTPackages(data, fallbackName: fallbackName, language: language),
+                format: .txt,
+                sourceName: fallbackName
+            )
+        default:
+            if let structured = try? importStructuredJSONPackages(data) {
+                return ParsedDictionaryImport(packages: structured, format: .json, sourceName: fallbackName)
+            }
+            if let csvPackages = try? importStructuredCSVPackages(data, fallbackName: fallbackName) {
+                return ParsedDictionaryImport(packages: csvPackages, format: .csv, sourceName: fallbackName)
+            }
+            let words = try await importTXT(data, language: language)
+            return ParsedDictionaryImport(
+                packages: [DictionaryTransferPackage(dictionaryName: fallbackName, createdAt: Date(), sourceDictionaryId: nil, words: words)],
+                format: .txt,
+                sourceName: fallbackName
+            )
+        }
+    }
+
     static func importWords(
         from url: URL,
         existingWords: [SavedWordModel] = [], // НОВЕ: для перевірки дублікатів
@@ -469,6 +766,151 @@ actor DictionaryExportService {
             format: format,
             words: uniqueWords
         )
+    }
+
+    private static func importStructuredJSONPackages(_ data: Data) throws -> [DictionaryTransferPackage] {
+        let decoder = JSONDecoder()
+        let bundle = try decoder.decode(DictionaryExportBundle.self, from: data)
+        let isoFormatter = ISO8601DateFormatter()
+
+        let packages = bundle.dictionaries.map { dictionary in
+            DictionaryTransferPackage(
+                dictionaryName: dictionary.name,
+                createdAt: isoFormatter.date(from: dictionary.createdAt) ?? Date(),
+                sourceDictionaryId: dictionary.id,
+                words: dictionary.words.map { word in
+                    SavedWordModel(
+                        id: word.id ?? UUID().uuidString,
+                        original: word.original,
+                        translation: word.translation,
+                        transcription: word.transcription,
+                        exampleSentence: word.exampleSentence,
+                        languagePair: word.languagePair,
+                        dictionaryId: nil,
+                        isLearned: word.isLearned,
+                        reviewCount: word.reviewCount,
+                        srsInterval: word.srsInterval,
+                        srsRepetition: word.srsRepetition,
+                        srsEasinessFactor: word.srsEasinessFactor,
+                        nextReviewDate: word.nextReviewDate.flatMap { isoFormatter.date(from: $0) },
+                        lastReviewDate: word.lastReviewDate.flatMap { isoFormatter.date(from: $0) },
+                        averageQuality: word.averageQuality,
+                        createdAt: isoFormatter.date(from: word.createdAt) ?? Date()
+                    )
+                }
+            )
+        }
+
+        guard !packages.isEmpty else {
+            throw ExportImportError.noWordsImported
+        }
+
+        return packages
+    }
+
+    private static func importStructuredCSVPackages(
+        _ data: Data,
+        fallbackName: String
+    ) throws -> [DictionaryTransferPackage] {
+        guard let csvString = String(data: data, encoding: .utf8) else {
+            throw ExportImportError.encodingFailed
+        }
+
+        let lines = csvString.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count > 1 else {
+            throw ExportImportError.invalidCSVFormat
+        }
+
+        let header = parseCSVLine(lines[0]).map { $0.lowercased() }
+        let hasDictionaryColumn = header.first.map { $0.contains("dictionary") || $0.contains("словник") || $0.contains("słownik") } ?? false
+        let originalIndex = hasDictionaryColumn ? 1 : 0
+        let transcriptionIndex = hasDictionaryColumn ? 2 : 1
+        let translationIndex = hasDictionaryColumn ? 3 : 2
+        let exampleIndex = hasDictionaryColumn ? 4 : 3
+        let languageIndex = max(header.count - 1, hasDictionaryColumn ? 5 : 4)
+
+        var groupedWords: [String: [SavedWordModel]] = [:]
+
+        for line in lines.dropFirst() {
+            let columns = parseCSVLine(line)
+            guard columns.indices.contains(originalIndex),
+                  columns.indices.contains(translationIndex) else {
+                continue
+            }
+
+            let dictionaryName = hasDictionaryColumn ? columns[0] : fallbackName
+
+            let word = SavedWordModel(
+                id: UUID().uuidString,
+                original: columns[originalIndex],
+                translation: columns[translationIndex],
+                transcription: columns.indices.contains(transcriptionIndex) && !columns[transcriptionIndex].isEmpty ? columns[transcriptionIndex] : nil,
+                exampleSentence: columns.indices.contains(exampleIndex) && !columns[exampleIndex].isEmpty ? columns[exampleIndex] : nil,
+                languagePair: columns.indices.contains(languageIndex) && !columns[languageIndex].isEmpty ? columns[languageIndex] : "en-uk",
+                dictionaryId: nil,
+                createdAt: Date()
+            )
+
+            groupedWords[dictionaryName, default: []].append(word)
+        }
+
+        let packages = groupedWords.map { name, words in
+            DictionaryTransferPackage(dictionaryName: name, createdAt: Date(), sourceDictionaryId: nil, words: words)
+        }
+        .sorted { $0.dictionaryName.localizedCaseInsensitiveCompare($1.dictionaryName) == .orderedAscending }
+
+        guard !packages.isEmpty else {
+            throw ExportImportError.noWordsImported
+        }
+
+        return packages
+    }
+
+    private static func importStructuredTXTPackages(
+        _ data: Data,
+        fallbackName: String,
+        language: AppLanguage
+    ) async throws -> [DictionaryTransferPackage] {
+        guard let txtString = String(data: data, encoding: .utf8) else {
+            throw ExportImportError.encodingFailed
+        }
+
+        let lines = txtString.components(separatedBy: .newlines)
+        var groupedRawLines: [String: [String]] = [:]
+        var currentDictionary = fallbackName
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("## ") {
+                if let range = trimmed.range(of: ":") {
+                    currentDictionary = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                continue
+            }
+
+            groupedRawLines[currentDictionary, default: []].append(line)
+        }
+
+        var packages: [DictionaryTransferPackage] = []
+        for (name, rawLines) in groupedRawLines {
+            let groupString = rawLines.joined(separator: "\n")
+            let words = try await importTXT(groupString.data(using: .utf8) ?? Data(), language: language)
+            if !words.isEmpty {
+                packages.append(
+                    DictionaryTransferPackage(dictionaryName: name, createdAt: Date(), sourceDictionaryId: nil, words: words)
+                )
+            }
+        }
+
+        if packages.isEmpty {
+            let words = try await importTXT(data, language: language)
+            return [DictionaryTransferPackage(dictionaryName: fallbackName, createdAt: Date(), sourceDictionaryId: nil, words: words)]
+        }
+
+        return packages.sorted { $0.dictionaryName.localizedCaseInsensitiveCompare($1.dictionaryName) == .orderedAscending }
     }
     
     // MARK: - JSON Import

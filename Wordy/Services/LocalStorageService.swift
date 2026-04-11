@@ -28,6 +28,7 @@ class LocalStorageService {
             transcription: word.transcription,
             exampleSentence: word.exampleSentence,
             languagePair: word.languagePair,
+            dictionaryId: word.dictionaryId,
             isLearned: word.isLearned,
             reviewCount: word.reviewCount,
             srsInterval: word.srsInterval,
@@ -51,6 +52,7 @@ class LocalStorageService {
             transcription: local.transcription,
             exampleSentence: local.exampleSentence,
             languagePair: local.languagePair,
+            dictionaryId: local.dictionaryId,
             isLearned: local.isLearned,
             reviewCount: local.reviewCount,
             srsInterval: local.srsInterval,
@@ -204,6 +206,7 @@ struct LocalSavedWord: Codable {
     var transcription: String?
     var exampleSentence: String?
     var languagePair: String
+    var dictionaryId: String?
     var isLearned: Bool
     var reviewCount: Int
     var srsInterval: Double
@@ -223,6 +226,7 @@ struct LocalSavedWord: Codable {
         transcription: String? = nil,
         exampleSentence: String? = nil,
         languagePair: String = "",
+        dictionaryId: String? = nil,
         isLearned: Bool = false,
         reviewCount: Int = 0,
         srsInterval: Double = 0,
@@ -241,6 +245,7 @@ struct LocalSavedWord: Codable {
         self.transcription = transcription
         self.exampleSentence = exampleSentence
         self.languagePair = languagePair
+        self.dictionaryId = dictionaryId
         self.isLearned = isLearned
         self.reviewCount = reviewCount
         self.srsInterval = srsInterval

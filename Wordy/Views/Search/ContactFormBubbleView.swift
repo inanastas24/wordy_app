@@ -22,128 +22,136 @@ struct ContactFormBubbleView: View {
     private let db = Firestore.firestore()
     
     var body: some View {
-        VStack(spacing: 0) {
-            if !debugInfo.isEmpty {
-                Text(debugInfo)
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-            }
-            
-            // MARK: - Header
-            HStack {
-                Text("Зв'язок з розробником")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(Color.gray.opacity(0.25))
+                    .frame(width: 38, height: 5)
+                    .padding(.top, 12)
+
+                if !debugInfo.isEmpty {
+                    Text(debugInfo)
+                        .font(.system(size: 10))
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                }
                 
-                Spacer()
+                HStack {
+                    Text("Зв'язок з розробником")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            isPresented = false
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(Color(hex: "#7F8C8D"))
+                            .padding(8)
+                            .background(Color.white.opacity(0.6))
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+                
+                ZStack(alignment: .bottomTrailing) {
+                    TextEditor(text: $messageText)
+                        .font(.system(size: 16))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.6) : Color.white.opacity(0.6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color(hex: "#E0E0E0").opacity(0.5), lineWidth: 1)
+                        )
+                        .frame(minHeight: 140, maxHeight: 220)
+                        .disabled(isSent || isLoading)
+                    
+                    Text("\(messageText.count)/500")
+                        .font(.system(size: 12))
+                        .foregroundColor(messageText.count > 450 ? Color(hex: "#F38BA8") : Color(hex: "#7F8C8D"))
+                        .padding(10)
+                }
+                .padding(.horizontal, 20)
+                .onChange(of: messageText) { _, newValue in
+                    if newValue.count > 500 {
+                        withAnimation {
+                            messageText = String(newValue.prefix(500))
+                        }
+                    }
+                }
+                
+                if messageText.count < 10 && !isSent {
+                    Text("Мінімум 10 символів")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: "#7F8C8D"))
+                        .padding(.top, 8)
+                }
                 
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        isPresented = false
+                    Task {
+                        await sendMessage()
                     }
                 }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(Color(hex: "#7F8C8D"))
-                        .padding(8)
-                        .background(Color.white.opacity(0.6))
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
-            
-            // MARK: - Text Editor
-            ZStack(alignment: .bottomTrailing) {
-                TextEditor(text: $messageText)
-                    .font(.system(size: 16))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .scrollContentBackground(.hidden)
-                    .background(Color.clear)
-                    .padding(12)
+                    HStack(spacing: 10) {
+                        if isLoading {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: isSent ? "checkmark.circle.fill" : "paperplane.fill")
+                                .font(.system(size: 18))
+                                .contentTransition(.symbolEffect(.replace))
+                        }
+                        
+                        Text(isSent ? "Готово!" : (isLoading ? "Відправка..." : "Надіслати"))
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
                     .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.6) : Color.white.opacity(0.6))
+                        Capsule()
+                            .fill(isSent ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4"))
+                            .shadow(
+                                color: (isSent ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4")).opacity(0.4),
+                                radius: isSent ? 20 : 15,
+                                x: 0,
+                                y: isSent ? 10 : 8
+                            )
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color(hex: "#E0E0E0").opacity(0.5), lineWidth: 1)
-                    )
-                    .frame(height: 140)
-                    .disabled(isSent || isLoading)
-                
-                Text("\(messageText.count)/500")
-                    .font(.system(size: 12))
-                    .foregroundColor(messageText.count > 450 ? Color(hex: "#F38BA8") : Color(hex: "#7F8C8D"))
-                    .padding(10)
-            }
-            .padding(.horizontal, 20)
-            .onChange(of: messageText) { _, newValue in
-                if newValue.count > 500 {
-                    withAnimation {
-                        messageText = String(newValue.prefix(500))
-                    }
+                    .scaleEffect(isSent ? 1.02 : 1.0)
+                    .opacity(isLoading ? 0.7 : 1.0)
                 }
+                .disabled(messageText.count < 10 || isSent || isLoading)
+                .opacity(messageText.count < 10 ? 0.6 : 1.0)
+                .padding(.top, 20)
+                .padding(.bottom, 24)
+                .padding(.horizontal, 20)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isSent)
             }
-            
-            if messageText.count < 10 && !isSent {
-                Text("Мінімум 10 символів")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "#7F8C8D"))
-                    .padding(.top, 8)
-            }
-            
-            // MARK: - Send Button
-            Button(action: {
-                Task {
-                    await sendMessage()
-                }
-            }) {
-                HStack(spacing: 10) {
-                    if isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: isSent ? "checkmark.circle.fill" : "paperplane.fill")
-                            .font(.system(size: 18))
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    
-                    Text(isSent ? "Готово!" : (isLoading ? "Відправка..." : "Надіслати"))
-                        .font(.system(size: 16, weight: .semibold))
-                }
-                .foregroundColor(.white)
-                .frame(width: 200, height: 50)
-                .background(
-                    Capsule()
-                        .fill(isSent ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4"))
-                        .shadow(
-                            color: (isSent ? Color(hex: "#2ECC71") : Color(hex: "#4ECDC4")).opacity(0.4),
-                            radius: isSent ? 20 : 15,
-                            x: 0,
-                            y: isSent ? 10 : 8
-                        )
-                )
-                .scaleEffect(isSent ? 1.02 : 1.0)
-                .opacity(isLoading ? 0.7 : 1.0)
-            }
-            .disabled(messageText.count < 10 || isSent || isLoading)
-            .opacity(messageText.count < 10 ? 0.6 : 1.0)
-            .padding(.top, 20)
-            .padding(.bottom, 24)
-            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isSent)
         }
-        .frame(maxWidth: 340)
-        .padding(.horizontal, 30)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(maxWidth: 380)
+        .frame(maxHeight: 430)
+        .padding(.horizontal, 20)
         .background(
-            RoundedRectangle(cornerRadius: 32)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(Color(hex: "#FFFDF5").opacity(0.9))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
                         .fill(.ultraThinMaterial)
                 )
                 .shadow(
@@ -154,7 +162,7 @@ struct ContactFormBubbleView: View {
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 32)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
         )
         .alert("Помилка", isPresented: $showError) {

@@ -103,6 +103,7 @@ struct SetsView: View {
             .fullScreenCover(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
+                    .environmentObject(appState)
             }
             .navigationDestination(isPresented: $showCategoryWords) {
                 if let category = selectedCategory {
@@ -346,9 +347,9 @@ struct SearchResultWordRow: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @StateObject private var ttsManager = TextToSpeechService.shared
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
-    @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
     @State private var showPermissionAlert = false
+    @State private var showDictionaryPicker = false
 
     private let sourceLanguage = "en"
 
@@ -402,16 +403,25 @@ struct SearchResultWordRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
         )
-        .onAppear {
-            updateAddedState()
-        }
-        .onChange(of: dictionaryVM.savedWords.count, initial: false) { _, _ in
-            updateAddedState()
-        }
         .alert(localizationManager.string(.wordAlreadyExists), isPresented: $showAlreadyExistsAlert) {
             Button(localizationManager.string(.ok), role: .cancel) { }
         } message: {
             Text(localizationManager.string(.wordAlreadyInDictionary))
+        }
+        .sheet(isPresented: $showDictionaryPicker) {
+            DictionarySelectionSheet(
+                dictionaries: dictionaryVM.dictionaries,
+                selectedDictionaryId: dictionaryVM.defaultDictionaryId(),
+                title: dictionaryTitle
+            ) { dictionary in
+                let resolvedId = dictionaryVM.resolvedSelectionDictionaryId(for: dictionary)
+                print("🎯 SET SEARCH selected dictionary name='\(dictionary.name)' rawId='\(dictionary.id ?? "nil")' resolvedId='\(resolvedId)' word='\(word.original)'")
+                saveWord(
+                    word,
+                    dictionaryId: resolvedId
+                )
+            }
+            .environmentObject(localizationManager)
         }
     }
 
@@ -431,29 +441,23 @@ struct SearchResultWordRow: View {
         }
     }
 
-    private func updateAddedState() {
-        isAdded = dictionaryVM.savedWords.contains { $0.id == word.id }
-    }
-
     private var addButton: some View {
         Button {
             addToDictionary(word)
         } label: {
-            Image(systemName: isAdded ? "checkmark.circle.fill" : "plus.circle.fill")
+            Image(systemName: "plus.circle.fill")
                 .font(.system(size: 24))
                 .foregroundColor(Color(hex: "#4ECDC4"))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(isAdded)
     }
 
     private func addToDictionary(_ word: Word) {
-        let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
-        guard !isInDictionary else {
-            showAlreadyExistsAlert = true
-            return
-        }
+        showDictionaryPicker = true
+    }
 
+    private func saveWord(_ word: Word, dictionaryId: String) {
+        print("🎯 SET SEARCH save word='\(word.original)' dictionaryId='\(dictionaryId)'")
         let savedWord = SavedWordModel(
             id: word.id,
             original: word.original,
@@ -461,6 +465,7 @@ struct SearchResultWordRow: View {
             transcription: word.transcription,
             exampleSentence: word.exampleSentence,
             languagePair: "en-uk",
+            dictionaryId: dictionaryId,
             isLearned: false,
             reviewCount: 0,
             srsInterval: 0,
@@ -473,10 +478,19 @@ struct SearchResultWordRow: View {
             userId: nil
         )
 
-        dictionaryVM.saveWord(savedWord)
+        if dictionaryVM.containsWord(savedWord, in: dictionaryId) {
+            showAlreadyExistsAlert = true
+            return
+        }
 
-        withAnimation {
-            isAdded = true
+        dictionaryVM.saveWord(savedWord)
+    }
+
+    private var dictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Словник"
+        case .polish: return "Slownik"
+        case .english: return "Dictionary"
         }
     }
 }
@@ -668,9 +682,9 @@ struct CategoryWordRow: View {
     @StateObject private var ttsManager = TextToSpeechService.shared
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     @State private var isExpanded = false
-    @State private var isAdded = false
     @State private var showAlreadyExistsAlert = false
     @State private var showPermissionAlert = false
+    @State private var showDictionaryPicker = false
 
     private let sourceLanguage = "en"
 
@@ -880,16 +894,25 @@ struct CategoryWordRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.gray.opacity(0.05))
         )
-        .onAppear {
-            updateAddedState()
-        }
-        .onChange(of: dictionaryVM.savedWords.count, initial: false) { _, _ in
-            updateAddedState()
-        }
         .alert(localizationManager.string(.wordAlreadyExists), isPresented: $showAlreadyExistsAlert) {
             Button(localizationManager.string(.ok), role: .cancel) { }
         } message: {
             Text(localizationManager.string(.wordAlreadyInDictionary))
+        }
+        .sheet(isPresented: $showDictionaryPicker) {
+            DictionarySelectionSheet(
+                dictionaries: dictionaryVM.dictionaries,
+                selectedDictionaryId: dictionaryVM.defaultDictionaryId(),
+                title: dictionaryTitle
+            ) { dictionary in
+                let resolvedId = dictionaryVM.resolvedSelectionDictionaryId(for: dictionary)
+                print("🎯 SET DETAIL selected dictionary name='\(dictionary.name)' rawId='\(dictionary.id ?? "nil")' resolvedId='\(resolvedId)' word='\(word.original)'")
+                saveWord(
+                    word,
+                    dictionaryId: resolvedId
+                )
+            }
+            .environmentObject(localizationManager)
         }
     }
 
@@ -907,20 +930,15 @@ struct CategoryWordRow: View {
         }
     }
 
-    private func updateAddedState() {
-        isAdded = dictionaryVM.savedWords.contains { $0.id == word.id }
-    }
-
     private var addButton: some View {
         Button {
             addToDictionary(word)
         } label: {
-            Image(systemName: isAdded ? "checkmark.circle.fill" : "plus.circle.fill")
+            Image(systemName: "plus.circle.fill")
                 .font(.system(size: 28))
                 .foregroundColor(Color(hex: "#4ECDC4"))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(isAdded)
     }
 
     private func difficultyColor(_ level: DifficultyLevel) -> Color {
@@ -935,12 +953,11 @@ struct CategoryWordRow: View {
     }
 
     private func addToDictionary(_ word: Word) {
-        let isInDictionary = dictionaryVM.savedWords.contains { $0.id == word.id }
-        guard !isInDictionary else {
-            showAlreadyExistsAlert = true
-            return
-        }
+        showDictionaryPicker = true
+    }
 
+    private func saveWord(_ word: Word, dictionaryId: String) {
+        print("🎯 SET DETAIL save word='\(word.original)' dictionaryId='\(dictionaryId)'")
         let savedWord = SavedWordModel(
             id: word.id,
             original: word.original,
@@ -948,6 +965,7 @@ struct CategoryWordRow: View {
             transcription: word.transcription,
             exampleSentence: word.exampleSentence,
             languagePair: "en-uk",
+            dictionaryId: dictionaryId,
             isLearned: false,
             reviewCount: 0,
             srsInterval: 0,
@@ -960,10 +978,19 @@ struct CategoryWordRow: View {
             userId: nil
         )
 
-        dictionaryVM.saveWord(savedWord)
+        if dictionaryVM.containsWord(savedWord, in: dictionaryId) {
+            showAlreadyExistsAlert = true
+            return
+        }
 
-        withAnimation {
-            isAdded = true
+        dictionaryVM.saveWord(savedWord)
+    }
+
+    private var dictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Словник"
+        case .polish: return "Slownik"
+        case .english: return "Dictionary"
         }
     }
 }

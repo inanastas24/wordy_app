@@ -16,6 +16,7 @@ struct AddWordView: View {
     
     // Для редагування існуючого слова (nil якщо додаємо нове)
     var existingWord: SavedWordModel?
+    var preselectedDictionaryId: String? = nil
     var onSave: (() -> Void)?
     
     @State private var original: String = ""
@@ -23,9 +24,11 @@ struct AddWordView: View {
     @State private var transcription: String = ""
     @State private var exampleSentence: String = ""
     @State private var selectedLanguagePair: String = ""
+    @State private var selectedDictionaryId: String = ""
     
     @State private var showSourcePicker = false
     @State private var showTargetPicker = false
+    @State private var showDictionaryPicker = false
     @State private var showConfirmation = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -75,6 +78,8 @@ struct AddWordView: View {
                         // Language Pair Selector (новий дизайн як у DictionaryView)
                         languagePairSection
                             .padding(.top, 10)
+
+                        dictionarySection
                         
                         // Original Word
                         inputSection(
@@ -167,6 +172,18 @@ struct AddWordView: View {
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showDictionaryPicker) {
+                DictionarySelectionSheet(
+                    dictionaries: viewModel.dictionaries,
+                    selectedDictionaryId: selectedDictionaryId,
+                    title: dictionaryTitle
+                ) { dictionary in
+                    let resolvedId = viewModel.resolvedSelectionDictionaryId(for: dictionary)
+                    print("🎯 ADD WORD selected dictionary name='\(dictionary.name)' rawId='\(dictionary.id ?? "nil")' resolvedId='\(resolvedId)'")
+                    selectedDictionaryId = resolvedId
+                }
+                .environmentObject(localizationManager)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(localizationManager.string(.cancel)) {
@@ -231,12 +248,28 @@ struct AddWordView: View {
         }
         return appState.languagePair.languagePairString
     }
+
+    private var currentDictionaryName: String {
+        if let dictionary = viewModel.dictionary(for: selectedDictionaryId) {
+            return dictionary.name
+        }
+        return viewModel.defaultDictionary().name
+    }
+
+    private var dictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Словник"
+        case .polish: return "Slownik"
+        case .english: return "Dictionary"
+        }
+    }
     
     // MARK: - Data Loading
     
     private func loadExistingWord() {
         guard let word = existingWord else {
             selectedLanguagePair = appState.languagePair.languagePairString
+            selectedDictionaryId = preselectedDictionaryId ?? viewModel.defaultDictionaryId()
             return
         }
         
@@ -245,6 +278,7 @@ struct AddWordView: View {
         transcription = word.transcription ?? ""
         exampleSentence = word.exampleSentence ?? ""
         selectedLanguagePair = word.languagePair
+        selectedDictionaryId = word.dictionaryId ?? preselectedDictionaryId ?? viewModel.defaultDictionaryId()
     }
     
     private func resetFields() {
@@ -264,6 +298,7 @@ struct AddWordView: View {
         let trimmedTranscription = transcription.isEmpty ? nil : transcription.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedExample = exampleSentence.isEmpty ? nil : exampleSentence.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        print("🎯 ADD WORD save original='\(trimmedOriginal)' selectedDictionaryId='\(selectedDictionaryId)'")
         let wordModel = SavedWordModel(
             id: existingWord?.id ?? UUID().uuidString,
             original: trimmedOriginal,
@@ -271,6 +306,7 @@ struct AddWordView: View {
             transcription: trimmedTranscription,
             exampleSentence: trimmedExample,
             languagePair: currentLanguagePair,
+            dictionaryId: selectedDictionaryId.isEmpty ? viewModel.defaultDictionaryId() : selectedDictionaryId,
             isLearned: existingWord?.isLearned ?? false,
             reviewCount: existingWord?.reviewCount ?? 0,
             srsInterval: existingWord?.srsInterval ?? 0,
@@ -369,6 +405,44 @@ struct AddWordView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
                         .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+
+    private var dictionarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(dictionaryTitle)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+
+            Button {
+                showDictionaryPicker = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 18))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+
+                    Text(currentDictionaryName)
+                        .font(.system(size: 16))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+
+                    Spacer()
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color(hex: "#4ECDC4").opacity(0.2), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())

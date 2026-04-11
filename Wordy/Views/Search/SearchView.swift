@@ -228,6 +228,7 @@ struct SearchView: View {
             .fullScreenCover(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
+                    .environmentObject(appState)
             }
             .onChange(of: selectedTab) { _, _ in
                 isSearchFocused = false
