@@ -7,6 +7,7 @@ import SwiftUI
 import Vision
 import AVFoundation
 import Speech
+import UIKit
 
 struct TextScannerView: View {
     @Binding var scannedText: String
@@ -26,6 +27,12 @@ struct TextScannerView: View {
     @State private var capturedImage: UIImage?
     @State private var photoOutput = AVCapturePhotoOutput()
     @State private var imageSize: CGSize = .zero
+    @State private var cameraDevice: AVCaptureDevice?
+    @State private var zoomFactor: CGFloat = 1.0
+    @State private var pinchBaseZoomFactor: CGFloat = 1.0
+    @State private var maxZoomFactor: CGFloat = 4.0
+    @State private var focusIndicatorPosition: CGPoint?
+    @State private var isRecognizingText = false
     
     @State private var isConfiguring = false
     
@@ -41,7 +48,15 @@ struct TextScannerView: View {
             Color.black.ignoresSafeArea()
             
             if !isFrozen {
-                CameraPreview(session: session)
+                CameraPreview(
+                    session: session,
+                    onTapFocus: { viewPoint, devicePoint in
+                        handleTapToFocus(at: viewPoint, devicePoint: devicePoint)
+                    },
+                    onPinchZoom: { scale, state in
+                        handlePinchZoom(scale: scale, state: state)
+                    }
+                )
                     .ignoresSafeArea()
                     .opacity(isCameraReady ? 1 : 0)
             }
@@ -57,17 +72,43 @@ struct TextScannerView: View {
                         }
                     })
             }
+
+            if isRecognizingText {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(.white)
+
+                    Text(localizationManager.string(.startingCameraText))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(Color.black.opacity(0.65))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
             
             GeometryReader { geo in
-                WordsOverlay(
-                    words: recognizedWords,
-                    containerSize: geo.size,
-                    onWordTap: { word in
-                        scannedText = word
-                        onTextRecognized?(word)
-                        dismiss()
+                ZStack {
+                    ScannerGuideOverlay(isFrozen: isFrozen)
+
+                    WordsOverlay(
+                        words: recognizedWords,
+                        containerSize: geo.size,
+                        onWordTap: { word in
+                            scannedText = word
+                            onTextRecognized?(word)
+                            dismiss()
+                        }
+                    )
+
+                    if let focusIndicatorPosition {
+                        FocusIndicator()
+                            .position(focusIndicatorPosition)
+                            .transition(.scale.combined(with: .opacity))
                     }
-                )
+                }
             }
             .ignoresSafeArea()
             
@@ -90,6 +131,40 @@ struct TextScannerView: View {
             
             if !isFrozen && isCameraReady {
                 VStack {
+                    HStack {
+                        zoomControlButton(systemName: "minus.magnifyingglass") {
+                            adjustZoom(by: -0.5)
+                        }
+
+                        Text(String(format: "%.1fx", zoomFactor))
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .frame(minWidth: 62)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.45))
+                            .clipShape(Capsule())
+
+                        zoomControlButton(systemName: "plus.magnifyingglass") {
+                            adjustZoom(by: 0.5)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 88)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 8) {
+                            scannerHintChip(icon: "camera.aperture", text: localizationManager.string(.tapToCapture))
+                            scannerHintChip(icon: "hand.tap", text: localizationManager.string(.tapWordToTranslate))
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+
                     Spacer()
                     HStack(spacing: 40) {
                         // Capture button
@@ -105,7 +180,7 @@ struct TextScannerView: View {
                             }
                         }
                     }
-                    .padding(.bottom, 100)
+                    .padding(.bottom, 110)
                 }
             }
             
@@ -226,6 +301,41 @@ struct TextScannerView: View {
             Text(voiceErrorMessage)
         }
     }
+
+    private func zoomControlButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 42, height: 42)
+                .background(Color.black.opacity(0.42))
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        }
+    }
+
+    private func scannerHintChip(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+
+            Text(text)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .lineLimit(1)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.black.opacity(0.34))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+    }
     
     private func startVoiceSearchWithPermissionCheck() {
         let micStatus = AVAudioApplication.shared.recordPermission
@@ -306,8 +416,12 @@ struct TextScannerView: View {
     }
     
     private func capturePhoto() {
+        isRecognizing = true
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .auto
+        if photoOutput.isHighResolutionCaptureEnabled {
+            settings.isHighResolutionPhotoEnabled = true
+        }
         
         let delegate = PhotoCaptureDelegate { image in
             print("📸 Фото отримано, розмір: \(image.size)")
@@ -326,39 +440,39 @@ struct TextScannerView: View {
     
     private func recognizeTextInImage(_ image: UIImage) {
         guard let cgImage = image.cgImage else { return }
+        isRecognizingText = true
+        isRecognizing = true
         
         let request = VNRecognizeTextRequest { request, error in
             if let error = error {
                 print("❌ Recognition error: \(error)")
+                DispatchQueue.main.async {
+                    self.isRecognizingText = false
+                    self.isRecognizing = false
+                }
                 return
             }
             
             guard let results = request.results as? [VNRecognizedTextObservation] else { return }
             
-            let words = results.compactMap { observation -> RecognizedWord? in
-                guard let candidate = observation.topCandidates(1).first else { return nil }
-                let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard text.count >= 3 else { return nil }
-                
-                return RecognizedWord(
-                    text: text,
-                    boundingBox: observation.boundingBox,
-                    confidence: candidate.confidence
-                )
-            }.sorted { $0.confidence > $1.confidence }
+            let words = buildRecognizedWords(from: results)
             
             DispatchQueue.main.async {
-                self.recognizedWords = Array(words.prefix(12))
+                self.recognizedWords = Array(words.prefix(16))
+                self.isRecognizingText = false
+                self.isRecognizing = false
             }
         }
         
         request.recognitionLevel = .accurate
-        let sourceLang = appState.languagePair.source.rawValue
-        let targetLang = appState.languagePair.target.rawValue
-        request.recognitionLanguages = [sourceLang, targetLang]
+        request.recognitionLanguages = recognitionLanguages()
         request.usesLanguageCorrection = true
+        request.minimumTextHeight = 0.02
+        if #available(iOS 16.0, *) {
+            request.automaticallyDetectsLanguage = true
+        }
         
-        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up)
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: image.cgImagePropertyOrientation)
         
         DispatchQueue.global(qos: .userInitiated).async {
             do { try handler.perform([request]) }
@@ -370,7 +484,9 @@ struct TextScannerView: View {
         capturedImage = nil
         recognizedWords = []
         isFrozen = false
+        isRecognizing = false
         imageSize = .zero
+        focusIndicatorPosition = nil
         stopCameraSafely()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.setupCamera()
@@ -395,11 +511,12 @@ struct TextScannerView: View {
             }
             
             self.session.beginConfiguration()
+            self.session.sessionPreset = .photo
             self.session.inputs.forEach { self.session.removeInput($0) }
             self.session.outputs.forEach { self.session.removeOutput($0) }
             
             do {
-                guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                guard let device = self.bestCameraDevice() else {
                     DispatchQueue.main.async {
                         self.isConfiguring = false
                         self.cameraError = self.localizationManager.string(.cameraNotFoundText)
@@ -410,18 +527,156 @@ struct TextScannerView: View {
                 let input = try AVCaptureDeviceInput(device: device)
                 if self.session.canAddInput(input) { self.session.addInput(input) }
                 if self.session.canAddOutput(self.photoOutput) { self.session.addOutput(self.photoOutput) }
+                self.photoOutput.isHighResolutionCaptureEnabled = true
+                self.configure(device: device)
                 
                 self.session.commitConfiguration()
                 self.isConfiguring = false
                 
                 self.session.startRunning()
                 
-                DispatchQueue.main.async { self.isCameraReady = true }
+                DispatchQueue.main.async {
+                    self.cameraDevice = device
+                    self.maxZoomFactor = min(max(device.activeFormat.videoMaxZoomFactor, 1), 6)
+                    self.zoomFactor = 1
+                    self.pinchBaseZoomFactor = 1
+                    self.isCameraReady = true
+                }
             } catch {
                 DispatchQueue.main.async {
                     self.isConfiguring = false
                     self.cameraError = error.localizedDescription
                 }
+            }
+        }
+    }
+
+    private func recognitionLanguages() -> [String] {
+        let sourceLang = appState.languagePair.source.rawValue
+        let targetLang = appState.languagePair.target.rawValue
+        return Array(NSOrderedSet(array: [sourceLang, targetLang, "en-US", "uk-UA", "pl-PL"])) as? [String] ?? [sourceLang, targetLang]
+    }
+
+    private func buildRecognizedWords(from observations: [VNRecognizedTextObservation]) -> [RecognizedWord] {
+        var seen = Set<String>()
+        var collected: [RecognizedWord] = []
+
+        for observation in observations {
+            for candidate in observation.topCandidates(2) {
+                for token in tokenize(candidate.string) {
+                    let normalized = token.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                    guard !seen.contains(normalized) else { continue }
+                    seen.insert(normalized)
+
+                    collected.append(
+                        RecognizedWord(
+                            text: token,
+                            boundingBox: observation.boundingBox,
+                            confidence: candidate.confidence
+                        )
+                    )
+                }
+            }
+        }
+
+        return collected
+            .sorted { lhs, rhs in
+                if lhs.confidence == rhs.confidence {
+                    return lhs.text.count > rhs.text.count
+                }
+                return lhs.confidence > rhs.confidence
+            }
+    }
+
+    private func tokenize(_ text: String) -> [String] {
+        text
+            .components(separatedBy: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters.subtracting(CharacterSet(charactersIn: "'-"))))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { token in
+                let lettersOnly = token.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+                return token.count >= 2 && lettersOnly
+            }
+    }
+
+    private func bestCameraDevice() -> AVCaptureDevice? {
+        AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back) ??
+        AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back) ??
+        AVCaptureDevice.default(.builtInDualCamera, for: .video, position: .back) ??
+        AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+    }
+
+    private func configure(device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = true
+            device.videoZoomFactor = 1
+            device.unlockForConfiguration()
+        } catch {
+            print("❌ Failed to configure camera device: \(error)")
+        }
+    }
+
+    private func handlePinchZoom(scale: CGFloat, state: UIGestureRecognizer.State) {
+        switch state {
+        case .began:
+            pinchBaseZoomFactor = zoomFactor
+        case .changed, .ended:
+            applyZoom(pinchBaseZoomFactor * scale)
+        default:
+            break
+        }
+    }
+
+    private func adjustZoom(by delta: CGFloat) {
+        applyZoom(zoomFactor + delta)
+    }
+
+    private func applyZoom(_ requestedZoom: CGFloat) {
+        guard let device = cameraDevice else { return }
+        let clamped = min(max(requestedZoom, 1), maxZoomFactor)
+
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+            zoomFactor = clamped
+        } catch {
+            print("❌ Failed to set zoom: \(error)")
+        }
+    }
+
+    private func handleTapToFocus(at viewPoint: CGPoint, devicePoint: CGPoint) {
+        guard let device = cameraDevice, !isFrozen else { return }
+        focusIndicatorPosition = viewPoint
+
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported {
+                device.focusPointOfInterest = devicePoint
+            }
+            if device.isFocusModeSupported(.autoFocus) {
+                device.focusMode = .autoFocus
+            }
+            if device.isExposurePointOfInterestSupported {
+                device.exposurePointOfInterest = devicePoint
+            }
+            if device.isExposureModeSupported(.autoExpose) {
+                device.exposureMode = .autoExpose
+            }
+            device.unlockForConfiguration()
+        } catch {
+            print("❌ Failed to focus camera: \(error)")
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                focusIndicatorPosition = nil
             }
         }
     }
@@ -450,14 +705,45 @@ struct RecognizedWord: Identifiable {
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    var onTapFocus: ((CGPoint, CGPoint) -> Void)?
+    var onPinchZoom: ((CGFloat, UIGestureRecognizer.State) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
     func makeUIView(context: Context) -> VideoPreviewView {
         let view = VideoPreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        let tapRecognizer = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        let pinchRecognizer = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
+        view.addGestureRecognizer(tapRecognizer)
+        view.addGestureRecognizer(pinchRecognizer)
         return view
     }
     func updateUIView(_ uiView: VideoPreviewView, context: Context) {
         uiView.videoPreviewLayer.frame = uiView.bounds
+        context.coordinator.parent = self
+    }
+
+    class Coordinator: NSObject {
+        var parent: CameraPreview
+
+        init(parent: CameraPreview) {
+            self.parent = parent
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let view = recognizer.view as? VideoPreviewView else { return }
+            let viewPoint = recognizer.location(in: view)
+            let devicePoint = view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: viewPoint)
+            parent.onTapFocus?(viewPoint, devicePoint)
+        }
+
+        @objc func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+            parent.onPinchZoom?(recognizer.scale, recognizer.state)
+        }
     }
 }
 
@@ -510,7 +796,7 @@ struct WordButton: View {
         Button(action: onTap) {
             Text(word.text)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.black)
+                .foregroundColor(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .truncationMode(.tail)
@@ -519,13 +805,91 @@ struct WordButton: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(hex: "#FFD93D"))
-                        .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 2)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.6),
+                                    Color(hex: "#1F2D33").opacity(0.72)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.24), radius: 8, x: 0, y: 4)
                 )
         }
     }
 }
 
+private struct ScannerGuideOverlay: View {
+    let isFrozen: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 28, style: .continuous)
+            .strokeBorder(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(isFrozen ? 0.12 : 0.18),
+                        Color(hex: "#4ECDC4").opacity(isFrozen ? 0.08 : 0.26),
+                        Color(hex: "#FFD93D").opacity(isFrozen ? 0.06 : 0.16)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                style: StrokeStyle(lineWidth: 1.5, dash: [10, 8])
+            )
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isFrozen ? 0.015 : 0.03),
+                                Color(hex: "#4ECDC4").opacity(isFrozen ? 0.015 : 0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 150)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct FocusIndicator: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(Color(hex: "#FFD93D"), lineWidth: 2)
+            .frame(width: 68, height: 68)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.clear)
+            )
+    }
+}
+
 enum ScannerPermissionType {
     case camera, microphone, speech, tracking, notification
+}
+
+private extension UIImage {
+    var cgImagePropertyOrientation: CGImagePropertyOrientation {
+        switch imageOrientation {
+        case .up: return .up
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
+        }
+    }
 }

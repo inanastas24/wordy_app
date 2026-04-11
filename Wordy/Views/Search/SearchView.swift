@@ -36,6 +36,7 @@ struct SearchView: View {
     @State private var showPaywall = false
     
     @State private var gradientRotation: Double = 0
+    @State private var hasAnimatedIn = false
     
     @State private var showSourcePicker = false
     @State private var showTargetPicker = false
@@ -51,47 +52,61 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        isSearchFocused = false
-                    }
+                LinearGradient(
+                    colors: localizationManager.isDarkMode
+                    ? [Color(hex: "#111214"), Color(hex: "#191C1F"), Color(hex: "#131516")]
+                    : [Color(hex: "#FFFDF5"), Color(hex: "#F6FFF9"), Color(hex: "#EEF8FF")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.12 : 0.16))
+                        .frame(width: 220, height: 220)
+                        .blur(radius: 30)
+                        .offset(x: 70, y: -40)
+                }
+                .overlay(alignment: .topLeading) {
+                    Circle()
+                        .fill(Color(hex: "#FFD93D").opacity(localizationManager.isDarkMode ? 0.08 : 0.12))
+                        .frame(width: 180, height: 180)
+                        .blur(radius: 26)
+                        .offset(x: -40, y: 40)
+                }
+                .onTapGesture {
+                    isSearchFocused = false
+                }
                 
                 VStack(spacing: 0) {
                     HeaderView(showMenu: $showMenu, title: localizationManager.string(.search))
                         .environmentObject(localizationManager)
                     
                     ScrollView {
-                        VStack(spacing: 20) {
-                            // Мови з онбордингом
-                            languagePairContainer
-                                .padding(.top, 5)
-                            
-                            searchBarWithButton
-                                .focused($isSearchFocused)
-                                                        
-                                    if speechService.isRecording {
-                                        recordingIndicator
-                                }
-                            
+                        VStack(spacing: 24) {
+                            heroSearchSection
+                                .opacity(hasAnimatedIn ? 1 : 0)
+                                .offset(y: hasAnimatedIn ? 0 : 18)
+
+                            if speechService.isRecording {
+                                recordingIndicator
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                            }
+
                             if isLoading {
                                 ProgressView()
                                     .scaleEffect(1.5)
-                                    .padding()
+                                    .padding(.top, 8)
                             }
-                            
-                            // Кнопки сканування/голосу з онбордингом
-                            HStack(spacing: 15) {
-                                scanButtonContainer
-                                voiceButtonContainer
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 5)
-                            
+
                             historySection
+                                .opacity(hasAnimatedIn ? 1 : 0)
+                                .offset(y: hasAnimatedIn ? 0 : 26)
                             
                             Spacer(minLength: 20)
                         }
+                        .padding(.top, 8)
+                        .padding(.bottom, 30)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 }
@@ -206,6 +221,7 @@ struct SearchView: View {
                 OnboardingContext.isOnDictionaryScreen = false
                 OnboardingContext.justAddedWord = false
                 handleDeepLinkAction(deepLinkAction)
+                animateInIfNeeded()
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -235,11 +251,50 @@ struct SearchView: View {
             }
         }
     }
-    
+
+    private var heroSearchSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            languagePairContainer
+
+            searchBarWithButton
+                .focused($isSearchFocused)
+
+            HStack(spacing: 10) {
+                scanButtonContainer
+                voiceButtonContainer
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.72))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.7), lineWidth: 1)
+                )
+                .shadow(
+                    color: Color.black.opacity(localizationManager.isDarkMode ? 0.18 : 0.06),
+                    radius: 24,
+                    x: 0,
+                    y: 16
+                )
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.12 : 0.18))
+                .frame(width: 108, height: 108)
+                .blur(radius: 18)
+                .offset(x: 16, y: -20)
+        }
+        .padding(.horizontal, 14)
+    }
+
     private var searchBarWithButton: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
+                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#7D8C92"))
             
             TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
                 .font(.system(size: 16))
@@ -283,10 +338,11 @@ struct SearchView: View {
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding()
+        .padding(.horizontal, 15)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#2A2D31") : Color.white.opacity(0.96))
         )
         .overlay(
             AngularGradient(
@@ -301,8 +357,8 @@ struct SearchView: View {
                 angle: .degrees(gradientRotation)
             )
             .mask(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(lineWidth: 3)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(lineWidth: 2.5)
             )
             .allowsHitTesting(false)
         )
@@ -314,7 +370,6 @@ struct SearchView: View {
                 gradientRotation = 360
             }
         }
-        .padding(.horizontal, 20)
     }
     
     // MARK: - Voice Result Handler
@@ -335,13 +390,12 @@ struct SearchView: View {
     
     private var languagePairContainer: some View {
         editableLanguagePairIndicator
-            .padding(.top, 5)
             .onboardingStep(.languagePair)
     }
     
     private var scanButtonContainer: some View {
         ActionButton(
-            icon: "camera.fill",
+            icon: "camera.viewfinder",
             title: localizationManager.string(.scan),
             subtitle: localizationManager.string(.scanText),
             color: Color(hex: "#A8D8EA"),
@@ -355,7 +409,7 @@ struct SearchView: View {
     
     private var voiceButtonContainer: some View {
         ActionButton(
-            icon: "mic.fill",
+            icon: "waveform.badge.mic",
             title: localizationManager.string(.voice),
             subtitle: localizationManager.string(.holdToSpeak),
             color: voiceColor,
@@ -370,7 +424,7 @@ struct SearchView: View {
     // MARK: - Language Pair Indicator
     
     private var editableLanguagePairIndicator: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Button {
                 withAnimation(.spring(response: 0.35)) {
                     showSourcePicker = true
@@ -378,26 +432,30 @@ struct SearchView: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(appState.languagePair.source.flag)
-                        .font(.system(size: 20))
+                        .font(.system(size: 17))
                     Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(Color(hex: "#4ECDC4"))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
                 .background(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 18)
                         .fill(Color(hex: "#4ECDC4").opacity(0.15))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 18)
                         .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())
+            .layoutPriority(1)
             
             Button {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
@@ -407,9 +465,9 @@ struct SearchView: View {
                 impact.impactOccurred()
             } label: {
                 Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(hex: "#4ECDC4"))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                     .background(
                         Circle()
                             .fill(Color(hex: "#4ECDC4").opacity(0.15))
@@ -424,28 +482,32 @@ struct SearchView: View {
             } label: {
                 HStack(spacing: 6) {
                     Text(appState.languagePair.target.flag)
-                        .font(.system(size: 20))
+                        .font(.system(size: 17))
                     Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.72)
+                        .fixedSize(horizontal: false, vertical: true)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(Color(hex: "#4ECDC4"))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
                 .background(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 18)
                         .fill(Color(hex: "#4ECDC4").opacity(0.15))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 18)
                         .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(PlainButtonStyle())
+            .layoutPriority(1)
         }
-        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
     
     // MARK: - Language Picker
@@ -574,13 +636,19 @@ struct SearchView: View {
             }
             Spacer()
         }
-        .padding(.top, 10)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.62))
+        )
+        .padding(.horizontal, 20)
     }
     
     private var historySection: some View {
         Group {
             if !appState.searchHistory.isEmpty {
-                VStack(alignment: .leading, spacing: 15) {
+                VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(localizationManager.string(.recent))
                             .font(.system(size: 20, weight: .bold))
@@ -596,13 +664,12 @@ struct SearchView: View {
                     }
                     .padding(.horizontal, 20)
                     
-                    ForEach(appState.searchHistory.prefix(5)) { item in
-                        HistoryCard(item: item, isDarkMode: localizationManager.isDarkMode)
-                            .onTapGesture {
-                                searchText = item.word
-                                isSearchFocused = true
-                            }
+                    VStack(spacing: 10) {
+                        ForEach(appState.searchHistory.prefix(6)) { item in
+                            recentCompactRow(item)
+                        }
                     }
+                    .padding(.horizontal, 20)
                 }
             } else {
                 VStack(spacing: 15) {
@@ -621,6 +688,51 @@ struct SearchView: View {
                 }
                 .padding(.top, 40)
             }
+        }
+    }
+
+    private func recentCompactRow(_ item: SearchItem) -> some View {
+        Button {
+            searchText = item.word
+            isSearchFocused = true
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.word)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203743"))
+                        .lineLimit(1)
+
+                    Text(item.translation)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(hex: "#6F7F86"))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(hex: "#A8D8EA"))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.86))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func animateInIfNeeded() {
+        guard !hasAnimatedIn else { return }
+        withAnimation(.spring(response: 0.65, dampingFraction: 0.88).delay(0.04)) {
+            hasAnimatedIn = true
         }
     }
     
