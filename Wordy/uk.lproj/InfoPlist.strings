@@ -1,5 +1,7 @@
 /* Camera permission */
 NSCameraUsageDescription = "Додаток потребує доступу до камери для сканування тексту з книг та документів";
+NSPhotoLibraryUsageDescription = "Wordy використовує фотоальбом, щоб ви могли вибрати аватар для свого профілю.";
+NSPhotoLibraryAddUsageDescription = "Wordy потребує доступу, щоб зберегти вибране зображення аватара.";
 
 /* Microphone permission */
 NSMicrophoneUsageDescription = "Потрібен доступ до мікрофона для голосового пошуку слів";

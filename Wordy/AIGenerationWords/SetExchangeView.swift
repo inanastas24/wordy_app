@@ -224,7 +224,7 @@ struct SetExchangeView: View {
         
         Task {
             do {
-                let newId = try await FirebaseFunctionsService.shared.importSet(
+                _ = try await FirebaseFunctionsService.shared.importSet(
                     exportData: preview.toExportedSet(),
                     userId: userId
                 )
@@ -737,4 +737,3 @@ extension String {
         self.components(separatedBy: .alphanumerics.inverted).joined(separator: "_")
     }
 }
-

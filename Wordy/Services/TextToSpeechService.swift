@@ -4,7 +4,7 @@ import Combine
 import Foundation
 
 @MainActor
-final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+final class TextToSpeechService: NSObject, ObservableObject {
     static let shared = TextToSpeechService()
 
     @Published private(set) var isPlaying = false
@@ -184,13 +184,20 @@ final class TextToSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         return AVSpeechSynthesisVoice(language: code)
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        resetPlaybackState()
-        deactivateAudioSession()
+}
+
+extension TextToSpeechService: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            resetPlaybackState()
+            deactivateAudioSession()
+        }
     }
 
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        resetPlaybackState()
-        deactivateAudioSession()
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            resetPlaybackState()
+            deactivateAudioSession()
+        }
     }
 }

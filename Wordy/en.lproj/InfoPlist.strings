@@ -1,5 +1,7 @@
 /* Camera permission */
 NSCameraUsageDescription = "Wordy uses camera to scan text from books and documents";
+NSPhotoLibraryUsageDescription = "Wordy uses your photo library so you can choose an avatar for your profile.";
+NSPhotoLibraryAddUsageDescription = "Wordy needs access to save the avatar image you choose.";
 
 /* Microphone permission */
 NSMicrophoneUsageDescription = "Wordy uses microphone for voice search";

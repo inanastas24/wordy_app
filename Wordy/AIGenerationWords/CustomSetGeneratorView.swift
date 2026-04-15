@@ -331,6 +331,7 @@ struct CustomSetGeneratorView: View {
                 exampleTranslation: presetWord.exampleTranslation,
                 synonyms: presetWord.synonyms,
                 difficulty: set.difficulty,
+                languagePair: set.languagePair,
                 audioUrl: nil
             )
         }

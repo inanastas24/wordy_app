@@ -138,7 +138,7 @@ class PermissionManager: ObservableObject {
     // MARK: - Check All Permissions Status
     func checkAllPermissions() {
         cameraAuthorized = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
-        microphoneAuthorized = AVAudioSession.sharedInstance().recordPermission == .granted
+        microphoneAuthorized = checkMicrophonePermission()
         speechAuthorized = SFSpeechRecognizer.authorizationStatus() == .authorized
         
         UNUserNotificationCenter.current().getNotificationSettings { settings in
@@ -154,8 +154,12 @@ class PermissionManager: ObservableObject {
         return AVCaptureDevice.authorizationStatus(for: .video)
     }
     
-    func checkMicrophonePermission() -> AVAudioSession.RecordPermission {
-        return AVAudioSession.sharedInstance().recordPermission
+    func checkMicrophonePermission() -> Bool {
+        if #available(iOS 17.0, *) {
+            return AVAudioApplication.shared.recordPermission == .granted
+        } else {
+            return AVAudioSession.sharedInstance().recordPermission == .granted
+        }
     }
     
     func checkSpeechPermission() -> SFSpeechRecognizerAuthorizationStatus {

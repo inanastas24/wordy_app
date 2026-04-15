@@ -145,7 +145,21 @@ struct DictionaryView: View {
     }
 
     private var backgroundLayer: some View {
-        backgroundColor.ignoresSafeArea()
+        ZStack {
+            backgroundColor.ignoresSafeArea()
+
+            Circle()
+                .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.16 : 0.14))
+                .frame(width: 300, height: 300)
+                .blur(radius: 56)
+                .offset(x: -160, y: -240)
+
+            Circle()
+                .fill(Color(hex: "#FFD166").opacity(localizationManager.isDarkMode ? 0.10 : 0.12))
+                .frame(width: 250, height: 250)
+                .blur(radius: 56)
+                .offset(x: 180, y: -120)
+        }
     }
 
     private var contentColumn: some View {
@@ -153,14 +167,14 @@ struct DictionaryView: View {
             HeaderView(showMenu: $showMenu, title: localizationManager.string(.dictionary))
                 .environmentObject(localizationManager)
 
-            HStack {
+            HStack(spacing: 10) {
                 createDictionaryButton
                 exportImportButton
                 Spacer()
                 addWordButton
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
 
             contentBody
 
@@ -213,9 +227,19 @@ struct DictionaryView: View {
                     .font(.system(size: 14, weight: .semibold))
 
                 Text(addWordButtonTitle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
             }
             .foregroundColor(Color(hex: "#4ECDC4"))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.9))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.8), lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -229,13 +253,21 @@ struct DictionaryView: View {
                     .font(.system(size: 14, weight: .semibold))
 
                 Text(createDictionaryTitle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
             }
             .foregroundColor(Color(hex: "#4ECDC4"))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.9))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.8), lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.leading, 20)
-        .padding(.top, 8)
     }
 
     private var exportImportButton: some View {
@@ -246,7 +278,7 @@ struct DictionaryView: View {
                 Image(systemName: "square.and.arrow.up.on.square.fill")
                     .font(.system(size: 14, weight: .bold))
                 Text(exportImportShortTitle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
             }
             .foregroundColor(.white)
             .padding(.horizontal, 14)
@@ -262,8 +294,6 @@ struct DictionaryView: View {
                     )
             )
             .shadow(color: Color(hex: "#4ECDC4").opacity(0.26), radius: 14, x: 0, y: 8)
-            .padding(.leading, 12)
-            .padding(.top, 8)
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityLabel(exportImportTitle)
@@ -330,6 +360,17 @@ struct DictionaryView: View {
             .padding(.top, 20)
         }
         .padding(.top, 100)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 20)
     }
 
     private var dictionariesGrid: some View {
@@ -395,11 +436,15 @@ struct DictionaryView: View {
         }
         .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.78), lineWidth: 1)
+                )
         )
         .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.1 : 0.06), radius: 16, x: 0, y: 8)
-        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .onTapGesture {
             selectedDictionary = dictionary
         }
@@ -430,7 +475,7 @@ struct DictionaryView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(hex: "#4ECDC4").opacity(0.12))
         )
     }
@@ -682,12 +727,12 @@ struct CompactWordRow: View {
             .padding(.vertical, 12)
             .frame(height: rowHeight)
             .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isDarkMode ? Color(hex: "#23252B") : Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color(hex: "#E0E0E0").opacity(isDarkMode ? 0.2 : 0.5), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(isDarkMode ? 0.06 : 0.76), lineWidth: 1)
             )
             .offset(x: offset)
             .animation(.spring(response: 0.3), value: offset)
@@ -738,7 +783,8 @@ struct CompactWordRow: View {
             }
         }
         .frame(height: rowHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(isDarkMode ? 0.12 : 0.05), radius: 10, x: 0, y: 8)
     }
 }
 
@@ -896,7 +942,7 @@ struct WordDetailOverlay: View {
     }
 
     private var overlayContent: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 20) {
             dragIndicator
             headerButtons
             sourceWordSection
@@ -904,8 +950,6 @@ struct WordDetailOverlay: View {
             if let ipa = word.transcription, !ipa.isEmpty {
                 transcriptionView(ipa)
             }
-
-            Divider().opacity(0.35)
 
             targetWordSection
 
@@ -931,9 +975,11 @@ struct WordDetailOverlay: View {
     private var headerButtons: some View {
         HStack(spacing: 12) {
             Button(action: onEdit) {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
+                overlayIconButton(
+                    systemName: "pencil",
+                    tint: Color(hex: "#4ECDC4"),
+                    background: Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.18 : 0.12)
+                )
             }
 
             Button(action: {
@@ -941,19 +987,21 @@ struct WordDetailOverlay: View {
                 impact.impactOccurred()
                 showingDeleteConfirm = true
             }) {
-                Image(systemName: "trash.circle.fill")
-                    .font(.system(size: 26)) // 🔥 Зменшили розмір
-                    .foregroundColor(Color.red.opacity(0.8))
+                overlayIconButton(
+                    systemName: "trash",
+                    tint: Color(red: 1.0, green: 0.35, blue: 0.35),
+                    background: Color.red.opacity(localizationManager.isDarkMode ? 0.18 : 0.1)
+                )
             }
 
             Spacer()
 
             Button(action: closeOverlay) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.6) : Color(hex: "#7F8C8D"))
-                    .padding(8)
-                    .background(Circle().fill(Color.gray.opacity(0.18)))
+                overlayIconButton(
+                    systemName: "xmark",
+                    tint: localizationManager.isDarkMode ? .white.opacity(0.7) : Color(hex: "#6C7A89"),
+                    background: localizationManager.isDarkMode ? Color.white.opacity(0.08) : Color(hex: "#F3F7F7")
+                )
             }
         }
     }
@@ -968,56 +1016,108 @@ struct WordDetailOverlay: View {
 
     private func transcriptionView(_ ipa: String) -> some View {
         Text(ipa)
-            .font(.system(size: 16, design: .serif))
-            .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(Color(hex: "#4ECDC4").opacity(0.1))
-            .cornerRadius(10)
+            .font(.system(size: 15, weight: .medium, design: .serif))
+            .foregroundColor(Color(hex: "#4ECDC4").opacity(0.82))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.18 : 0.12))
+            )
     }
 
     private var overlayBackground: some View {
         RoundedRectangle(cornerRadius: 28, style: .continuous)
-            .fill(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color.white)
+            .fill(
+                LinearGradient(
+                    colors: localizationManager.isDarkMode
+                        ? [Color(hex: "#1A1C1F"), Color(hex: "#20252B")]
+                        : [Color.white, Color(hex: "#F6FBFB")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.85),
+                                Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.12 : 0.18)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
     }
 
     private func wordSection(text: String, language: String, isPrimary: Bool) -> some View {
-        HStack(spacing: 10) {
-            Text(text)
-                .font(.system(size: isPrimary ? 28 : 24, weight: isPrimary ? .bold : .semibold, design: .rounded))
-                .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50")) : Color(hex: "#4ECDC4"))
-                .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(nil)
+        let prefix = isPrimary ? "dictionary-original" : "dictionary-translation"
 
-            Button(action: {
-                speak(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation")
-            }) {
-                Image(systemName: isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation") ? "speaker.wave.2.fill" : "speaker.wave.2")
-                    .font(.system(size: 14))
-                    .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
-                    .frame(width: 32, height: 32)
-                    .background(isPrimary ? Color(hex: "#4ECDC4").opacity(0.15) : Color(hex: "#4ECDC4"))
-                    .clipShape(Circle())
-                    .scaleEffect(isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation") ? 0.92 : 1.0)
-                    .animation(.spring(response: 0.18, dampingFraction: 0.75),
-                               value: isSpeaking(text: text, language: language, prefix: isPrimary ? "dictionary-original" : "dictionary-translation"))
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(isPrimary ? sourceWordTitle : translationWordTitle)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: "#7B8A97"))
+                        .textCase(.uppercase)
+
+                    Text(text)
+                        .font(.system(size: isPrimary ? 30 : 26, weight: isPrimary ? .bold : .semibold, design: .rounded))
+                        .foregroundColor(isPrimary ? (localizationManager.isDarkMode ? .white : Color(hex: "#243447")) : Color(hex: "#4ECDC4"))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(nil)
+                }
+
+                Spacer(minLength: 8)
+
+                Button(action: {
+                    speak(text: text, language: language, prefix: prefix)
+                }) {
+                    Image(systemName: isSpeaking(text: text, language: language, prefix: prefix) ? "speaker.wave.2.fill" : "speaker.wave.2")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
+                        .frame(width: 46, height: 46)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(isPrimary ? Color(hex: "#4ECDC4").opacity(0.12) : Color(hex: "#4ECDC4"))
+                        )
+                        .scaleEffect(isSpeaking(text: text, language: language, prefix: prefix) ? 0.94 : 1.0)
+                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
+                                   value: isSpeaking(text: text, language: language, prefix: prefix))
+                }
+            }
+
+            HStack(spacing: 8) {
+                languagePill(text: language.uppercased(), tint: isPrimary ? Color(hex: "#4ECDC4") : Color(hex: "#6C7A89"))
+
+                if isPrimary {
+                    languagePill(text: primaryWordBadge, tint: Color(hex: "#FFB648"))
+                } else {
+                    languagePill(text: translatedWordBadge, tint: Color(hex: "#4ECDC4"))
+                }
             }
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(detailCardBackground)
     }
 
     private func examplesSection(original: String, originalLang: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(examplesTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(Color(hex: "#7B8A97"))
 
             HStack(spacing: 10) {
                 Text("„\(original)\"")
-                    .font(.system(size: 15))
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
                     .italic()
                     .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
                     .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(3)
+                    .lineLimit(4)
 
                 Spacer(minLength: 0)
 
@@ -1025,29 +1125,29 @@ struct WordDetailOverlay: View {
                     speak(text: original, language: originalLang, prefix: "dictionary-example")
                 }) {
                     Image(systemName: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                        .font(.system(size: 12))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Color(hex: "#4ECDC4"))
-                        .frame(width: 28, height: 28)
-                        .background(Color(hex: "#4ECDC4").opacity(0.1))
-                        .clipShape(Circle())
+                        .frame(width: 36, height: 36)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color(hex: "#4ECDC4").opacity(0.12))
+                        )
                         .scaleEffect(isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? 0.92 : 1.0)
                         .animation(.spring(response: 0.18, dampingFraction: 0.75),
                                    value: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example"))
                 }
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
-            )
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(detailCardBackground)
         }
     }
 
     private var learningInfoSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(progressTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(Color(hex: "#7B8A97"))
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
@@ -1102,11 +1202,73 @@ struct WordDetailOverlay: View {
                     }
                 }
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E").opacity(0.8) : Color.white.opacity(0.5))
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(detailCardBackground)
+        }
+    }
+
+    private var detailCardBackground: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.96))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.75), lineWidth: 1)
             )
+    }
+
+    private func overlayIconButton(systemName: String, tint: Color, background: Color) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundColor(tint)
+            .frame(width: 42, height: 42)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(background)
+            )
+    }
+
+    private func languagePill(text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundColor(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(localizationManager.isDarkMode ? 0.18 : 0.1))
+            )
+    }
+
+    private var sourceWordTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Оригінал"
+        case .polish: return "Oryginał"
+        case .english: return "Original"
+        }
+    }
+
+    private var translationWordTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Переклад"
+        case .polish: return "Tłumaczenie"
+        case .english: return "Translation"
+        }
+    }
+
+    private var primaryWordBadge: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Вивчаєш"
+        case .polish: return "Uczysz się"
+        case .english: return "Learning"
+        }
+    }
+
+    private var translatedWordBadge: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Значення"
+        case .polish: return "Znaczenie"
+        case .english: return "Meaning"
         }
     }
 

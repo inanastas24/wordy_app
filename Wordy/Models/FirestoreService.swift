@@ -174,7 +174,7 @@ class FirestoreService {
             throw AuthError.userNotFound
         }
         
-        try await db.collection("users")
+        try db.collection("users")
             .document(userId)
             .collection("profile")
             .document("main")
@@ -209,14 +209,14 @@ class FirestoreService {
             .document(userId)
             .collection("profile")
             .document("main")
-            .updateData(updatesWithTimestamp)
+            .setData(updatesWithTimestamp, merge: true)
         
         NotificationCenter.default.post(name: .userProfileUpdated, object: nil)
     }
     
     // MARK: - Avatar Upload
     func uploadAvatar(imageData: Data) async throws -> String {
-        guard let userId = Auth.auth().currentUser?.uid else {
+        guard Auth.auth().currentUser?.uid != nil else {
             throw AuthError.userNotFound
         }
         
@@ -613,7 +613,7 @@ class FirestoreService {
         
         let dayId = ISO8601DateFormatter().string(from: day.date)
         
-        try await db.collection("users")
+        try db.collection("users")
             .document(userId)
             .collection("learningDays")
             .document(dayId)

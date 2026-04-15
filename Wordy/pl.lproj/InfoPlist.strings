@@ -1,5 +1,7 @@
 /* Camera permission */
 NSCameraUsageDescription = "Aplikacja wymaga dostępu do kamery do skanowania tekstu z książek i dokumentów";
+NSPhotoLibraryUsageDescription = "Wordy używa biblioteki zdjęć, aby umożliwić wybór awatara profilu.";
+NSPhotoLibraryAddUsageDescription = "Wordy potrzebuje dostępu, aby zapisać wybrany obraz awatara.";
 
 /* Microphone permission */
 NSMicrophoneUsageDescription = "Potrzebny dostęp do mikrofonu do wyszukiwania głosowego słów";
@@ -9,4 +11,3 @@ NSSpeechRecognitionUsageDescription = "Pozwala na zamianę mowy na tekst";
 
 /* Face ID permission */
 NSFaceIDUsageDescription = "Wordy używa Face ID do szybkiego i bezpiecznego dostępu do konta";
-

@@ -275,7 +275,7 @@ struct ContactFormBubbleView: View {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {

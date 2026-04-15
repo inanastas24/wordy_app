@@ -156,9 +156,7 @@ struct MainTabView: View {
         
         UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
         
-        if #available(iOS 16.0, *) {
-            UIViewController.attemptRotationToDeviceOrientation()
-        } else {
+        if #unavailable(iOS 16.0) {
             UINavigationController.attemptRotationToDeviceOrientation()
         }
     }

@@ -56,7 +56,7 @@ struct PaywallView: View {
         .onAppear {
             selectDefaultProduct()
         }
-        .onChange(of: subscriptionManager.products) { _ in
+        .onChange(of: subscriptionManager.products) {
             selectDefaultProduct()
         }
         .sheet(isPresented: $showHowTrialWorks) {
@@ -275,7 +275,7 @@ struct PaywallView: View {
         isRestoring = true
 
         Task {
-            await subscriptionManager.restorePurchases()
+            _ = await subscriptionManager.restorePurchases()
 
             await MainActor.run {
                 isRestoring = false

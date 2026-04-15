@@ -55,6 +55,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 struct WordyApp: App {
     // 🔗 Підключаємо AppDelegate
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     
     @StateObject private var authViewModel: AuthViewModel
     @StateObject private var localizationManager = LocalizationManager.shared
@@ -104,6 +105,11 @@ struct WordyApp: App {
                         hasRequestedPermissions = true
                         isRequestingPermissions = false
                     }
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    ReviewManager.shared.handleAppBecameActive()
                 }
             }
         }

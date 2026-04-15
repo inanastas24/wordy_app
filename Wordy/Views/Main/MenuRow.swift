@@ -18,23 +18,30 @@ struct MenuRow: View {
     
     var body: some View {
         HStack(spacing: 15) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(Color(hex: color))
-                .frame(width: 24)
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(hex: color).opacity(0.14))
+                    .frame(width: 34, height: 34)
+
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Color(hex: color))
+            }
             
             Text(title)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundColor(isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(isDarkMode ? .white : Color(hex: "#203044"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.84)
             
             Spacer()
             
             Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(Color(hex: "#7F8C8D").opacity(0.5))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Color(hex: "#7F8C8D").opacity(0.55))
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }

@@ -27,11 +27,16 @@ struct SettingsSubscriptionSection: View {
 
                 statusBadge
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 8)
             )
 
             HStack(spacing: 12) {
@@ -44,10 +49,10 @@ struct SettingsSubscriptionSection: View {
                     }
                     .foregroundColor(Color(hex: "#4ECDC4"))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: 46)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(hex: "#4ECDC4").opacity(0.1))
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(hex: "#4ECDC4").opacity(0.12))
                     )
                 }
 
@@ -60,11 +65,12 @@ struct SettingsSubscriptionSection: View {
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: 46)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(actionButtonColor)
                     )
+                    .shadow(color: actionButtonColor.opacity(0.22), radius: 10, x: 0, y: 6)
                 }
             }
         }
@@ -73,12 +79,12 @@ struct SettingsSubscriptionSection: View {
     @ViewBuilder
     private var statusIcon: some View {
         ZStack {
-            Circle()
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(iconBackgroundColor.opacity(0.15))
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
 
             Image(systemName: iconName)
-                .font(.system(size: 20))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(iconColor)
         }
     }

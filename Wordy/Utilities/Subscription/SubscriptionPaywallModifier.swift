@@ -18,7 +18,7 @@ struct SubscriptionPaywallModifier: ViewModifier {
                     showPaywall = true
                 }
             }
-            .onChange(of: subscriptionManager.status) { _ in
+            .onChange(of: subscriptionManager.status) {
                 if subscriptionManager.isSubscriptionExpired {
                     showPaywall = true
                 }

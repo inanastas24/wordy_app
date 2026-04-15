@@ -8,6 +8,7 @@
 import SwiftUI
 import StoreKit
 import Observation
+import FirebaseAuth
 
 // MARK: - Review Manager
 @MainActor
@@ -18,6 +19,7 @@ class ReviewManager {
     private let appStoreID = "6759168234"
     private let lastReviewRequestKey = "lastReviewRequestDate"
     private let appUsageCountKey = "appUsageCount"
+    private let lastUsageRecordedDateKey = "lastUsageRecordedDate"
     private let minUsageCountForReview = 5 // Мінімум 5 разів відкрив додаток
     
     private init() {}
@@ -34,9 +36,22 @@ class ReviewManager {
         return !calendar.isDateInToday(lastDate)
     }
     
-    func recordAppUsage() {
+    func handleAppBecameActive() {
+        recordAppUsageIfNeeded()
+        requestReviewIfAppropriate()
+    }
+
+    func recordAppUsageIfNeeded() {
+        let calendar = Calendar.current
+
+        if let lastRecordedDate = UserDefaults.standard.object(forKey: lastUsageRecordedDateKey) as? Date,
+           calendar.isDateInToday(lastRecordedDate) {
+            return
+        }
+
         let current = UserDefaults.standard.integer(forKey: appUsageCountKey)
         UserDefaults.standard.set(current + 1, forKey: appUsageCountKey)
+        UserDefaults.standard.set(Date(), forKey: lastUsageRecordedDateKey)
     }
     
     func markReviewRequested() {
@@ -78,6 +93,8 @@ struct MenuView: View {
     @Binding var showSettings: Bool
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
+    @EnvironmentObject var profileViewModel: UserProfileViewModel
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
     @State private var reviewManager = ReviewManager.shared
@@ -85,11 +102,12 @@ struct MenuView: View {
     @State private var bubbleOffsets: [CGFloat] = [0, 0, 0, 0, 0]
     @State private var showExportSheet = false
     @State private var exportURL: URL?
+    @GestureState private var dragOffset: CGFloat = 0
     
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Color.black.opacity(0.3)
+                Color.black.opacity(localizationManager.isDarkMode ? 0.42 : 0.28)
                     .ignoresSafeArea()
                     .onTapGesture {
                         closeMenu()
@@ -97,13 +115,9 @@ struct MenuView: View {
                 
                 VStack(alignment: .leading, spacing: 0) {
                     menuHeader
+                    profileStrip
                     quickStats
-                    
-                    Divider()
-                        .background(Color.gray.opacity(0.2))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                    
+
                     actionsSection
                     
                     Spacer()
@@ -111,12 +125,18 @@ struct MenuView: View {
                 }
                 .frame(width: min(geometry.size.width * 0.75, 300))
                 .frame(maxHeight: geometry.size.height - 100)
-                .background(localizationManager.isDarkMode ? Color(hex: "#1C1C1E") : Color.white)
-                .cornerRadius(20)
-                .shadow(color: Color.black.opacity(0.2), radius: 20, x: 5, y: 0)
+                .background(menuBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.07 : 0.76), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.26 : 0.14), radius: 24, x: 10, y: 0)
                 .padding(.top, 50)
                 .padding(.bottom, 20)
                 .padding(.leading, 10)
+                .offset(x: max(dragOffset, 0))
+                .gesture(closeDragGesture)
             }
         }
         .edgesIgnoringSafeArea(.all)
@@ -127,8 +147,6 @@ struct MenuView: View {
         }
         .onAppear {
             dictionaryVM.fetchSavedWords()
-            reviewManager.recordAppUsage()
-            reviewManager.requestReviewIfAppropriate()
         }
         .onChange(of: selectedTab) { oldValue, newValue in
             if oldValue != newValue {
@@ -144,10 +162,35 @@ struct MenuView: View {
             isShowing = false
         }
     }
+
+    private var closeDragGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .updating($dragOffset) { value, state, _ in
+                if value.translation.width > 0 {
+                    state = value.translation.width
+                }
+            }
+            .onEnded { value in
+                if value.translation.width > 90 || value.predictedEndTranslation.width > 140 {
+                    closeMenu()
+                }
+            }
+    }
+
+    private var menuBackground: some View {
+        LinearGradient(
+            colors: localizationManager.isDarkMode
+            ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
+            : [Color.white, Color(hex: "#F5F3EA")],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
     
     private var menuHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ZStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center) {
+                ZStack {
                 ForEach(0..<4) { i in
                     Circle()
                         .fill(
@@ -172,21 +215,42 @@ struct MenuView: View {
                     .font(.system(size: 50))
                     .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
-            .frame(height: 80)
-            .onAppear {
-                for i in 0..<4 {
-                    withAnimation(
-                        .easeInOut(duration: 2 + Double(i) * 0.3)
-                        .repeatForever(autoreverses: true)
-                    ) {
-                        bubbleOffsets[i] = CGFloat.random(in: -10...10)
+                .frame(width: 86, height: 86)
+                .onAppear {
+                    for i in 0..<4 {
+                        withAnimation(
+                            .easeInOut(duration: 2 + Double(i) * 0.3)
+                            .repeatForever(autoreverses: true)
+                        ) {
+                            bubbleOffsets[i] = CGFloat.random(in: -10...10)
+                        }
                     }
                 }
+
+                Spacer()
+
+                Button(action: closeMenu) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.68) : Color(hex: "#6E7C89"))
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Circle()
+                                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.8))
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            
+
             Text("Wordy")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+
+            Text(menuSubtitle)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -198,22 +262,123 @@ struct MenuView: View {
             let streak = calculateStreak()
             let streakColor = StreakService.shared.getStreakColor(for: streak)
             
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: streakColor))
-                Text("\(streak)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .contentTransition(.numericText())
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(hex: streakColor).opacity(0.14))
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(hex: streakColor))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(localizedStreakTitle)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.56) : Color(hex: "#6E7C89"))
+
+                    Text("\(streak)")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                        .contentTransition(.numericText())
+                }
+
+                Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(hex: streakColor).opacity(0.15))
-            .cornerRadius(12)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 10)
+    }
+
+    private var profileStrip: some View {
+        HStack(spacing: 12) {
+            Group {
+                if let avatarImage = profileViewModel.avatarImage {
+                    Image(uiImage: avatarImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    Text(menuInitials)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(width: 54, height: 54)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.8), lineWidth: 2)
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                profilePlanBadge
+                Text(localizedProfileHint)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(hex: "#4ECDC4"))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button {
+                showSettings = true
+                closeMenu()
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.82))
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.035) : Color.white.opacity(0.5))
+        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 14)
+    }
+
+    @ViewBuilder
+    private var profilePlanBadge: some View {
+        if subscriptionManager.isPremium {
+            PremiumBadgeView(type: .premium)
+                .scaleEffect(0.82, anchor: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else if case .trial = subscriptionManager.status {
+            PremiumBadgeView(type: .trial)
+                .scaleEffect(0.82, anchor: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(localizedFreePlan)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(Color(hex: "#7F8C8D"))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.8))
+                )
+        }
     }
     
     private func calculateStreak() -> Int {
@@ -221,7 +386,7 @@ struct MenuView: View {
     }
     
     private var actionsSection: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 10) {
             Button(action: {
                 shareApp()
                 closeMenu()
@@ -230,18 +395,6 @@ struct MenuView: View {
                     icon: "square.and.arrow.up",
                     title: localizationManager.string(.shareWordy),
                     color: "#4ECDC4",
-                    isDarkMode: localizationManager.isDarkMode
-                )
-            }
-            
-            Button(action: {
-                showSettings = true
-                closeMenu()
-            }) {
-                MenuRow(
-                    icon: "gear",
-                    title: localizationManager.string(.settings),
-                    color: "#7F8C8D",
                     isDarkMode: localizationManager.isDarkMode
                 )
             }
@@ -259,12 +412,12 @@ struct MenuView: View {
                     isDarkMode: localizationManager.isDarkMode
                 )
             }
-            
-            Divider()
-                .background(Color.gray.opacity(0.2))
-                .padding(.vertical, 8)
-                .padding(.horizontal, 20)
-            
+        }
+        .padding(.horizontal, 14)
+    }
+    
+    private var footerSection: some View {
+        VStack(spacing: 8) {
             Button(action: {
                 if reviewManager.canRequestReview {
                     ReviewManager.shared.requestReviewIfAppropriate()
@@ -273,33 +426,58 @@ struct MenuView: View {
                 }
                 closeMenu()
             }) {
-                MenuRow(
+                compactFooterAction(
                     icon: "star.fill",
                     title: localizationManager.string(.rateInAppStore),
-                    color: "#FFD700",
-                    isDarkMode: localizationManager.isDarkMode
+                    color: "#FFD700"
                 )
             }
-            .opacity(reviewManager.canRequestReview ? 1.0 : 0.6)
-        }
-    }
-    
-    private var footerSection: some View {
-        VStack(spacing: 8) {
-            Divider()
-                .background(Color.gray.opacity(0.2))
-                .padding(.horizontal, 20)
-            
+            .buttonStyle(.plain)
+            .opacity(reviewManager.canRequestReview ? 1.0 : 0.72)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 6)
+
             HStack {
                 Text("Wordy v1.1")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(localizationManager.isDarkMode ? .gray.opacity(0.6) : Color(hex: "#7F8C8D").opacity(0.6))
                 
                 Spacer()
+
+                Text(localizedSwipeHint)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.44) : Color(hex: "#9AA4AD"))
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
+    }
+
+    private func compactFooterAction(icon: String, title: String, color: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(hex: color).opacity(0.14))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(hex: color))
+                )
+
+            Text(title)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Color(hex: "#7F8C8D").opacity(0.55))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
     }
     
     private func shareApp() {
@@ -340,5 +518,65 @@ struct MenuView: View {
             return "I'm learning languages with Wordy! 📚 Check it out: \(appStoreURL)"
         }
     }
-}
 
+    private var menuSubtitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Швидкі дії, підтримка й налаштування в одному місці"
+        case .polish: return "Szybkie akcje, wsparcie i ustawienia w jednym miejscu"
+        case .english: return "Quick actions, support and settings in one place"
+        }
+    }
+
+    private var localizedStreakTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Серія"
+        case .polish: return "Seria"
+        case .english: return "Streak"
+        }
+    }
+
+    private var localizedSwipeHint: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Потягни вправо, щоб закрити"
+        case .polish: return "Przesuń w prawo, aby zamknąć"
+        case .english: return "Swipe right to close"
+        }
+    }
+
+    private var localizedFreePlan: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Free"
+        case .polish: return "Free"
+        case .english: return "Free"
+        }
+    }
+
+    private var localizedProfileHint: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Профіль синхронізовано"
+        case .polish: return "Profil zsynchronizowany"
+        case .english: return "Profile synced"
+        }
+    }
+
+    private var menuDisplayName: String {
+        let trimmed = profileViewModel.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return localizationManager.string(.user)
+        }
+        return trimmed
+    }
+
+    private var menuEmail: String {
+        Auth.auth().currentUser?.email ?? "wordy.app"
+    }
+
+    private var menuInitials: String {
+        let source = menuDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else { return "W" }
+
+        let parts = source.split(separator: " ").prefix(2)
+        let initials = parts.compactMap { $0.first }.map { String($0).uppercased() }.joined()
+        return initials.isEmpty ? "W" : initials
+    }
+}

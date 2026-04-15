@@ -37,14 +37,23 @@ struct ExportImportView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                exportSection
-                importSection
-                statisticsSection
+            ZStack {
+                exportImportBackground
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        headerHero
+                        exportSection
+                        importSection
+                        statisticsSection
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 36)
+                }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(localizedTitle)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(localizedDone) {
@@ -84,121 +93,207 @@ struct ExportImportView: View {
         }
     }
 
-    private var exportSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localizedExportTitle)
-                    .font(.headline)
+    private var exportImportBackground: some View {
+        ZStack {
+            Color(hex: localizationManager.isDarkMode ? "#16171B" : "#FBF8F0")
+                .ignoresSafeArea()
 
-                Text(localizedExportDescription)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
+            Circle()
+                .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.14 : 0.13))
+                .frame(width: 280, height: 280)
+                .blur(radius: 56)
+                .offset(x: -150, y: -240)
 
-            Picker(localizedFormatTitle, selection: $selectedFormat) {
-                ForEach(ExportFormat.allCases) { format in
-                    Text(format.localizedName(for: currentLanguage)).tag(format)
+            Circle()
+                .fill(Color(hex: "#FFD166").opacity(localizationManager.isDarkMode ? 0.10 : 0.12))
+                .frame(width: 220, height: 220)
+                .blur(radius: 52)
+                .offset(x: 170, y: -120)
+        }
+    }
+
+    private var headerHero: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(localizedTitle)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+
+                    Text(localizedHeroSubtitle)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.62) : Color(hex: "#6E7C89"))
+                }
+
+                Spacer()
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color(hex: "#4ECDC4").opacity(0.14))
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: "arrow.up.arrow.down.square.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
                 }
             }
 
-            ForEach(exportScopes) { scope in
-                Button {
-                    performExport(for: scope)
-                } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(hex: "#4ECDC4").opacity(0.16))
-                                .frame(width: 38, height: 38)
+            HStack(spacing: 12) {
+                heroMetric(title: localizedDictionaryCount, value: "\(dictionaryViewModel.dictionaries.count)", tint: "#4ECDC4")
+                heroMetric(title: localizedTotalWords, value: "\(dictionaryViewModel.savedWords.count)", tint: "#A8D8EA")
+            }
+        }
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: localizationManager.isDarkMode
+                        ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
+                        : [Color.white, Color(hex: "#F5F3EA")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.16 : 0.07), radius: 22, x: 0, y: 14)
+        )
+    }
 
-                            Image(systemName: scope.iconName)
-                                .font(.system(size: 17, weight: .semibold))
+    private var exportSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(
+                title: localizedExportTitle,
+                subtitle: localizedExportDescription,
+                icon: "square.and.arrow.up.fill",
+                tint: "#4ECDC4"
+            )
+
+            VStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(localizedFormatTitle)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.6) : Color(hex: "#6E7C89"))
+
+                    Picker(localizedFormatTitle, selection: $selectedFormat) {
+                        ForEach(ExportFormat.allCases) { format in
+                            Text(format.localizedName(for: currentLanguage)).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(16)
+                .surfaceCard(isDarkMode: localizationManager.isDarkMode)
+
+                ForEach(exportScopes) { scope in
+                    Button {
+                        performExport(for: scope)
+                    } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color(hex: "#4ECDC4").opacity(0.14))
+                                    .frame(width: 42, height: 42)
+
+                                Image(systemName: scope.iconName)
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(Color(hex: "#4ECDC4"))
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(scope.title(language: currentLanguage))
+                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+
+                                Text(scope.subtitle(language: currentLanguage))
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "square.and.arrow.up")
                                 .foregroundColor(Color(hex: "#4ECDC4"))
                         }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(scope.title(language: currentLanguage))
-                                .font(.system(size: 16, weight: .semibold))
-
-                            Text(scope.subtitle(language: currentLanguage))
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(Color(hex: "#4ECDC4"))
+                        .padding(16)
+                        .surfaceCard(isDarkMode: localizationManager.isDarkMode)
                     }
-                    .padding(.vertical, 4)
+                    .disabled(scope.wordCount == 0 || isLoading)
                 }
-                .disabled(scope.wordCount == 0 || isLoading)
-            }
-        } header: {
-            Text(localizedExportSection)
-        } footer: {
-            if dictionaryViewModel.savedWords.isEmpty {
-                Text(localizedEmptyDictionary)
-                    .foregroundColor(.orange)
+
+                if dictionaryViewModel.savedWords.isEmpty {
+                    Text(localizedEmptyDictionary)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 4)
+                }
             }
         }
     }
 
     private var importSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localizedImportTitle)
-                    .font(.headline)
-
-                Text(localizedImportDescription)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader(
+                title: localizedImportTitle,
+                subtitle: localizedImportDescription,
+                icon: "square.and.arrow.down.fill",
+                tint: "#FF8A65"
+            )
 
             Button {
                 showingImporter = true
             } label: {
                 HStack(spacing: 12) {
                     ZStack {
-                        Circle()
-                            .fill(Color(hex: "#4ECDC4").opacity(0.16))
-                            .frame(width: 38, height: 38)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(hex: "#FF8A65").opacity(0.14))
+                            .frame(width: 42, height: 42)
 
                         Image(systemName: "square.and.arrow.down")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
+                            .foregroundColor(Color(hex: "#FF8A65"))
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(localizedImportButton)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                         Text(localizedImportHint)
-                            .font(.system(size: 12))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundColor(.secondary)
                     }
 
                     Spacer()
                 }
-                .padding(.vertical, 4)
+                .padding(16)
+                .surfaceCard(isDarkMode: localizationManager.isDarkMode)
             }
             .disabled(isLoading)
-        } header: {
-            Text(localizedImportSection)
         }
     }
 
     @ViewBuilder
     private var statisticsSection: some View {
         if !dictionaryViewModel.dictionaries.isEmpty {
-            Section(localizedStatistics) {
-                StatisticRow(title: localizedDictionaryCount, value: "\(dictionaryViewModel.dictionaries.count)")
-                StatisticRow(title: localizedTotalWords, value: "\(dictionaryViewModel.savedWords.count)")
-                StatisticRow(title: localizedLearnedWords, value: "\(dictionaryViewModel.savedWords.filter { $0.isLearned }.count)")
-                StatisticRow(title: localizedLearningWords, value: "\(dictionaryViewModel.savedWords.filter { !$0.isLearned }.count)")
+            VStack(alignment: .leading, spacing: 16) {
+                sectionHeader(
+                    title: localizedStatistics,
+                    subtitle: localizedStatisticsSubtitle,
+                    icon: "chart.bar.fill",
+                    tint: "#9B8CFF"
+                )
+
+                VStack(spacing: 12) {
+                    StatisticRow(title: localizedDictionaryCount, value: "\(dictionaryViewModel.dictionaries.count)")
+                    StatisticRow(title: localizedTotalWords, value: "\(dictionaryViewModel.savedWords.count)")
+                    StatisticRow(title: localizedLearnedWords, value: "\(dictionaryViewModel.savedWords.filter { $0.isLearned }.count)")
+                    StatisticRow(title: localizedLearningWords, value: "\(dictionaryViewModel.savedWords.filter { !$0.isLearned }.count)")
+                }
+                .padding(16)
+                .surfaceCard(isDarkMode: localizationManager.isDarkMode)
             }
         }
     }
@@ -510,6 +605,68 @@ struct ExportImportView: View {
         case .english: return "File is ready for export"
         }
     }
+
+    private var localizedHeroSubtitle: String {
+        switch currentLanguage {
+        case .ukrainian: return "Безпечне перенесення словників між пристроями та резервне копіювання"
+        case .polish: return "Bezpieczne przenoszenie słowników między urządzeniami i kopie zapasowe"
+        case .english: return "Safely move dictionaries between devices and keep a clean backup flow"
+        }
+    }
+
+    private var localizedStatisticsSubtitle: String {
+        switch currentLanguage {
+        case .ukrainian: return "Швидкий огляд того, що зараз зберігається у словниках"
+        case .polish: return "Szybki podgląd tego, co jest obecnie zapisane w słownikach"
+        case .english: return "A quick snapshot of what is currently stored in your dictionaries"
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(title: String, subtitle: String, icon: String, tint: String) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(hex: tint).opacity(0.14))
+                    .frame(width: 42, height: 42)
+
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color(hex: tint))
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.56) : Color(hex: "#6E7C89"))
+            }
+
+            Spacer()
+        }
+    }
+
+    private func heroMetric(title: String, value: String, tint: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
+
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(hex: tint).opacity(0.12))
+        )
+    }
 }
 
 private struct ExportScopeItem: Identifiable {
@@ -597,14 +754,31 @@ struct StatisticRow: View {
     let title: String
     let value: String
 
+    @EnvironmentObject var localizationManager: LocalizationManager
+
     var body: some View {
         HStack {
             Text(title)
-                .foregroundColor(.secondary)
+                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.62) : .secondary)
             Spacer()
             Text(value)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundColor(Color(hex: "#4ECDC4"))
         }
+    }
+}
+
+private extension View {
+    func surfaceCard(isDarkMode: Bool) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.white.opacity(isDarkMode ? 0.06 : 0.76), lineWidth: 1)
+                    )
+            )
+            .shadow(color: Color.black.opacity(isDarkMode ? 0.12 : 0.05), radius: 12, x: 0, y: 8)
     }
 }

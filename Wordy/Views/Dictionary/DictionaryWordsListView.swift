@@ -25,7 +25,7 @@ struct DictionaryWordsListView: View {
 
     private var rootContent: some View {
         ZStack {
-            backgroundColor.ignoresSafeArea()
+            backgroundLayer
 
             contentScrollView
             wordDetailOverlay
@@ -37,7 +37,9 @@ struct DictionaryWordsListView: View {
         }
         .toolbar { toolbarContent }
         .sheet(isPresented: $showAddWord, onDismiss: onAddWordDismiss) { addWordSheet }
-        .onChange(of: viewModel.savedWords, perform: handleSavedWordsChange)
+        .onChange(of: viewModel.savedWords) { _, newValue in
+            handleSavedWordsChange(newValue)
+        }
         .alert(deleteAlertTitle, isPresented: Binding(
             get: { pendingDeleteScope != nil },
             set: { newValue in
@@ -64,6 +66,24 @@ struct DictionaryWordsListView: View {
                 wordsContent
             }
             .padding(.vertical, 12)
+        }
+    }
+
+    private var backgroundLayer: some View {
+        ZStack {
+            backgroundColor.ignoresSafeArea()
+
+            Circle()
+                .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.14 : 0.13))
+                .frame(width: 280, height: 280)
+                .blur(radius: 56)
+                .offset(x: -150, y: -250)
+
+            Circle()
+                .fill(Color(hex: "#FFD166").opacity(localizationManager.isDarkMode ? 0.10 : 0.12))
+                .frame(width: 220, height: 220)
+                .blur(radius: 52)
+                .offset(x: 160, y: -120)
         }
     }
 
@@ -377,40 +397,74 @@ struct DictionaryWordsListView: View {
     }
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(dictionary.name)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(dictionary.name)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+
+                    Text(dictionaryHeaderSubtitle)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.62) : Color(hex: "#6E7C89"))
+                }
+
+                Spacer()
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color(hex: "#4ECDC4").opacity(0.14))
+                        .frame(width: 54, height: 54)
+
+                    Image(systemName: "book.closed.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+            }
 
             HStack(spacing: 16) {
-                statPill(title: totalWordsText, value: "\(viewModel.wordCount(in: dictionary.id))")
-                statPill(title: learningTitle, value: "\(learningWords.count)")
-                statPill(title: learnedTitle, value: "\(learnedWords.count)")
+                statPill(title: totalWordsText, value: "\(viewModel.wordCount(in: dictionary.id))", tint: "#4ECDC4")
+                statPill(title: learningTitle, value: "\(learningWords.count)", tint: "#A8D8EA")
+                statPill(title: learnedTitle, value: "\(learnedWords.count)", tint: "#6BCB77")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(22)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : .white)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: localizationManager.isDarkMode
+                        ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
+                        : [Color.white, Color(hex: "#F5F3EA")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                )
         )
+        .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.16 : 0.07), radius: 22, x: 0, y: 14)
         .padding(.horizontal, 18)
     }
 
-    private func statPill(title: String, value: String) -> some View {
+    private func statPill(title: String, value: String, tint: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.gray)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
             Text(value)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color(hex: "#4ECDC4"))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(hex: "#4ECDC4").opacity(0.12))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(hex: tint).opacity(0.12))
         )
     }
 
@@ -438,6 +492,16 @@ struct DictionaryWordsListView: View {
         }
         .padding(.top, 60)
         .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 18)
     }
 
     @ViewBuilder
@@ -598,7 +662,7 @@ struct DictionaryWordsListView: View {
     private func sectionHeader(title: String) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundColor(Color(hex: "#4ECDC4"))
             Spacer()
         }
@@ -677,16 +741,17 @@ struct DictionaryWordsListView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#2C2C2E") : Color.white)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(
-                    isSelected ? Color(hex: "#4ECDC4").opacity(0.7) : Color(hex: "#E0E0E0").opacity(localizationManager.isDarkMode ? 0.2 : 0.5),
-                    lineWidth: isSelected ? 1.3 : 0.5
+                    isSelected ? Color(hex: "#4ECDC4").opacity(0.7) : Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.76),
+                    lineWidth: isSelected ? 1.3 : 1
                 )
         )
+        .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.05), radius: 10, x: 0, y: 8)
     }
 
     private func toggleSelectionMode() {
@@ -732,6 +797,14 @@ struct DictionaryWordsListView: View {
             isSelectionMode = false
         }
         pendingDeleteScope = nil
+    }
+
+    private var dictionaryHeaderSubtitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Редагуйте, слухайте й повторюйте слова в одному просторі"
+        case .polish: return "Edytuj, słuchaj i powtarzaj słowa w jednym miejscu"
+        case .english: return "Edit, listen and review your words in one focused space"
+        }
     }
 }
 

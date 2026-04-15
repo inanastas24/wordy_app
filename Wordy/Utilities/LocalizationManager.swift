@@ -84,7 +84,7 @@ enum LocalizableKey: String {
     case guestMode, saveProgress, tapToSave, progressSaved
 
     // Achievements
-    case firstWord, tenWords, sevenDays, hundredWords
+    case firstWord, tenWords, sevenDays, thirtyDays, hundredWords, premiumLabel, freeLabel
 
     // Rate App Popup
     case enjoyingApp, rateUs, notNow, never
@@ -179,6 +179,8 @@ enum LocalizableKey: String {
     case categoryBasics
     case categoryTravel
     case categoryFood
+    case categoryNouns
+    case categoryAdjectives
     case categoryWork
     case categoryEmotions
     case categoryFamily
@@ -697,10 +699,25 @@ public class LocalizationManager: ObservableObject {
             .english: "7 days",
             .polish: "7 dni"
         ],
+        .thirtyDays: [
+            .ukrainian: "30 днів",
+            .english: "30 days",
+            .polish: "30 dni"
+        ],
         .hundredWords: [
             .ukrainian: "100 слів",
             .english: "100 words",
             .polish: "100 słów"
+        ],
+        .premiumLabel: [
+            .ukrainian: "Преміум",
+            .english: "Premium",
+            .polish: "Premium"
+        ],
+        .freeLabel: [
+            .ukrainian: "Безкоштовно",
+            .english: "Free",
+            .polish: "Darmowe"
         ],
 
         // Rate App Popup
@@ -1380,6 +1397,16 @@ public class LocalizationManager: ObservableObject {
                 .ukrainian: "Їжа",
                 .english: "Food",
                 .polish: "Jedzenie"
+            ],
+            .categoryNouns: [
+                .ukrainian: "Іменники",
+                .english: "Nouns",
+                .polish: "Rzeczowniki"
+            ],
+            .categoryAdjectives: [
+                .ukrainian: "Прикметники",
+                .english: "Adjectives",
+                .polish: "Przymiotniki"
             ],
             .categoryWork: [
                 .ukrainian: "Робота",

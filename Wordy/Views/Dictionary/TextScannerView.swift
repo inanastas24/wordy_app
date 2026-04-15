@@ -339,8 +339,6 @@ struct TextScannerView: View {
     
     private func startVoiceSearchWithPermissionCheck() {
         let micStatus = AVAudioApplication.shared.recordPermission
-        let speechStatus = SFSpeechRecognizer.authorizationStatus()
-        
         guard micStatus == .granted else {
             if micStatus == .denied {
                 permissionType = .microphone
@@ -419,10 +417,6 @@ struct TextScannerView: View {
         isRecognizing = true
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .auto
-        if photoOutput.isHighResolutionCaptureEnabled {
-            settings.isHighResolutionPhotoEnabled = true
-        }
-        
         let delegate = PhotoCaptureDelegate { image in
             print("📸 Фото отримано, розмір: \(image.size)")
             DispatchQueue.main.async {
@@ -527,7 +521,6 @@ struct TextScannerView: View {
                 let input = try AVCaptureDeviceInput(device: device)
                 if self.session.canAddInput(input) { self.session.addInput(input) }
                 if self.session.canAddOutput(self.photoOutput) { self.session.addOutput(self.photoOutput) }
-                self.photoOutput.isHighResolutionCaptureEnabled = true
                 self.configure(device: device)
                 
                 self.session.commitConfiguration()
@@ -689,7 +682,7 @@ class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
         super.init()
     }
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let error = error { return }
+        if error != nil { return }
         guard let imageData = photo.fileDataRepresentation(),
               let image = UIImage(data: imageData) else { return }
         completion(image)
