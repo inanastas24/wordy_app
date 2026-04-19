@@ -229,16 +229,6 @@ class UserProfileViewModel: ObservableObject {
         }
     }
     
-    func updateDarkMode(_ isDarkMode: Bool) async {
-        do {
-            try await FirestoreService.shared.updateUserProfile(updates: ["isDarkMode": isDarkMode])
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
-        }
-    }
-    
     func updateAvatarURL(_ url: String) async {
         do {
             try await FirestoreService.shared.updateUserProfile(updates: ["avatarURL": url])

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import UIKit
 
 struct KeyboardResponsiveModifier: ViewModifier {
     @State private var keyboardHeight: CGFloat = 0
@@ -25,6 +26,20 @@ struct KeyboardResponsiveModifier: ViewModifier {
 extension View {
     func keyboardResponsive() -> some View {
         modifier(KeyboardResponsiveModifier())
+    }
+
+    func dismissKeyboardOnTap() -> some View {
+        modifier(DismissKeyboardOnTapModifier())
+    }
+}
+
+struct DismissKeyboardOnTapModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            TapGesture().onEnded {
+                UIApplication.shared.endEditing()
+            }
+        )
     }
 }
 
@@ -47,5 +62,11 @@ extension Publishers {
 extension Notification {
     var keyboardHeight: CGFloat {
         return (userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
+    }
+}
+
+extension UIApplication {
+    func endEditing() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }

@@ -15,6 +15,7 @@ struct MenuRow: View {
     let title: String
     let color: String
     var isDarkMode: Bool = false
+    var showsUnreadDot: Bool = false
     
     var body: some View {
         HStack(spacing: 15) {
@@ -30,15 +31,21 @@ struct MenuRow: View {
             
             Text(title)
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: isDarkMode))
                 .lineLimit(1)
                 .minimumScaleFactor(0.84)
             
             Spacer()
+
+            if showsUnreadDot {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+            }
             
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(Color(hex: "#7F8C8D").opacity(0.55))
+                .foregroundColor(AppColors.tertiaryText(isDarkMode: isDarkMode))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

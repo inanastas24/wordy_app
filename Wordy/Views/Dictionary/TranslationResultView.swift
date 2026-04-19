@@ -31,7 +31,7 @@ struct TranslationResultView: View {
                     Button(action: closeView) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 28))
-                            .foregroundColor(Color(hex: "#7F8C8D"))
+                            .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                     }
                 }
                 
@@ -44,7 +44,7 @@ struct TranslationResultView: View {
                 if let ipa = result.ipaTranscription {
                     Text(ipa)
                         .font(.system(size: 18))
-                        .foregroundColor(Color(hex: "#7F8C8D"))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                 }
                 
                 Divider()
@@ -85,7 +85,7 @@ struct TranslationResultView: View {
             }
             .padding()
         }
-        .background(Color(hex: "#FFFDF5"))
+        .background(AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode))
         .onAppear {
             print("👀 TranslationResultView з'явився")
             isDismissing = false  // Скидаємо прапорець
@@ -126,7 +126,7 @@ struct TranslationResultView: View {
         HStack(spacing: 16) {
             Text(text)
                 .font(.system(size: isPrimary ? 32 : 28, weight: isPrimary ? .bold : .medium))
-                .foregroundColor(isPrimary ? Color(hex: "#2C3E50") : Color(hex: "#4ECDC4"))
+                .foregroundColor(isPrimary ? AppColors.primaryText(isDarkMode: localizationManager.isDarkMode) : Color(hex: "#4ECDC4"))
             
             Spacer()
             

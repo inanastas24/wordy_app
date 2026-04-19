@@ -64,8 +64,11 @@ struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var profileViewModel: UserProfileViewModel
+    @StateObject private var dictionaryViewModel = DictionaryViewModel.shared
+    @StateObject private var notificationManager = NotificationManager.shared
     
     @AppStorage("appLanguage") private var appLanguageString: String = "en"
+    @AppStorage("word_of_day_enabled") private var isWordOfDayEnabled: Bool = false
     
     @State private var showExportSheet = false
     @State private var showImportPicker = false
@@ -74,6 +77,7 @@ struct SettingsView: View {
     @State private var importedCount = 0
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var showNotificationsSettingsAlert = false
     @State private var showLogoutConfirmation = false
     @State private var showPaywall = false
     @State private var nicknameDraft = ""
@@ -99,8 +103,8 @@ struct SettingsView: View {
                         profileSection
                         subscriptionSection
                         languageSection
+                        notificationsSection
                         dataManagementSection
-                        appearanceSection
                         logoutSection
                         
                         Spacer(minLength: 50)
@@ -143,6 +147,14 @@ struct SettingsView: View {
                 Button("OK") { }
             } message: {
                 Text(errorMessage ?? "Unknown error")
+            }
+            .alert(notificationsSettingsAlertTitle, isPresented: $showNotificationsSettingsAlert) {
+                Button(openSettingsButtonTitle) {
+                    openSystemSettings()
+                }
+                Button(cancelButtonTitle(), role: .cancel) { }
+            } message: {
+                Text(notificationsPermissionDeniedMessage)
             }
             .confirmationDialog(
                 avatarPickerTitle,
@@ -211,6 +223,7 @@ struct SettingsView: View {
             .onAppear {
                 nicknameDraft = profileViewModel.displayName
                 profileViewModel.loadProfile()
+                notificationManager.refreshPermissionStatus()
             }
             .onChange(of: profileViewModel.displayName) { _, newValue in
                 nicknameDraft = newValue
@@ -225,7 +238,7 @@ struct SettingsView: View {
     
     private var settingsBackground: some View {
         ZStack {
-            Color(hex: localizationManager.isDarkMode ? "#16171B" : "#FBF8F0")
+            AppColors.screenBackground(isDarkMode: localizationManager.isDarkMode)
                 .ignoresSafeArea()
 
             Circle()
@@ -262,17 +275,17 @@ struct SettingsView: View {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                     .frame(width: 44, height: 44)
                     .background(
                         Circle()
-                            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.92))
+                            .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
                     )
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.7), lineWidth: 1)
+                            .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.06), radius: 12, x: 0, y: 8)
+                    .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 12, x: 0, y: 8)
             }
             
             Spacer()
@@ -280,11 +293,11 @@ struct SettingsView: View {
             VStack(spacing: 3) {
                 Text(localizationManager.string(.settings))
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(currentSectionSubtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
             }
             
             Spacer()
@@ -312,7 +325,7 @@ struct SettingsView: View {
                     HStack(alignment: .center, spacing: 10) {
                         Text(currentDisplayName)
                             .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                            .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
 
@@ -334,7 +347,7 @@ struct SettingsView: View {
 
                     Text(currentEmail)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.68) : Color(hex: "#6E7C89"))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -378,7 +391,7 @@ struct SettingsView: View {
                     LinearGradient(
                         colors: localizationManager.isDarkMode
                         ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
-                        : [Color.white, Color(hex: "#F5F3EA")]
+                        : [Color.white, Color(hex: "#F7F4EB")]
                         ,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -386,9 +399,9 @@ struct SettingsView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.16 : 0.07), radius: 22, x: 0, y: 14)
+                .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 22, x: 0, y: 14)
         )
         .padding(.horizontal, 20)
     }
@@ -514,6 +527,86 @@ struct SettingsView: View {
             localizationManager.setLanguage(language)
         }
     }
+
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            settingsSectionHeader(
+                title: localizationManager.string(.notifications),
+                subtitle: notificationsSectionSubtitle,
+                icon: "bell.badge.fill",
+                tint: "#FF8A65"
+            )
+
+            Toggle(isOn: Binding(
+                get: { isWordOfDayEnabled },
+                set: { newValue in
+                    if newValue {
+                        if notificationManager.hasPermission {
+                            isWordOfDayEnabled = true
+                            notificationManager.setWordOfDayEnabled(
+                                true,
+                                words: dictionaryViewModel.savedWords
+                            )
+                        } else {
+                            notificationManager.requestPermission { granted in
+                                DispatchQueue.main.async {
+                                    if granted {
+                                        isWordOfDayEnabled = true
+                                        notificationManager.setWordOfDayEnabled(
+                                            true,
+                                            words: dictionaryViewModel.savedWords
+                                        )
+                                    } else {
+                                        isWordOfDayEnabled = false
+                                        showNotificationsSettingsAlert = true
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        isWordOfDayEnabled = false
+                        notificationManager.setWordOfDayEnabled(false, words: [])
+                    }
+                }
+            )) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: "#FF8A65").opacity(0.16))
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: "text.book.closed.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hex: "#FF8A65"))
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(wordOfDayTitle)
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+
+                        Text(wordOfDaySubtitle)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 8)
+            )
+            .padding(.horizontal, 20)
+            .tint(Color(hex: "#4ECDC4"))
+        }
+    }
     
     private var dataManagementSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -546,53 +639,6 @@ struct SettingsView: View {
         case .ukrainian: return "Експорт / Імпорт"
         case .polish: return "Eksport / Import"
         case .english: return "Export / Import"
-        }
-    }
-    
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            settingsSectionHeader(
-                title: localizationManager.string(.appearance),
-                subtitle: appearanceSectionSubtitle,
-                icon: localizationManager.isDarkMode ? "moon.stars.fill" : "sun.max.fill",
-                tint: localizationManager.isDarkMode ? "#9B8CFF" : "#FFD166"
-            )
-            
-            Toggle(isOn: Binding(
-                get: { localizationManager.isDarkMode },
-                set: { newValue in
-                    localizationManager.toggleDarkMode(newValue)
-                }
-            )) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(localizationManager.isDarkMode ? Color(hex: "#4ECDC4").opacity(0.2) : Color(hex: "#FFD93D").opacity(0.2))
-                            .frame(width: 36, height: 36)
-                        
-                        Image(systemName: localizationManager.isDarkMode ? "moon.fill" : "sun.max.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(localizationManager.isDarkMode ? Color(hex: "#4ECDC4") : Color(hex: "#FFD93D"))
-                    }
-                    
-                    Text(localizationManager.currentThemeName())
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 8)
-            )
-            .padding(.horizontal, 20)
-            .tint(Color(hex: "#4ECDC4"))
         }
     }
     
@@ -644,6 +690,7 @@ struct SettingsView: View {
             
             // Скидаємо мову навчання
             UserDefaults.standard.removeObject(forKey: "learningLanguage")
+            NotificationManager.shared.cancelWordOfDayNotifications()
             
             try authViewModel.signOut()
             
@@ -820,18 +867,20 @@ struct SettingsView: View {
                             .resizable()
                             .scaledToFill()
                     } else {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
 
-                        Text(initialsText)
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(.white)
+                            Text(initialsText)
+                                .font(.system(size: 26, weight: .bold))
+                                .foregroundColor(.white)
+                        }
                     }
                 }
                 .frame(width: 84, height: 84)
@@ -1049,12 +1098,58 @@ struct SettingsView: View {
         }
     }
 
-    private var appearanceSectionSubtitle: String {
+    private var notificationsSectionSubtitle: String {
         switch localizationManager.currentLanguage {
-        case .ukrainian: return "Підлаштуйте атмосферу застосунку під себе"
-        case .polish: return "Dostosuj klimat aplikacji do siebie"
-        case .english: return "Tune the app atmosphere to match your style"
+        case .ukrainian: return "Щоденне слово прямо з ваших словників"
+        case .polish: return "Codzienne słowo prosto z Twoich słowników"
+        case .english: return "A daily word picked straight from your dictionaries"
         }
+    }
+
+    private var wordOfDayTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Слово дня"
+        case .polish: return "Słowo dnia"
+        case .english: return "Word of the Day"
+        }
+    }
+
+    private var wordOfDaySubtitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "1 слово на день у пуші"
+        case .polish: return "1 słowo dziennie w powiadomieniu"
+        case .english: return "1 word a day in a push notification"
+        }
+    }
+
+    private var notificationsPermissionDeniedMessage: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Щоб увімкнути Слово дня, дозвольте сповіщення в налаштуваннях iPhone."
+        case .polish: return "Aby włączyć Słowo dnia, zezwól na powiadomienia w ustawieniach iPhone'a."
+        case .english: return "To enable Word of the Day, allow notifications in iPhone settings."
+        }
+    }
+
+    private var notificationsSettingsAlertTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Сповіщення вимкнені"
+        case .polish: return "Powiadomienia są wyłączone"
+        case .english: return "Notifications Are Off"
+        }
+    }
+
+    private var openSettingsButtonTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Відкрити налаштування"
+        case .polish: return "Otwórz ustawienia"
+        case .english: return "Open Settings"
+        }
+    }
+
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString),
+              UIApplication.shared.canOpenURL(url) else { return }
+        UIApplication.shared.open(url)
     }
 
     @ViewBuilder
@@ -1073,11 +1168,11 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.56) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
             }
 
             Spacer()
@@ -1101,11 +1196,11 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(subtitle)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                     .lineLimit(2)
             }
 
@@ -1114,7 +1209,7 @@ struct SettingsView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.04) : Color.white.opacity(0.62))
+                .fill(AppColors.softCardBackground(isDarkMode: localizationManager.isDarkMode))
         )
     }
 }
@@ -1188,24 +1283,24 @@ struct SettingsRow: View {
             
             Text(title)
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: isDarkMode))
             
             Spacer()
             
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(Color(hex: "#7F8C8D"))
+                .foregroundColor(AppColors.tertiaryText(isDarkMode: isDarkMode))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .fill(AppColors.cardBackground(isDarkMode: isDarkMode))
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: isDarkMode), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 8)
+                .shadow(color: AppColors.shadow(isDarkMode: isDarkMode), radius: 12, x: 0, y: 8)
         )
     }
 }

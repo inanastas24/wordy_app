@@ -95,6 +95,7 @@ struct WordRatingView: View {
             .disabled(selectedRating == nil || isSubmitting)
         }
         .padding()
+        .dismissKeyboardOnTap()
         .overlay {
             if showThankYou {
                 ThankYouOverlay {

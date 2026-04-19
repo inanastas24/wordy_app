@@ -55,6 +55,7 @@ struct CustomSetGeneratorView: View {
             }
             .navigationTitle("Create Custom Set")
             .navigationBarTitleDisplayMode(.large)
+            .dismissKeyboardOnTap()
             .sheet(isPresented: $showResult) {
                 if let set = generatedSet {
                     GeneratedSetPreviewView(

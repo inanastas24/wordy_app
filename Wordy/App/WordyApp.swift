@@ -64,6 +64,7 @@ struct WordyApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var subscriptionManager = SubscriptionManager()
     @StateObject private var onboardingManager = OnboardingManager.shared
+    @StateObject private var dictionaryViewModel = DictionaryViewModel.shared
     
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
     @AppStorage("hasSelectedLanguage") private var hasSelectedLanguage: Bool = false
@@ -98,6 +99,9 @@ struct WordyApp: App {
                 }
             }
             .onAppear {
+                localizationManager.syncSystemAppearance()
+                refreshWordOfDayScheduleIfNeeded()
+                
                 // Запитуємо пермішени при першому вході
                 if !hasRequestedPermissions {
                     isRequestingPermissions = true
@@ -109,9 +113,16 @@ struct WordyApp: App {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
+                    localizationManager.syncSystemAppearance()
+                    refreshWordOfDayScheduleIfNeeded()
                     ReviewManager.shared.handleAppBecameActive()
                 }
             }
         }
+    }
+
+    private func refreshWordOfDayScheduleIfNeeded() {
+        guard NotificationManager.shared.isWordOfDayEnabled else { return }
+        dictionaryViewModel.fetchSavedWords()
     }
 }

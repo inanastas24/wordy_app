@@ -44,9 +44,9 @@ struct TranslationBubbleView: View {
                                 Button(action: onDismiss) {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(Color(hex: "#7F8C8D"))
+                                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                                         .padding(8)
-                                        .background(Color.white.opacity(0.6))
+                                        .background(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
                                         .clipShape(Circle())
                                 }
                             }
@@ -67,7 +67,7 @@ struct TranslationBubbleView: View {
                                     if let ipa = result.ipaTranscription {
                                         Text(ipa)
                                             .font(.system(size: 17, design: .serif))
-                                            .foregroundColor(Color(hex: "#7F8C8D"))
+                                            .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                                             .italic()
                                     }
                                 }
@@ -93,7 +93,7 @@ struct TranslationBubbleView: View {
                                     HStack(spacing: 8) {
                                         Text("розмовне:")
                                             .font(.system(size: 11))
-                                            .foregroundColor(.gray)
+                                            .foregroundColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
                                         Text(informal)
                                             .font(.system(size: 14))
                                             .foregroundColor(Color(hex: "#4ECDC4").opacity(0.8))
@@ -153,7 +153,7 @@ struct TranslationBubbleView: View {
                     .frame(maxHeight: geometry.size.height * 0.72)
                     .background(
                         RoundedRectangle(cornerRadius: 32, style: .continuous)
-                            .fill(Color(hex: "#FFFDF5").opacity(0.85))
+                            .fill(AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode).opacity(localizationManager.isDarkMode ? 0.94 : 0.88))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                                     .fill(.ultraThinMaterial)
@@ -173,7 +173,7 @@ struct TranslationBubbleView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 32, style: .continuous)
-                            .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
+                            .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1.5)
                     )
                     .padding(.horizontal, 14)
                     .padding(.bottom, 14)

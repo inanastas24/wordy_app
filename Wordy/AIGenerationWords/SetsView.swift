@@ -103,6 +103,7 @@ struct SetsView: View {
             }
             .navigationTitle("")
             .navigationBarHidden(true)
+            .dismissKeyboardOnTap()
             .fullScreenCover(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
@@ -129,7 +130,7 @@ struct SetsView: View {
 
     private var setsBackground: some View {
         ZStack {
-            backgroundColor
+            AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode)
                 .ignoresSafeArea()
 
             Circle()
@@ -149,10 +150,11 @@ struct SetsView: View {
     private var searchBarWithButton: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
+                .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
 
             TextField(localizationManager.string(.searchSets), text: $searchText)
                 .font(.system(size: 16))
+                .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                 .submitLabel(.search)
                 .onSubmit {
                     isSearchFocused = false
@@ -175,7 +177,7 @@ struct SetsView: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -184,10 +186,10 @@ struct SetsView: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .fill(AppColors.cardBackground(isDarkMode: localizationManager.isDarkMode))
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.8), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
         )
         .overlay(
@@ -256,27 +258,18 @@ struct SetsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(loadingSetsTitle)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(loadingSetsSubtitle)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B").opacity(0.92) : Color.white.opacity(0.88))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.78), lineWidth: 1)
-                )
-        )
-        .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.05), radius: 12, x: 0, y: 8)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
     }
 
     private var filtersSection: some View {
@@ -499,11 +492,11 @@ struct SetsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(subtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.56) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
             }
 
             Spacer()
@@ -932,20 +925,11 @@ struct CategoryWordsView: View {
 
             Text(loadingWordsText)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
             Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B").opacity(0.9) : Color.white.opacity(0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.05 : 0.8), lineWidth: 1)
-                )
-        )
+        .padding(.vertical, 4)
     }
 
     private var loadingWordsText: String {
@@ -1428,20 +1412,11 @@ struct WordSetDetailView: View {
 
             Text(loadingWordsText)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
             Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B").opacity(0.9) : Color.white.opacity(0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.05 : 0.8), lineWidth: 1)
-                )
-        )
+        .padding(.vertical, 4)
     }
 
     private var loadingWordsText: String {

@@ -154,7 +154,7 @@ class FirebaseTTSManager: ObservableObject {
         let utterance = AVSpeechUtterance(string: text)
         
         let languageCode = mapToAppleLanguageCode(language)
-        utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
+        utterance.voice = TextToSpeechService.bestAvailableVoice(for: languageCode) ?? AVSpeechSynthesisVoice(language: languageCode)
         utterance.rate = 0.5
         utterance.pitchMultiplier = 1.0
         
@@ -171,17 +171,7 @@ class FirebaseTTSManager: ObservableObject {
     }
     
     private func mapToAppleLanguageCode(_ code: String) -> String {
-        let mapping = [
-            "uk": "uk-UA",
-            "en": "en-US",
-            "de": "de-DE",
-            "pl": "pl-PL",
-            "es": "es-ES",
-            "fr": "fr-FR",
-            "it": "it-IT",
-            "pt": "pt-PT"
-        ]
-        return mapping[code] ?? "en-US"
+        TextToSpeechService.appleSpeechLanguageCode(for: code)
     }
     
     private func playAudio(from url: URL, language: String) {

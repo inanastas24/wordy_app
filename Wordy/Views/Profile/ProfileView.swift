@@ -15,6 +15,7 @@ struct ProfileView: View {
     @EnvironmentObject var profileViewModel: UserProfileViewModel
     
     @ObservedObject private var dictionaryVM = DictionaryViewModel.shared
+    @StateObject private var notificationInbox = NotificationInboxManager.shared
     
     @State private var showMenu = false
     @State private var selectedTab: Int = 2
@@ -102,7 +103,7 @@ struct ProfileView: View {
 
     private var profileBackground: some View {
         ZStack {
-            Color(hex: localizationManager.isDarkMode ? "#16171B" : "#FBF8F0")
+            AppColors.screenBackground(isDarkMode: localizationManager.isDarkMode)
                 .ignoresSafeArea()
 
             Circle()
@@ -144,19 +145,28 @@ struct ProfileView: View {
     private var header: some View {
         HStack {
             Button(action: { showMenu = true }) {
-                Image(systemName: "line.horizontal.3")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
-                    .frame(width: 44, height: 44)
-                    .background(
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "line.horizontal.3")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
+                        )
+                        .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 12, x: 0, y: 8)
+
+                    if notificationInbox.unreadCount > 0 {
                         Circle()
-                            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.92))
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.7), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.06), radius: 12, x: 0, y: 8)
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                            .offset(x: -3, y: 3)
+                    }
+                }
             }
             
             Spacer()
@@ -164,11 +174,11 @@ struct ProfileView: View {
             VStack(spacing: 3) {
                 Text(localizationManager.string(.profile))
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(progressHeaderSubtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
             }
             
             Spacer()
@@ -180,13 +190,13 @@ struct ProfileView: View {
                     .frame(width: 44, height: 44)
                     .background(
                         Circle()
-                            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.92))
+                            .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
                     )
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.7), lineWidth: 1)
+                            .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.06), radius: 12, x: 0, y: 8)
+                    .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 12, x: 0, y: 8)
             }
         }
         .padding(.horizontal, 20)
@@ -202,37 +212,39 @@ struct ProfileView: View {
                             .resizable()
                             .scaledToFill()
                     } else {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
 
-                        Text(initialsText)
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            Text(initialsText)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                        }
                     }
                 }
                 .frame(width: 88, height: 88)
                 .clipShape(Circle())
                 .overlay(
                     Circle()
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.14 : 0.8), lineWidth: 3)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 3)
                 )
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text(currentDisplayName)
                         .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
 
                     Text(currentEmail)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.68) : Color(hex: "#6E7C89"))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -263,7 +275,7 @@ struct ProfileView: View {
                                 .padding(.vertical, 5)
                                 .background(
                                     Capsule()
-                                        .fill(localizationManager.isDarkMode ? Color(hex: "#1F1F21") : Color(hex: "#F4EFE4"))
+                                        .fill(localizationManager.isDarkMode ? Color(hex: "#1F1F21") : Color(hex: "#F2EEE2"))
                                 )
                         }
                     }
@@ -312,7 +324,7 @@ struct ProfileView: View {
                     LinearGradient(
                         colors: localizationManager.isDarkMode
                         ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
-                        : [Color.white, Color(hex: "#F5F3EA")]
+                        : [Color.white, Color(hex: "#F7F4EB")]
                         ,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -320,9 +332,9 @@ struct ProfileView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.16 : 0.07), radius: 22, x: 0, y: 14)
+                .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 22, x: 0, y: 14)
         )
         .padding(.horizontal, 20)
     }
@@ -654,7 +666,7 @@ struct StatCard: View {
     let isDarkMode: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(spacing: 18) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(color.opacity(0.12))
@@ -665,21 +677,26 @@ struct StatCard: View {
                     .foregroundColor(color)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 8) {
                 Text(value)
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundColor(isDarkMode ? .white : Color(hex: "#203044"))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
+                    .frame(maxWidth: .infinity)
 
                 Text(label)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(isDarkMode ? Color(hex: "#8E8E93") : Color(hex: "#6E7C89"))
-                    .multilineTextAlignment(.leading)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 36, alignment: .top)
             }
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 168, alignment: .topLeading)
+        .frame(minHeight: 168, alignment: .top)
         .padding(.vertical, 22)
         .padding(.horizontal, 18)
         .background(isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))

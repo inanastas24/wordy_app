@@ -530,6 +530,7 @@ final class DictionaryViewModel: ObservableObject {
         writeWordsToStorage(prepared.words)
         writeDictionariesToStorage(prepared.dictionaries)
         syncWidgetWords()
+        NotificationManager.shared.refreshWordOfDayNotifications(words: prepared.words)
     }
 
     // MARK: - Data Preparation

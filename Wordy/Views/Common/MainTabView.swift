@@ -24,8 +24,10 @@ struct MainTabView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @StateObject private var onboardingManager = OnboardingManager.shared
+    @StateObject private var notificationInbox = NotificationInboxManager.shared
     
     @State private var showPaywallFromNotification = false
+    @State private var showNotificationsInbox = false
     
     var body: some View {
         ZStack {
@@ -93,11 +95,19 @@ struct MainTabView: View {
             }
         }
         .onAppear {
+            notificationInbox.refreshState()
             setupTabBarAppearance()
             lockOrientationToPortrait()
+            if notificationInbox.shouldOpenInbox {
+                showNotificationsInbox = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openPaywallFromNotification)) { _ in
             showPaywallFromNotification = true
+        }
+        .onChange(of: notificationInbox.shouldOpenInbox) { _, shouldOpen in
+            guard shouldOpen else { return }
+            showNotificationsInbox = true
         }
         .sheet(isPresented: $showPaywallFromNotification) {
             PaywallView(
@@ -107,6 +117,12 @@ struct MainTabView: View {
             )
             .environmentObject(subscriptionManager)
             .environmentObject(localizationManager)
+        }
+        .sheet(isPresented: $showNotificationsInbox, onDismiss: {
+            notificationInbox.consumeOpenInboxRequest()
+        }) {
+            NotificationsInboxView()
+                .environmentObject(localizationManager)
         }
     }
     // MARK: - Sets Tab Item з BETA бейджем
@@ -140,11 +156,31 @@ struct MainTabView: View {
     
     private func setupTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        if localizationManager.isDarkMode {
-            appearance.backgroundColor = UIColor(Color(hex: "#1C1C1E"))
-        } else {
-            appearance.backgroundColor = UIColor(Color(hex: "#FFFDF5"))
-        }
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode))
+
+        let normalIconColor = UIColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
+        let normalTextColor = UIColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
+        let selectedColor = UIColor(AppColors.primary)
+
+        let stacked = appearance.stackedLayoutAppearance
+        stacked.normal.iconColor = normalIconColor
+        stacked.normal.titleTextAttributes = [.foregroundColor: normalTextColor]
+        stacked.selected.iconColor = selectedColor
+        stacked.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
+        let inline = appearance.inlineLayoutAppearance
+        inline.normal.iconColor = normalIconColor
+        inline.normal.titleTextAttributes = [.foregroundColor: normalTextColor]
+        inline.selected.iconColor = selectedColor
+        inline.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
+        let compactInline = appearance.compactInlineLayoutAppearance
+        compactInline.normal.iconColor = normalIconColor
+        compactInline.normal.titleTextAttributes = [.foregroundColor: normalTextColor]
+        compactInline.selected.iconColor = selectedColor
+        compactInline.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }

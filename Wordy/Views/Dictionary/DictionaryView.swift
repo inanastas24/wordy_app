@@ -30,7 +30,7 @@ struct DictionaryView: View {
     @State private var dictionaryToDelete: WordDictionaryModel?
 
     private var backgroundColor: Color {
-        Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
+        AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode)
     }
 
     private var emptyTitle: String {
@@ -222,49 +222,50 @@ struct DictionaryView: View {
             wordToEdit = nil
             showAddWord = true
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .semibold))
-
-                Text(addWordButtonTitle)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-            }
-            .foregroundColor(Color(hex: "#4ECDC4"))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 48, height: 48)
+                .foregroundColor(Color(hex: "#4ECDC4"))
             .background(
-                Capsule()
-                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.9))
+                Circle()
+                    .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
             )
             .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.8), lineWidth: 1)
+                Circle()
+                    .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
             )
+            .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 10, x: 0, y: 6)
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel(addWordButtonTitle)
     }
 
     private var createDictionaryButton: some View {
         Button {
             showCreateDictionary = true
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Image(systemName: "books.vertical.fill")
                     .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 18, alignment: .center)
 
                 Text(createDictionaryTitle)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .foregroundColor(Color(hex: "#4ECDC4"))
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+            .frame(minHeight: 52)
             .background(
-                Capsule()
-                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.9))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
             )
             .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.8), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -279,6 +280,8 @@ struct DictionaryView: View {
                     .font(.system(size: 14, weight: .bold))
                 Text(exportImportShortTitle)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .foregroundColor(.white)
             .padding(.horizontal, 14)
@@ -342,7 +345,7 @@ struct DictionaryView: View {
 
             Text(emptySubtitle)
                 .font(.system(size: 16))
-                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
 
             Button {
                 showAddWord = true
@@ -364,10 +367,10 @@ struct DictionaryView: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .fill(AppColors.cardBackground(isDarkMode: localizationManager.isDarkMode))
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
         )
         .padding(.horizontal, 20)
@@ -398,11 +401,11 @@ struct DictionaryView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dictionary.name)
                         .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                     Text(dictionarySubtitle(words.count))
                         .font(.system(size: 13))
-                        .foregroundColor(.gray)
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                 }
 
                 Spacer()
@@ -437,13 +440,13 @@ struct DictionaryView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.92))
+                .fill(AppColors.cardBackground(isDarkMode: localizationManager.isDarkMode))
                 .overlay(
                     RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.78), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
         )
-        .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.1 : 0.06), radius: 16, x: 0, y: 8)
+        .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 16, x: 0, y: 8)
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .onTapGesture {
             selectedDictionary = dictionary

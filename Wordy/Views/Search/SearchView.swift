@@ -228,6 +228,7 @@ struct SearchView: View {
             } message: {
                 Text(errorMessage)
             }
+            .dismissKeyboardOnTap()
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView(
                     isFirstTime: false,

@@ -165,6 +165,7 @@ struct ContactFormBubbleView: View {
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .stroke(Color.white.opacity(0.9), lineWidth: 1.5)
         )
+        .dismissKeyboardOnTap()
         .alert("Помилка", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {

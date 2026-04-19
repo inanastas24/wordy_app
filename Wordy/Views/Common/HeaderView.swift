@@ -13,23 +13,33 @@ struct HeaderView: View {
     let title: String
     var showAvatar: Bool = false
     @EnvironmentObject var localizationManager: LocalizationManager
+    @StateObject private var notificationInbox = NotificationInboxManager.shared
     
     var body: some View {
         HStack {
             Button(action: { withAnimation { showMenu = true } }) {
-                Image(systemName: "line.horizontal.3")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
-                    .frame(width: 44, height: 44)
-                    .background(
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "line.horizontal.3")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
+                        )
+                        .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 12, x: 0, y: 8)
+
+                    if notificationInbox.unreadCount > 0 {
                         Circle()
-                            .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.92))
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.72), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.12 : 0.06), radius: 12, x: 0, y: 8)
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                            .offset(x: -3, y: 3)
+                    }
+                }
             }
             
             Spacer()
@@ -37,11 +47,11 @@ struct HeaderView: View {
             VStack(spacing: 3) {
                 Text(title)
                     .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
                 Text(headerSubtitle)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#6E7C89"))
+                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
             }
             
             Spacer()

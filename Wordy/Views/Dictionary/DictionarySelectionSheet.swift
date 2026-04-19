@@ -39,6 +39,7 @@ struct DictionarySelectionSheet: View {
             .background(backgroundColor)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(localizationManager.string(.cancel)) {
@@ -94,6 +95,7 @@ struct CreateDictionarySheet: View {
             .navigationTitle(titleText)
             .navigationBarTitleDisplayMode(.inline)
             .presentationDragIndicator(.visible)
+            .dismissKeyboardOnTap()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(localizationManager.string(.cancel)) {

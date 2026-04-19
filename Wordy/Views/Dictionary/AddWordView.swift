@@ -172,6 +172,7 @@ struct AddWordView: View {
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .dismissKeyboardOnTap()
             .sheet(isPresented: $showDictionaryPicker) {
                 DictionarySelectionSheet(
                     dictionaries: viewModel.dictionaries,

@@ -97,6 +97,7 @@ struct MenuView: View {
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     
     @StateObject private var dictionaryVM = DictionaryViewModel.shared
+    @StateObject private var notificationInbox = NotificationInboxManager.shared
     @State private var reviewManager = ReviewManager.shared
     
     @State private var bubbleOffsets: [CGFloat] = [0, 0, 0, 0, 0]
@@ -124,16 +125,16 @@ struct MenuView: View {
                     footerSection
                 }
                 .frame(width: min(geometry.size.width * 0.75, 300))
-                .frame(maxHeight: geometry.size.height - 100)
+                .frame(maxHeight: geometry.size.height - (geometry.safeAreaInsets.bottom + 160))
                 .background(menuBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.07 : 0.76), lineWidth: 1)
+                        .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(localizationManager.isDarkMode ? 0.26 : 0.14), radius: 24, x: 10, y: 0)
+                .shadow(color: AppColors.shadow(isDarkMode: localizationManager.isDarkMode), radius: 24, x: 10, y: 0)
                 .padding(.top, 50)
-                .padding(.bottom, 20)
+                .padding(.bottom, geometry.safeAreaInsets.bottom + 84)
                 .padding(.leading, 10)
                 .offset(x: max(dragOffset, 0))
                 .gesture(closeDragGesture)
@@ -181,7 +182,7 @@ struct MenuView: View {
         LinearGradient(
             colors: localizationManager.isDarkMode
             ? [Color(hex: "#23252B"), Color(hex: "#17181D")]
-            : [Color.white, Color(hex: "#F5F3EA")],
+            : [Color.white, Color(hex: "#F7F4EB")],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -232,11 +233,11 @@ struct MenuView: View {
                 Button(action: closeMenu) {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.68) : Color(hex: "#6E7C89"))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                         .frame(width: 34, height: 34)
                         .background(
                             Circle()
-                                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.8))
+                                .fill(AppColors.softCardBackground(isDarkMode: localizationManager.isDarkMode))
                         )
                 }
                 .buttonStyle(.plain)
@@ -244,11 +245,11 @@ struct MenuView: View {
 
             Text("Wordy")
                 .font(.system(size: 30, weight: .bold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
             Text(menuSubtitle)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.58) : Color(hex: "#6E7C89"))
+                .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -276,11 +277,11 @@ struct MenuView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localizedStreakTitle)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.56) : Color(hex: "#6E7C89"))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
 
                     Text("\(streak)")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                         .contentTransition(.numericText())
                 }
 
@@ -301,18 +302,20 @@ struct MenuView: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: "#4ECDC4"), Color(hex: "#6BCB77")],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                        )
 
-                    Text(menuInitials)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        Text(menuInitials)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
                 }
             }
             .frame(width: 54, height: 54)
@@ -338,7 +341,7 @@ struct MenuView: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.82))
+                        .fill(AppColors.softCardBackground(isDarkMode: localizationManager.isDarkMode))
                         .frame(width: 38, height: 38)
 
                     Image(systemName: "slider.horizontal.3")
@@ -352,7 +355,7 @@ struct MenuView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.035) : Color.white.opacity(0.5))
+                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.7))
         )
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
@@ -376,7 +379,7 @@ struct MenuView: View {
                 .padding(.vertical, 5)
                 .background(
                     Capsule()
-                        .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.8))
+                        .fill(AppColors.softCardBackground(isDarkMode: localizationManager.isDarkMode))
                 )
         }
     }
@@ -387,6 +390,19 @@ struct MenuView: View {
     
     private var actionsSection: some View {
         VStack(spacing: 10) {
+            Button(action: {
+                NotificationInboxManager.shared.requestOpenInbox()
+                closeMenu()
+            }) {
+                MenuRow(
+                    icon: "bell.fill",
+                    title: notificationsMenuTitle,
+                    color: "#FF6B6B",
+                    isDarkMode: localizationManager.isDarkMode,
+                    showsUnreadDot: notificationInbox.unreadCount > 0
+                )
+            }
+
             Button(action: {
                 shareApp()
                 closeMenu()
@@ -415,6 +431,14 @@ struct MenuView: View {
         }
         .padding(.horizontal, 14)
     }
+
+    private var notificationsMenuTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Нотифікації"
+        case .polish: return "Powiadomienia"
+        case .english: return "Notifications"
+        }
+    }
     
     private var footerSection: some View {
         VStack(spacing: 8) {
@@ -440,13 +464,13 @@ struct MenuView: View {
             HStack {
                 Text("Wordy v1.1")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? .gray.opacity(0.6) : Color(hex: "#7F8C8D").opacity(0.6))
+                    .foregroundColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
                 
                 Spacer()
 
                 Text(localizedSwipeHint)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.44) : Color(hex: "#9AA4AD"))
+                    .foregroundColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
@@ -466,7 +490,7 @@ struct MenuView: View {
 
             Text(title)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203044"))
+                .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
 
@@ -474,7 +498,7 @@ struct MenuView: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(Color(hex: "#7F8C8D").opacity(0.55))
+                .foregroundColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

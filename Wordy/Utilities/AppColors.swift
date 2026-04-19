@@ -52,4 +52,44 @@ extension AppColors {
             endPoint: .trailing
         )
     }
+
+    static func screenBackground(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color(hex: "#16171B") : Color(hex: "#FBF8F0")
+    }
+
+    static func secondaryScreenBackground(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color(hex: "#1C1C1E") : Color(hex: "#FFFDF5")
+    }
+
+    static func cardBackground(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color(hex: "#23252B") : Color.white.opacity(0.94)
+    }
+
+    static func softCardBackground(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.82)
+    }
+
+    static func cardBorder(isDarkMode: Bool) -> Color {
+        Color.white.opacity(isDarkMode ? 0.08 : 0.78)
+    }
+
+    static func primaryText(isDarkMode: Bool) -> Color {
+        isDarkMode ? .white : Color(hex: "#203044")
+    }
+
+    static func secondaryText(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color.white.opacity(0.62) : Color(hex: "#6E7C89")
+    }
+
+    static func tertiaryText(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color.white.opacity(0.44) : Color(hex: "#98A3AD")
+    }
+
+    static func shadow(isDarkMode: Bool) -> Color {
+        Color.black.opacity(isDarkMode ? 0.18 : 0.07)
+    }
+
+    static func controlFill(isDarkMode: Bool) -> Color {
+        isDarkMode ? Color.white.opacity(0.08) : Color.white.opacity(0.94)
+    }
 }

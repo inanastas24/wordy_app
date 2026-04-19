@@ -330,14 +330,7 @@ public class LocalizationManager: ObservableObject {
         
         self.currentLanguage = initialLanguage
         
-        // 🆕 Світла тема за замовчуванням, темна тільки якщо явно встановлено
-        if UserDefaults.standard.object(forKey: "isDarkMode") == nil {
-            // Перший запуск - світла тема
-            self.isDarkMode = false
-            UserDefaults.standard.set(false, forKey: "isDarkMode")
-        } else {
-            self.isDarkMode = UserDefaults.standard.bool(forKey: "isDarkMode")
-        }
+        self.isDarkMode = Self.currentSystemIsDarkMode()
         
         applyAppearance()
     }
@@ -348,35 +341,66 @@ public class LocalizationManager: ObservableObject {
         NotificationCenter.default.post(name: .languageChanged, object: nil)
     }
    
-    // Метод toggleDarkMode:
-
-    func toggleDarkMode(_ value: Bool) {
-        isDarkMode = value
-        UserDefaults.standard.set(value, forKey: "isDarkMode")
+    func syncSystemAppearance(_ colorScheme: ColorScheme) {
+        let shouldUseDarkMode = colorScheme == .dark
+        guard isDarkMode != shouldUseDarkMode else { return }
+        
+        isDarkMode = shouldUseDarkMode
         applyAppearance()
         
-        // Оновлюємо віджет при зміні теми
         WidgetCenter.shared.reloadAllTimelines()
-        print("🎨 Theme changed to \(value ? "dark" : "light"), widget reloaded")
+        print("🎨 Theme synced with system: \(shouldUseDarkMode ? "dark" : "light"), widget reloaded")
+    }
+
+    func syncSystemAppearance() {
+        let shouldUseDarkMode = Self.currentSystemIsDarkMode()
+        guard isDarkMode != shouldUseDarkMode else { return }
+
+        isDarkMode = shouldUseDarkMode
+        applyAppearance()
+
+        WidgetCenter.shared.reloadAllTimelines()
+        print("🎨 Theme synced from system traits: \(shouldUseDarkMode ? "dark" : "light"), widget reloaded")
     }
     
     private func applyAppearance() {
         DispatchQueue.main.async {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.windows.forEach { window in
-                    window.overrideUserInterfaceStyle = self.isDarkMode ? .dark : .light
+                    window.overrideUserInterfaceStyle = .unspecified
                 }
             }
         }
     }
+
+    private static func currentSystemIsDarkMode() -> Bool {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+
+        if let sceneStyle = scenes
+            .first(where: { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive })?
+            .traitCollection.userInterfaceStyle,
+           sceneStyle != .unspecified {
+            return sceneStyle == .dark
+        }
+
+        if let windowStyle = scenes
+            .flatMap(\.windows)
+            .first(where: { !$0.isHidden })?
+            .traitCollection.userInterfaceStyle,
+           windowStyle != .unspecified {
+            return windowStyle == .dark
+        }
+
+        let traitStyle = UITraitCollection.current.userInterfaceStyle
+        if traitStyle != .unspecified {
+            return traitStyle == .dark
+        }
+
+        return UIScreen.main.traitCollection.userInterfaceStyle == .dark
+    }
     
     func string(_ key: LocalizableKey) -> String {
         translations[key]?[currentLanguage] ?? key.rawValue
-    }
-    
-    // Допоміжний метод для теми
-    func currentThemeName() -> String {
-        return isDarkMode ? string(.darkMode) : string(.lightMode)
     }
     
     private let translations: [LocalizableKey: [Language: String]] = [

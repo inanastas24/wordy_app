@@ -69,6 +69,7 @@ struct RootView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var currentFlow: AppFlow = .loading
     @State private var deepLinkAction: DeepLinkAction?
@@ -100,8 +101,12 @@ struct RootView: View {
                 .zIndex(9999)
         }
         .onAppear {
+            localizationManager.syncSystemAppearance(colorScheme)
             print("🚀 RootView appeared")
             checkInitialState()
+        }
+        .onChange(of: colorScheme) { _, newScheme in
+            localizationManager.syncSystemAppearance(newScheme)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openPaywallFromNotification)) { _ in
             if currentFlow == .mainApp {
