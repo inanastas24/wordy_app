@@ -35,6 +35,7 @@ struct NotificationsInboxView: View {
                 }
             }
             .onAppear {
+                inboxManager.refreshState()
                 inboxManager.markAllAsRead()
                 inboxManager.consumeOpenInboxRequest()
             }

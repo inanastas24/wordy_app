@@ -19,6 +19,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // Примусово встановлюємо портрет при старті
         UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+
+        // Ініціалізуємо notification manager якомога раніше,
+        // щоб delegate UNUserNotificationCenter був підключений
+        // і тап по пушу відкривав inbox навіть після cold start.
+        _ = NotificationManager.shared
         
         // Реєстрація категорій сповіщень
         registerNotificationCategories()

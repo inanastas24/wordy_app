@@ -221,13 +221,6 @@ final class NotificationManager: NSObject, ObservableObject {
     ) {
         let title = localizedString(for: titleKey)
         let body = localizedString(for: bodyKey)
-        let inboxId = NotificationInboxManager.shared.upsertScheduledNotification(
-            requestIdentifier: identifier,
-            title: title,
-            body: body,
-            scheduledAt: date,
-            kind: .subscription
-        )
 
         let content = UNMutableNotificationContent()
         content.title = title
@@ -235,7 +228,7 @@ final class NotificationManager: NSObject, ObservableObject {
         content.sound = .default
         content.badge = NSNumber(value: max(NotificationInboxManager.shared.unreadCount, 0) + 1)
         content.userInfo = [
-            "inboxId": inboxId,
+            "inboxId": makeInboxId(requestIdentifier: identifier, scheduledAt: date),
             "notificationKind": AppNotificationKind.subscription.rawValue,
             "scheduledAt": date.timeIntervalSince1970
         ]
@@ -398,13 +391,6 @@ final class NotificationManager: NSObject, ObservableObject {
     ) -> UNMutableNotificationContent {
         let title = localizedWordOfDayTitle()
         let body = localizedWordOfDayBody(for: word)
-        let inboxId = NotificationInboxManager.shared.upsertScheduledNotification(
-            requestIdentifier: identifier,
-            title: title,
-            body: body,
-            scheduledAt: scheduledDate,
-            kind: .wordOfDay
-        )
 
         let content = UNMutableNotificationContent()
         content.title = title
@@ -412,7 +398,7 @@ final class NotificationManager: NSObject, ObservableObject {
         content.sound = .default
         content.badge = NSNumber(value: max(badgeCount, 1))
         content.userInfo = [
-            "inboxId": inboxId,
+            "inboxId": makeInboxId(requestIdentifier: identifier, scheduledAt: scheduledDate),
             "notificationKind": AppNotificationKind.wordOfDay.rawValue,
             "scheduledAt": scheduledDate.timeIntervalSince1970,
             "type": "word_of_day",
@@ -442,6 +428,10 @@ final class NotificationManager: NSObject, ObservableObject {
         case .english:
             return "Today's word: \(pair)"
         }
+    }
+
+    private func makeInboxId(requestIdentifier: String, scheduledAt: Date) -> String {
+        "\(requestIdentifier)|\(Int(scheduledAt.timeIntervalSince1970))"
     }
 
 

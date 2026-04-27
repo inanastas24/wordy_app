@@ -79,42 +79,8 @@ final class NotificationInboxManager: ObservableObject {
 
     func refreshState() {
         load()
-    }
-
-    @discardableResult
-    func upsertScheduledNotification(
-        requestIdentifier: String,
-        title: String,
-        body: String,
-        scheduledAt: Date,
-        kind: AppNotificationKind
-    ) -> String {
-        let inboxId = makeInboxId(requestIdentifier: requestIdentifier, scheduledAt: scheduledAt)
-
-        if let index = items.firstIndex(where: { $0.id == inboxId }) {
-            items[index].title = title
-            items[index].body = body
-            items[index].kind = kind
-            items[index].scheduledAt = scheduledAt
-        } else {
-            items.append(
-                AppNotificationInboxItem(
-                    id: inboxId,
-                    requestIdentifier: requestIdentifier,
-                    title: title,
-                    body: body,
-                    kind: kind,
-                    scheduledAt: scheduledAt,
-                    deliveredAt: nil,
-                    tappedAt: nil,
-                    createdAt: Date(),
-                    isRead: false
-                )
-            )
-        }
-
-        sortAndPersist()
-        return inboxId
+        pruneScheduledOnlyItems()
+        syncDeliveredNotifications()
     }
 
     func recordPresentedNotification(_ notification: UNNotification) {
@@ -192,6 +158,28 @@ final class NotificationInboxManager: ObservableObject {
         items.sort { $0.sortDate > $1.sortDate }
         recalculateUnreadCount()
         persist()
+    }
+
+    private func pruneScheduledOnlyItems() {
+        let filtered = items.filter { item in
+            item.deliveredAt != nil || item.tappedAt != nil
+        }
+
+        guard filtered.count != items.count else { return }
+        items = filtered
+        sortAndPersist()
+    }
+
+    private func syncDeliveredNotifications() {
+        UNUserNotificationCenter.current().getDeliveredNotifications { [weak self] notifications in
+            guard let self else { return }
+
+            Task { @MainActor in
+                for notification in notifications {
+                    self.update(from: notification, markRead: false, markDelivered: true)
+                }
+            }
+        }
     }
 
     private func recalculateUnreadCount() {
