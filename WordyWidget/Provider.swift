@@ -58,11 +58,14 @@ struct Provider: TimelineProvider {
             date: Date(),
             word: WidgetWidgetWordModel(
                 id: "1",
-                original: "Hello",
+                originalText: "Hello",
                 translation: "Привіт",
-                transcription: "həˈloʊ",
                 example: "Hello, world!",
-                languagePair: "en-uk"
+                sourceLanguage: "en",
+                targetLanguage: "uk",
+                difficultyLevel: "A1",
+                nextReviewDate: nil,
+                updatedAt: Date()
             ),
             isEmpty: false
         )
@@ -114,9 +117,75 @@ struct Provider: TimelineProvider {
 
 struct WidgetWidgetWordModel: Codable, Equatable {
     let id: String
-    let original: String
+    let originalText: String
     let translation: String
-    let transcription: String?
     let example: String?
-    let languagePair: String
+    let sourceLanguage: String
+    let targetLanguage: String
+    let difficultyLevel: String?
+    let nextReviewDate: Date?
+    let updatedAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case originalText
+        case original
+        case translation
+        case example
+        case sourceLanguage
+        case targetLanguage
+        case difficultyLevel
+        case nextReviewDate
+        case updatedAt
+    }
+
+    init(
+        id: String,
+        originalText: String,
+        translation: String,
+        example: String?,
+        sourceLanguage: String,
+        targetLanguage: String,
+        difficultyLevel: String?,
+        nextReviewDate: Date?,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.originalText = originalText
+        self.translation = translation
+        self.example = example
+        self.sourceLanguage = sourceLanguage
+        self.targetLanguage = targetLanguage
+        self.difficultyLevel = difficultyLevel
+        self.nextReviewDate = nextReviewDate
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        originalText = try container.decodeIfPresent(String.self, forKey: .originalText)
+            ?? container.decodeIfPresent(String.self, forKey: .original)
+            ?? ""
+        translation = try container.decodeIfPresent(String.self, forKey: .translation) ?? ""
+        example = try container.decodeIfPresent(String.self, forKey: .example)
+        sourceLanguage = try container.decodeIfPresent(String.self, forKey: .sourceLanguage) ?? "en"
+        targetLanguage = try container.decodeIfPresent(String.self, forKey: .targetLanguage) ?? "uk"
+        difficultyLevel = try container.decodeIfPresent(String.self, forKey: .difficultyLevel)
+        nextReviewDate = try container.decodeIfPresent(Date.self, forKey: .nextReviewDate)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(originalText, forKey: .originalText)
+        try container.encode(translation, forKey: .translation)
+        try container.encodeIfPresent(example, forKey: .example)
+        try container.encode(sourceLanguage, forKey: .sourceLanguage)
+        try container.encode(targetLanguage, forKey: .targetLanguage)
+        try container.encodeIfPresent(difficultyLevel, forKey: .difficultyLevel)
+        try container.encodeIfPresent(nextReviewDate, forKey: .nextReviewDate)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
 }

@@ -11,28 +11,26 @@ struct MainTabView: View {
     @Binding var selectedTab: Int
     @Binding var deepLinkAction: DeepLinkAction?
     let isFirstTime: Bool
-    
+
     init(selectedTab: Binding<Int>, deepLinkAction: Binding<DeepLinkAction?>, isFirstTime: Bool) {
         self._selectedTab = selectedTab
         self._deepLinkAction = deepLinkAction
         self.isFirstTime = isFirstTime
     }
-    
+
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var subscriptionManager: SubscriptionManager
-    
+
     @StateObject private var onboardingManager = OnboardingManager.shared
     @StateObject private var notificationInbox = NotificationInboxManager.shared
-    
+
     @State private var showPaywallFromNotification = false
     @State private var showNotificationsInbox = false
-    
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
-                // MARK: - Search (Пошук)
                 SearchView(
                     selectedTab: $selectedTab,
                     deepLinkAction: $deepLinkAction
@@ -47,8 +45,7 @@ struct MainTabView: View {
                     Text(localizationManager.string(.search))
                 }
                 .tag(0)
-                
-                // MARK: - Sets (Набори слів)
+
                 SetsView()
                     .environmentObject(appState)
                     .environmentObject(localizationManager)
@@ -58,8 +55,7 @@ struct MainTabView: View {
                         Text(localizationManager.string(.sets))
                     }
                     .tag(1)
-                
-                // MARK: - My Dictionary (Мій словник)
+
                 DictionaryView()
                     .environmentObject(appState)
                     .environmentObject(localizationManager)
@@ -69,8 +65,7 @@ struct MainTabView: View {
                         Text(localizationManager.string(.myDictionary))
                     }
                     .tag(2)
-                
-                // MARK: - Profile (Профіль)
+
                 ProfileView()
                     .environmentObject(appState)
                     .environmentObject(localizationManager)
@@ -83,8 +78,7 @@ struct MainTabView: View {
                     .tag(3)
             }
             .accentColor(Color(hex: "#4ECDC4"))
-            
-            // Onboarding overlay
+
             if onboardingManager.isShowingOverlay {
                 OnboardingContainerView()
                     .environmentObject(onboardingManager)
@@ -125,43 +119,17 @@ struct MainTabView: View {
                 .environmentObject(localizationManager)
         }
     }
-    // MARK: - Sets Tab Item з BETA бейджем
-        private var setsTabItem: some View {
-            ZStack {
-                // Основний контент таба
-                VStack(spacing: 2) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .font(.system(size: 22))
-                        
-                        // BETA плашка над іконкою
-                        Text("BETA")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(hex: "#FF6B6B"))
-                            )
-                            .offset(x: 10, y: -10)
-                            .rotationEffect(.degrees(-5)) // Легкий нахил як на прикладі
-                    }
-                    
-                    Text(localizationManager.string(.sets))
-                        .font(.system(size: 10))
-                }
-            }
-        }
-    
+
     private func setupTabBarAppearance() {
+        UITabBar.appearance().isHidden = false
+
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor(AppColors.secondaryScreenBackground(isDarkMode: localizationManager.isDarkMode))
 
         let normalIconColor = UIColor(AppColors.tertiaryText(isDarkMode: localizationManager.isDarkMode))
         let normalTextColor = UIColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
-        let selectedColor = UIColor(AppColors.primary)
+        let selectedColor = UIColor(AppColors.primary.opacity(0.78))
 
         let stacked = appearance.stackedLayoutAppearance
         stacked.normal.iconColor = normalIconColor
@@ -184,14 +152,14 @@ struct MainTabView: View {
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
-    
+
     private func lockOrientationToPortrait() {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
             windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
         }
-        
+
         UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-        
+
         if #unavailable(iOS 16.0) {
             UINavigationController.attemptRotationToDeviceOrientation()
         }

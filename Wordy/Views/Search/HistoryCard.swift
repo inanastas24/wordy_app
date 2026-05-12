@@ -27,10 +27,15 @@ struct HistoryCard: View {
                 Text(item.word)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(isDarkMode ? .white : Color(hex: "#2C3E50"))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 
                 Text(item.translation)
                     .font(.system(size: 16))
                     .foregroundColor(isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             Spacer()

@@ -36,6 +36,7 @@ final class NotificationManager: NSObject, ObservableObject {
         static let scheduledOriginalTransactionId = "scheduled_original_transaction_id"
         static let scheduledExpiryTimestamp = "scheduled_expiry_timestamp"
         static let wordOfDayEnabled = "word_of_day_enabled"
+        static let wordOfDayScheduleHash = "word_of_day_schedule_hash"
     }
 
     override init() {
@@ -137,15 +138,16 @@ final class NotificationManager: NSObject, ObservableObject {
         }
     }
 
-    func refreshWordOfDayNotifications(words: [SavedWordModel]) {
+    func refreshWordOfDayNotifications(words: [SavedWordModel], signature: String? = nil) {
         guard isWordOfDayEnabled else { return }
-        scheduleWordOfDayNotifications(words: words)
+        scheduleWordOfDayNotifications(words: words, signature: signature)
     }
 
     func cancelWordOfDayNotifications() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(
             withIdentifiers: NotificationIdentifiers.wordOfDaySlots
         )
+        defaults.removeObject(forKey: DefaultsKeys.wordOfDayScheduleHash)
         print("✅ Word of the day notifications cancelled")
     }
 
@@ -166,7 +168,21 @@ final class NotificationManager: NSObject, ObservableObject {
             storedExpiryTimestamp == expiryDate.timeIntervalSince1970
 
         if alreadyScheduled {
-            print("ℹ️ Notifications already scheduled for originalTransactionId=\(originalTransactionId)")
+            UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+                let identifiers = Set(requests.map(\.identifier))
+                let expected = Set(NotificationIdentifiers.allIdentifiers)
+                guard expected.isSubset(of: identifiers) else {
+                    print("ℹ️ Subscription notification state exists, but pending requests are missing. Re-scheduling.")
+                    self.clearScheduleState()
+                    self.performScheduleSubscriptionNotifications(
+                        purchaseDate: purchaseDate,
+                        expiryDate: expiryDate,
+                        originalTransactionId: originalTransactionId
+                    )
+                    return
+                }
+                print("ℹ️ Notifications already scheduled for originalTransactionId=\(originalTransactionId)")
+            }
             return
         }
 
@@ -255,7 +271,7 @@ final class NotificationManager: NSObject, ObservableObject {
         defaults.removeObject(forKey: DefaultsKeys.scheduledExpiryTimestamp)
     }
 
-    private func scheduleWordOfDayNotifications(words: [SavedWordModel]) {
+    private func scheduleWordOfDayNotifications(words: [SavedWordModel], signature: String? = nil) {
         refreshPermissionStatus()
 
         let candidates = uniqueWordOfDayCandidates(from: words)
@@ -287,30 +303,74 @@ final class NotificationManager: NSObject, ObservableObject {
                 count: NotificationIdentifiers.wordOfDaySlots.count,
                 calendar: calendar
             )
+            let scheduleSignature = signature ?? self.wordOfDayScheduleSignature(
+                plannedWords: plannedWords,
+                startDate: startDate,
+                calendar: calendar
+            )
 
-            for dayOffset in 0..<NotificationIdentifiers.wordOfDaySlots.count {
-                guard let scheduledDate = calendar.date(byAdding: .day, value: dayOffset, to: startDate) else { continue }
-                let identifier = NotificationIdentifiers.wordOfDaySlots[dayOffset]
-                let word = plannedWords[dayOffset]
-                let content = makeWordOfDayContent(
-                    for: word,
-                    identifier: identifier,
-                    scheduledDate: scheduledDate,
-                    badgeCount: max(NotificationInboxManager.shared.unreadCount, 0) + 1
-                )
-                let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: scheduledDate)
-                let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-                let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-
-                UNUserNotificationCenter.current().add(request) { error in
-                    if let error = error {
-                        print("❌ Failed to schedule \(identifier): \(error)")
-                    } else {
-                        print("✅ Scheduled word of the day: \(identifier) at \(scheduledDate)")
+            let storedSignature = self.defaults.string(forKey: DefaultsKeys.wordOfDayScheduleHash)
+            if storedSignature == scheduleSignature {
+                UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
+                    let identifiers = Set(requests.map(\.identifier))
+                    let expected = Set(NotificationIdentifiers.wordOfDaySlots)
+                    if expected.isSubset(of: identifiers) {
+                        print("ℹ️ Word of day notifications already scheduled, skipping duplicate refresh")
+                        return
                     }
+                    self.schedulePendingWordOfDayRequests(
+                        plannedWords: plannedWords,
+                        startDate: startDate,
+                        calendar: calendar,
+                        scheduleSignature: scheduleSignature
+                    )
+                }
+                return
+            }
+
+            self.schedulePendingWordOfDayRequests(
+                plannedWords: plannedWords,
+                startDate: startDate,
+                calendar: calendar,
+                scheduleSignature: scheduleSignature
+            )
+        }
+    }
+
+    private func schedulePendingWordOfDayRequests(
+        plannedWords: [SavedWordModel],
+        startDate: Date,
+        calendar: Calendar,
+        scheduleSignature: String
+    ) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: NotificationIdentifiers.wordOfDaySlots
+        )
+
+        for dayOffset in 0..<NotificationIdentifiers.wordOfDaySlots.count {
+            guard let scheduledDate = calendar.date(byAdding: .day, value: dayOffset, to: startDate) else { continue }
+            let identifier = NotificationIdentifiers.wordOfDaySlots[dayOffset]
+            let word = plannedWords[dayOffset]
+            let content = makeWordOfDayContent(
+                for: word,
+                identifier: identifier,
+                scheduledDate: scheduledDate,
+                badgeCount: max(NotificationInboxManager.shared.unreadCount, 0) + 1
+            )
+            let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: scheduledDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("❌ Failed to schedule \(identifier): \(error)")
+                } else {
+                    print("✅ Scheduled word of the day: \(identifier) at \(scheduledDate)")
                 }
             }
         }
+
+        defaults.set(scheduleSignature, forKey: DefaultsKeys.wordOfDayScheduleHash)
     }
 
     private func nextWordOfDayStartDate(from now: Date, calendar: Calendar) -> Date {
@@ -432,6 +492,16 @@ final class NotificationManager: NSObject, ObservableObject {
 
     private func makeInboxId(requestIdentifier: String, scheduledAt: Date) -> String {
         "\(requestIdentifier)|\(Int(scheduledAt.timeIntervalSince1970))"
+    }
+
+    private func wordOfDayScheduleSignature(
+        plannedWords: [SavedWordModel],
+        startDate: Date,
+        calendar: Calendar
+    ) -> String {
+        let window = wordOfDayDateKey(for: startDate, calendar: calendar)
+        let identifiers = plannedWords.map { "\($0.id ?? "")|\($0.original)|\($0.translation)" }
+        return ([window] + identifiers).joined(separator: "||")
     }
 
 

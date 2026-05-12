@@ -8,16 +8,45 @@
 import Foundation
 
 enum QueryNormalizer {
+    private struct CacheKey: Hashable {
+        let text: String
+        let language: String
+    }
 
-    static func normalize(_ text: String, language: String) -> String {
+    private static let cacheLock = NSLock()
+    private static var cache: [CacheKey: String] = [:]
+
+    static func normalize(_ text: String, language: String, trigger: String? = nil) -> String {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cacheKey = CacheKey(text: trimmedText, language: normalizedLanguage)
+
+        cacheLock.lock()
+        if let cached = cache[cacheKey] {
+            cacheLock.unlock()
+            if let trigger {
+                print("🧠 QueryNormalizer cache hit trigger='\(trigger)' language='\(normalizedLanguage)' text='\(trimmedText)'")
+            }
+            return cached
+        }
+        cacheLock.unlock()
+
+        if let trigger {
+            print("🧠 QueryNormalizer normalize trigger='\(trigger)' language='\(normalizedLanguage)' text='\(trimmedText)'")
+        }
+
         var result = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
         result = removePunctuation(result)
-        result = removeArticles(result, language: language)
-        result = normalizePlural(result, language: language)
-        result = normalizeVerbs(result, language: language)
+        result = removeArticles(result, language: normalizedLanguage)
+        result = normalizePlural(result, language: normalizedLanguage)
+        result = normalizeVerbs(result, language: normalizedLanguage)
+
+        cacheLock.lock()
+        cache[cacheKey] = result
+        cacheLock.unlock()
 
         return result
     }

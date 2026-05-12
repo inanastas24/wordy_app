@@ -10,16 +10,13 @@ import AVFoundation
 struct VoiceSearchView: View {
     @EnvironmentObject var localizationManager: LocalizationManager
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var subscriptionManager: SubscriptionManager  // 🆕 Додано
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @Environment(\.dismiss) var dismiss
     
     @StateObject private var speechService = SpeechRecognitionService()
-    @State private var showResult = false
-    @State private var translationResult: TranslationResult?
-    @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showPermissionAlert = false
-    @State private var showPaywall = false  // 🆕 Додано для показу paywall тут
+    @State private var showPaywall = false
     
     // Callback returns recognized text only - language is determined by AppState
     var onResult: ((String) -> Void)?
@@ -30,16 +27,13 @@ struct VoiceSearchView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // 🆕 Якщо немає підписки — показуємо тільки фон + paywall
                 if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
                     Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                         .ignoresSafeArea()
                 } else {
-                    // Основний контент тільки для активної підписки
                     mainContent
                 }
                 
-                // 🆕 Paywall показується поверх всього
                 if showPaywall {
                     Color.black.opacity(0.5)
                         .ignoresSafeArea()
@@ -66,25 +60,22 @@ struct VoiceSearchView: View {
                 Text(localizationManager.string(.permissionMessage))
             }
             .onAppear {
-                // 🆕 Перевіряємо підписку одразу
                 if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
                     showPaywall = true
                 } else {
                     checkPermissions()
                 }
             }
-            // 🆕 Показуємо paywall як fullScreenCover
             .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView(
                     isFirstTime: false,
                     onClose: {
-                        // При закритті paywall закриваємо і VoiceSearchView
                         showPaywall = false
                         dismiss()
                     },
                     onSubscribe: {
-                        // При підписці закриваємо paywall і продовжуємо з VoiceSearchView
                         showPaywall = false
+                        checkPermissions()
                     }
                 )
                 .environmentObject(subscriptionManager)
@@ -93,15 +84,13 @@ struct VoiceSearchView: View {
         }
     }
     
-    // 🆕 Винесено основний контент окремо
     private var mainContent: some View {
         ZStack {
             Color(hex: localizationManager.isDarkMode ? "#1C1C1E" : "#FFFDF5")
                 .ignoresSafeArea()
             
             VStack(spacing: 25) {
-                if !showResult {
-                    Spacer()
+                Spacer()
                     
                     Text(localizationManager.string(.holdToSpeak))
                         .font(.system(size: 18))
@@ -218,12 +207,7 @@ struct VoiceSearchView: View {
                         buttonColor: voiceColor
                     )
                     
-                    Spacer()
-                } else if let result = translationResult {
-                    TranslationResultView(result: result, onClose: {
-                        dismiss()
-                    })
-                }
+                Spacer()
             }
             .padding()
         }

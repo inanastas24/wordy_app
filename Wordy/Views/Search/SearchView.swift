@@ -22,8 +22,6 @@ struct SearchView: View {
     @State private var searchText = ""
     @State private var showMenu = false
     @State private var isRecognizing = false
-    @State private var translationResult: TranslationResult?
-    @State private var isLoading = false
     @StateObject private var speechService = SpeechRecognitionService()
     @State private var showScanner = false
     @State private var scannedText = ""
@@ -31,19 +29,24 @@ struct SearchView: View {
     @State private var errorMessage = ""
     @State private var errorTitle = ""
     @State private var showSettings = false
-    @State private var showTranslationCard = false
     @State private var showVoiceSearch = false
     @State private var showPaywall = false
+    @State private var showSaveDictionaryPicker = false
+    @State private var saveDictionarySelectionId: String = ""
+    @State private var pendingSaveAction: ((String) -> Void)?
+    @State private var nextSearchInputMethod: String = "typed"
     
-    @State private var gradientRotation: Double = 0
     @State private var hasAnimatedIn = false
     
     @State private var showSourcePicker = false
     @State private var showTargetPicker = false
+    @State private var showSearchHistory = false
     
     @FocusState private var isSearchFocused: Bool
     
-    private let translationService = TranslationService()
+    @StateObject private var translationViewModel = TranslationViewModel()
+    @StateObject private var dictionaryVM = DictionaryViewModel.shared
+    @StateObject private var ttsManager = TextToSpeechService.shared
     private var voiceColor: Color {
         Color(hex: localizationManager.isDarkMode ? "#FFCA28" : "#FFD93D")
     }
@@ -52,61 +55,49 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: localizationManager.isDarkMode
-                    ? [Color(hex: "#111214"), Color(hex: "#191C1F"), Color(hex: "#131516")]
-                    : [Color(hex: "#FFFDF5"), Color(hex: "#F6FFF9"), Color(hex: "#EEF8FF")],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                .overlay(alignment: .topTrailing) {
-                    Circle()
-                        .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.12 : 0.16))
-                        .frame(width: 220, height: 220)
-                        .blur(radius: 30)
-                        .offset(x: 70, y: -40)
-                }
-                .overlay(alignment: .topLeading) {
-                    Circle()
-                        .fill(Color(hex: "#FFD93D").opacity(localizationManager.isDarkMode ? 0.08 : 0.12))
-                        .frame(width: 180, height: 180)
-                        .blur(radius: 26)
-                        .offset(x: -40, y: 40)
-                }
+                (localizationManager.isDarkMode ? Color(hex: "#111214") : Color(hex: "#F7F8F9"))
+                    .ignoresSafeArea()
                 .onTapGesture {
                     isSearchFocused = false
                 }
                 
                 VStack(spacing: 0) {
-                    HeaderView(showMenu: $showMenu, title: localizationManager.string(.search))
-                        .environmentObject(localizationManager)
-                    
                     ScrollView {
-                        VStack(spacing: 24) {
-                            heroSearchSection
-                                .opacity(hasAnimatedIn ? 1 : 0)
-                                .offset(y: hasAnimatedIn ? 0 : 18)
+                        VStack(spacing: 16) {
+                            VStack(spacing: 8) {
+                                HeaderView(
+                                    showMenu: $showMenu,
+                                    title: localizationManager.string(.search),
+                                    trailingIconName: "clock.arrow.circlepath",
+                                    trailingAction: {
+                                        isSearchFocused = false
+                                        showSearchHistory = true
+                                    }
+                                )
+                                .environmentObject(localizationManager)
+
+                                languagePairSection
+                                    .opacity(hasAnimatedIn ? 1 : 0)
+                                    .offset(y: hasAnimatedIn ? 0 : 10)
+
+                                heroSearchSection
+                                    .opacity(hasAnimatedIn ? 1 : 0)
+                                    .offset(y: hasAnimatedIn ? 0 : 10)
+                            }
 
                             if speechService.isRecording {
                                 recordingIndicator
                                     .transition(.move(edge: .top).combined(with: .opacity))
                             }
 
-                            if isLoading {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                                    .padding(.top, 8)
-                            }
-
-                            historySection
+                            resultCardsSection
                                 .opacity(hasAnimatedIn ? 1 : 0)
                                 .offset(y: hasAnimatedIn ? 0 : 26)
                             
                             Spacer(minLength: 20)
                         }
-                        .padding(.top, 8)
-                        .padding(.bottom, 30)
+                        .padding(.top, 2)
+                        .padding(.bottom, 20)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 }
@@ -148,18 +139,6 @@ struct SearchView: View {
                     )
                 }
                 
-                if let result = translationResult, showTranslationCard {
-                    TranslationBubbleOverlay(
-                        result: result,
-                        showTranslationCard: $showTranslationCard,
-                        translationResult: $translationResult
-                    )
-                    .environmentObject(localizationManager)
-                    .environmentObject(appState)
-                    .environmentObject(authViewModel)
-                    .environmentObject(onboardingManager)
-                }
-                
                 if showMenu {
                     MenuView(isShowing: $showMenu, selectedTab: $selectedTab, showSettings: $showSettings)
                         .transition(.move(edge: .leading))
@@ -188,10 +167,31 @@ struct SearchView: View {
                 .environmentObject(appState)
                 .environmentObject(subscriptionManager)
             }
+            .sheet(isPresented: $showSaveDictionaryPicker, onDismiss: {
+                pendingSaveAction = nil
+            }) {
+                DictionarySelectionSheet(
+                    dictionaries: dictionaryVM.dictionaries,
+                    selectedDictionaryId: saveDictionarySelectionId,
+                    title: localizedSaveToDictionaryTitle
+                ) { dictionary in
+                    let selectedId = dictionaryVM.resolvedSelectionDictionaryId(for: dictionary)
+                    AnalyticsService.shared.trackSaveDictionarySelected(
+                        entityType: "mixed",
+                        dictionaryId: selectedId,
+                        dictionaryName: dictionary.name
+                    )
+                    pendingSaveAction?(selectedId)
+                    pendingSaveAction = nil
+                    saveDictionarySelectionId = selectedId
+                }
+                .environmentObject(localizationManager)
+            }
             .onChange(of: scannedText) { _, newText in
                 if !newText.isEmpty {
                     let truncatedText = String(newText.prefix(254))
                     searchText = truncatedText
+                    nextSearchInputMethod = "camera"
                     if newText.count > 254 {
                         ToastManager.shared.show(
                             message: localizationManager.string(.textTooLong),
@@ -205,23 +205,48 @@ struct SearchView: View {
             .onChange(of: deepLinkAction) { _, newAction in
                 handleDeepLinkAction(newAction)
             }
-            .onChange(of: showTranslationCard) { _, isShowing in
-                if isShowing {
-                    print("🎯 Setting hasTranslationResult = true")
-                    onboardingManager.hasTranslationResult = true
-                } else {
-                    // Скидаємо коли картка закривається
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        print("🎯 Setting hasTranslationResult = false")
-                        onboardingManager.hasTranslationResult = false
-                    }
-                }
+            .onChange(of: searchText) { _, newValue in
+                translationViewModel.updateSearchText(
+                    newValue,
+                    sourceLanguage: appState.languagePair.source.rawValue,
+                    targetLanguage: appState.languagePair.target.rawValue
+                )
+            }
+            .onChange(of: appState.languagePair) { _, newPair in
+                translationViewModel.updateSearchText(
+                    searchText,
+                    sourceLanguage: newPair.source.rawValue,
+                    targetLanguage: newPair.target.rawValue
+                )
+                AnalyticsService.shared.setUserProperties(
+                    isPremium: subscriptionManager.isPremium,
+                    hasActiveTrial: subscriptionManager.isTrialActive,
+                    sourceLang: newPair.source.rawValue,
+                    targetLang: newPair.target.rawValue
+                )
+            }
+            .onChange(of: translationStateToken) { _, hasResult in
+                onboardingManager.hasTranslationResult = hasResult
+            }
+            .onReceive(translationViewModel.$state) { state in
+                guard case let .success(wordCard) = state else { return }
+                addSearchHistoryItem(query: searchText, translation: wordCard.mainTranslation)
             }
             .onAppear {
                 OnboardingContext.isOnDictionaryScreen = false
                 OnboardingContext.justAddedWord = false
                 handleDeepLinkAction(deepLinkAction)
                 animateInIfNeeded()
+                translationViewModel.updateSearchText(
+                    searchText,
+                    sourceLanguage: appState.languagePair.source.rawValue,
+                    targetLanguage: appState.languagePair.target.rawValue
+                )
+                AnalyticsService.shared.trackTranslationEmptyState(
+                    sourceLang: appState.languagePair.source.rawValue,
+                    targetLang: appState.languagePair.target.rawValue,
+                    reason: "not_searched_yet"
+                )
             }
             .alert(errorTitle, isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -242,6 +267,19 @@ struct SearchView: View {
                 .environmentObject(subscriptionManager)
                 .environmentObject(localizationManager)
             }
+            .navigationDestination(isPresented: $showSearchHistory) {
+                SearchHistoryView { selectedWord in
+                    searchText = selectedWord
+                    translationViewModel.updateSearchText(
+                        selectedWord,
+                        sourceLanguage: appState.languagePair.source.rawValue,
+                        targetLanguage: appState.languagePair.target.rawValue
+                    )
+                    performSearch()
+                }
+                .environmentObject(appState)
+                .environmentObject(localizationManager)
+            }
             .fullScreenCover(isPresented: $showSettings) {
                 SettingsView()
                     .environmentObject(localizationManager)
@@ -253,55 +291,32 @@ struct SearchView: View {
         }
     }
 
-    private var heroSearchSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            languagePairContainer
+    private var languagePairSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            editableLanguagePairIndicator
+                .padding(.horizontal, 14)
+                .padding(.top, 0)
+        }
+    }
 
+    private var heroSearchSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             searchBarWithButton
                 .focused($isSearchFocused)
-
-            HStack(spacing: 10) {
-                scanButtonContainer
-                voiceButtonContainer
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.72))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.08 : 0.7), lineWidth: 1)
-                )
-                .shadow(
-                    color: Color.black.opacity(localizationManager.isDarkMode ? 0.18 : 0.06),
-                    radius: 24,
-                    x: 0,
-                    y: 16
-                )
-        )
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(Color(hex: "#4ECDC4").opacity(localizationManager.isDarkMode ? 0.12 : 0.18))
-                .frame(width: 108, height: 108)
-                .blur(radius: 18)
-                .offset(x: 16, y: -20)
         }
         .padding(.horizontal, 14)
+        .padding(.top, 0)
     }
 
     private var searchBarWithButton: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(localizationManager.isDarkMode ? Color.white.opacity(0.55) : Color(hex: "#7D8C92"))
-            
+
             TextField(localizationManager.string(.searchPlaceholder), text: $searchText)
                 .font(.system(size: 16))
                 .submitLabel(.search)
                 .onChange(of: searchText) { _, newValue in
-                    // Ліміт 254 символи
                     if newValue.count > 254 {
                         searchText = String(newValue.prefix(254))
                         ToastManager.shared.show(
@@ -313,113 +328,104 @@ struct SearchView: View {
                 .onSubmit {
                     performSearch()
                 }
-            
-            // Кнопка пошуку
+
             if !searchText.isEmpty {
-                Button {
-                    isSearchFocused = false
-                    performSearch()
-                } label: {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
+                if shouldShowListenButton {
+                    SpeakButton(
+                        isActive: isSearchTextPlaying,
+                        action: playSearchText,
+                        activeSystemName: "speaker.wave.2.circle.fill",
+                        inactiveSystemName: "speaker.wave.2.fill",
+                        font: .system(size: 19, weight: .semibold),
+                        foregroundColor: Color(hex: "#4ECDC4"),
+                        activeForegroundColor: Color(hex: "#2FB7AE"),
+                        frameSize: 36,
+                        backgroundColor: nil,
+                        activeScale: 1.06
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                } else {
+                    Button {
+                        isSearchFocused = false
+                        performSearch()
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(Color(hex: "#4ECDC4"))
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .buttonStyle(PlainButtonStyle())
-                .transition(.scale.combined(with: .opacity))
-            }
-            
-            // Кнопка очищення
-            if !searchText.isEmpty {
+
                 Button {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundColor(.gray)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.plain)
+                .frame(width: 36, height: 36)
+            } else {
+                Button {
+                    isSearchFocused = false
+                    checkCameraPermission()
+                } label: {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(Color(hex: "#4ECDC4"))
+                }
+                .buttonStyle(.plain)
+                .frame(width: 36, height: 36)
+
+                Button {
+                    isSearchFocused = false
+                    showVoiceSearch = true
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(voiceColor)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 36, height: 36)
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(localizationManager.isDarkMode ? Color(hex: "#2A2D31") : Color.white.opacity(0.96))
         )
-        .overlay(
-            AngularGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: "#4ECDC4"),
-                    Color(hex: "#FFD93D"),
-                    Color(hex: "#FF6B6B"),
-                    Color(hex: "#A8D8EA"),
-                    Color(hex: "#4ECDC4")
-                ]),
-                center: .center,
-                angle: .degrees(gradientRotation)
-            )
-            .mask(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(lineWidth: 2.5)
-            )
-            .allowsHitTesting(false)
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func playSearchText() {
+        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        ttsManager.toggle(
+            text: text,
+            language: appState.languagePair.source.rawValue,
+            utteranceID: searchTextUtteranceID
         )
-        .onAppear {
-            withAnimation(
-                .linear(duration: 3)
-                .repeatForever(autoreverses: false)
-            ) {
-                gradientRotation = 360
-            }
-        }
     }
-    
-    // MARK: - Voice Result Handler
-    private func handleVoiceResult(text: String) {
-        if text.count > 254 {
-            let truncated = String(text.prefix(254))
-            searchText = truncated
-            ToastManager.shared.show(
-                message: localizationManager.string(.voiceInputTooLong),
-                style: .warning
-            )
-        } else {
-            searchText = text
-        }
-        performVoiceSearch(text: searchText)
+
+    private var searchTextUtteranceID: String {
+        let languageCode = TextToSpeechService.appleSpeechLanguageCode(
+            for: appState.languagePair.source.rawValue
+        )
+
+        let normalizedText = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
+
+        return "\(languageCode)|\(normalizedText)"
     }
-    // MARK: - Контейнери з онбордингом
-    
-    private var languagePairContainer: some View {
-        editableLanguagePairIndicator
-            .onboardingStep(.languagePair)
-    }
-    
-    private var scanButtonContainer: some View {
-        ActionButton(
-            icon: "camera.viewfinder",
-            title: localizationManager.string(.scan),
-            subtitle: localizationManager.string(.scanText),
-            color: Color(hex: "#A8D8EA"),
-            isDarkMode: localizationManager.isDarkMode
-        ) {
-            isSearchFocused = false
-            checkCameraPermission()
-        }
-        .onboardingStep(.scanButton)
-    }
-    
-    private var voiceButtonContainer: some View {
-        ActionButton(
-            icon: "waveform.badge.mic",
-            title: localizationManager.string(.voice),
-            subtitle: localizationManager.string(.holdToSpeak),
-            color: voiceColor,
-            isDarkMode: localizationManager.isDarkMode
-        ) {
-            isSearchFocused = false
-            showVoiceSearch = true
-        }
-        .onboardingStep(.voiceButton)
+
+    private var isSearchTextPlaying: Bool {
+        let id = searchTextUtteranceID
+        return !id.isEmpty && ttsManager.isActive(id)
     }
     
     // MARK: - Language Pair Indicator
@@ -431,29 +437,9 @@ struct SearchView: View {
                     showSourcePicker = true
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Text(appState.languagePair.source.flag)
-                        .font(.system(size: 17))
-                    Text(appState.languagePair.source.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-                )
+                Text(appState.languagePair.source.flag)
+                    .font(.system(size: 22))
+                    .frame(minWidth: 30, minHeight: 30)
             }
             .buttonStyle(PlainButtonStyle())
             .layoutPriority(1)
@@ -468,11 +454,7 @@ struct SearchView: View {
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(hex: "#4ECDC4"))
-                    .frame(width: 32, height: 32)
-                    .background(
-                        Circle()
-                            .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                    )
+                    .frame(width: 26, height: 26)
             }
             .buttonStyle(PlainButtonStyle())
             
@@ -481,36 +463,17 @@ struct SearchView: View {
                     showTargetPicker = true
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Text(appState.languagePair.target.flag)
-                        .font(.system(size: 17))
-                    Text(appState.languagePair.target.localizedName(in: localizationManager.currentLanguage))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.72)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color(hex: "#4ECDC4").opacity(0.3), lineWidth: 1)
-                )
+                Text(appState.languagePair.target.flag)
+                    .font(.system(size: 22))
+                    .frame(minWidth: 30, minHeight: 30)
             }
             .buttonStyle(PlainButtonStyle())
             .layoutPriority(1)
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .onboardingStep(.languagePair)
     }
-    
+
     // MARK: - Language Picker
     
     private func languagePicker(
@@ -646,94 +609,242 @@ struct SearchView: View {
         .padding(.horizontal, 20)
     }
     
-    private var historySection: some View {
+    private var resultCardsSection: some View {
         Group {
-            if !appState.searchHistory.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(localizationManager.string(.recent))
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                        
-                        Spacer()
-                        
-                        Button(localizationManager.string(.clear)) {
-                            appState.searchHistory.removeAll()
-                        }
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
+            switch translationViewModel.state {
+            case .idle:
+                emptySearchState
+            case .loading:
+                loadingState
+            case .success(let wordCard):
+                VStack(alignment: .leading, spacing: 12) {
+                    if translationViewModel.resultSource == .cache {
+                        cachedResultBanner
                     }
-                    .padding(.horizontal, 20)
-                    
-                    VStack(spacing: 10) {
-                        ForEach(appState.searchHistory.prefix(6)) { item in
-                            recentCompactRow(item)
-                        }
-                    }
-                    .padding(.horizontal, 20)
+
+                    TranslationResultView(
+                        wordCard: wordCard,
+                        onSaveWordCard: {
+                            saveWordCard(wordCard)
+                        },
+                        isWordSavedInDictionary: isWordCardSaved(wordCard),
+                        onSaveTranslation: { option in
+                            saveTranslationOption(option, from: wordCard)
+                        },
+                        onSaveExample: { example in
+                            saveExample(example, from: wordCard)
+                        },
+                        onSaveSynonym: { synonym in
+                            saveSynonym(synonym, from: wordCard)
+                        },
+                        onSearchSynonym: { synonym in
+                            searchText = synonym
+                            translationViewModel.searchNow(
+                                query: synonym,
+                                sourceLanguage: appState.languagePair.source.rawValue,
+                                targetLanguage: appState.languagePair.target.rawValue,
+                                inputMethod: "synonym_tap"
+                            )
+                        },
+                        showsSourceWordInHeader: true
+                    )
+                    .environmentObject(localizationManager)
                 }
-            } else {
-                VStack(spacing: 15) {
-                    Image(systemName: "text.magnifyingglass")
-                        .font(.system(size: 60))
-                        .foregroundColor(Color(hex: "#A8D8EA"))
-                    
-                    Text(localizationManager.string(.search))
-                        .font(.system(size: 18))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                    
-                    Text(localizationManager.string(.searchPlaceholder))
-                        .font(.system(size: 14))
-                        .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 40)
+                .padding(.horizontal, 14)
+            case .error(let error):
+                errorState(error)
             }
         }
     }
 
-    private func recentCompactRow(_ item: SearchItem) -> some View {
-        Button {
-            searchText = item.word
-            isSearchFocused = true
-        } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.word)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#203743"))
-                        .lineLimit(1)
-
-                    Text(item.translation)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color(hex: "#6F7F86"))
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color(hex: "#A8D8EA"))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.07) : Color.white.opacity(0.86))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(localizationManager.isDarkMode ? 0.06 : 0.7), lineWidth: 1)
-            )
+    private var translationStateToken: Bool {
+        if case .success = translationViewModel.state {
+            return true
         }
-        .buttonStyle(PlainButtonStyle())
+        return false
     }
 
     private func animateInIfNeeded() {
         guard !hasAnimatedIn else { return }
         withAnimation(.spring(response: 0.65, dampingFraction: 0.88).delay(0.04)) {
             hasAnimatedIn = true
+        }
+    }
+
+    private var localizedCardsTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Почніть з пошуку слова"
+        case .polish: return "Zacznij od wyszukania słowa"
+        case .english: return "Start by searching a word"
+        }
+    }
+
+    private var localizedCardsHint: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Введіть слово або фразу, щоб побачити переклад, тлумачення та синоніми."
+        case .polish: return "Wpisz słowo lub frazę, aby zobaczyć tłumaczenie, znaczenia i synonimy."
+        case .english: return "Type a word or phrase to see translation, meanings, and synonyms."
+        }
+    }
+
+    private var localizedSaveLabel: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "До словника"
+        case .polish: return "Do slownika"
+        case .english: return "Save"
+        }
+    }
+
+    private var emptySearchState: some View {
+        VStack(spacing: 15) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 56))
+                .foregroundColor(Color(hex: "#A8D8EA"))
+
+            Text(localizedCardsTitle)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.9) : Color(hex: "#2C3E50"))
+
+            Text(localizedCardsHint)
+                .font(.system(size: 14))
+                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+        }
+        .padding(.top, 40)
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 14) {
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(localizationManager.isDarkMode ? Color.white.opacity(0.08) : Color.white.opacity(0.85))
+                    .frame(height: 120)
+                    .redacted(reason: .placeholder)
+            }
+        }
+        .padding(.horizontal, 14)
+    }
+
+    private var cachedResultBanner: some View {
+        Text(localizedCachedBanner)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Color(hex: "#8A6A00"))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(hex: "#FFD93D").opacity(0.18))
+            )
+    }
+
+    #if DEBUG
+    private var debugProviderBanner: some View {
+        Text("DEV source: \(translationViewModel.debugProvider)")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(Color(hex: "#2C3E50"))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(hex: "#4ECDC4").opacity(0.16))
+            )
+    }
+    #endif
+
+    private func errorState(_ error: TranslationError) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 40))
+                .foregroundColor(Color(hex: "#FF6B6B"))
+
+            Text(error.localizedDescription)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                .multilineTextAlignment(.center)
+
+            Text(error.recoverySuggestion ?? localizedRetryHint)
+                .font(.system(size: 14))
+                .foregroundColor(localizationManager.isDarkMode ? .gray : Color(hex: "#7F8C8D"))
+                .multilineTextAlignment(.center)
+
+            Button(action: translationViewModel.retry) {
+                Text(localizedRetryTitle)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(Color(hex: "#4ECDC4")))
+            }
+        }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(localizationManager.isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.82))
+        )
+        .padding(.horizontal, 14)
+    }
+
+    private var localizedCachedBanner: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Показано кешований результат офлайн"
+        case .polish: return "Pokazano wynik z pamieci podrecznej"
+        case .english: return "Showing cached offline result"
+        }
+    }
+
+    private var localizedRetryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Спробувати знову"
+        case .polish: return "Sprobuj ponownie"
+        case .english: return "Retry"
+        }
+    }
+
+    private var shouldShowListenButton: Bool {
+        let trimmedInput = normalizedQuery(searchText)
+        guard !trimmedInput.isEmpty else { return false }
+        guard case let .success(wordCard) = translationViewModel.state else { return false }
+        return normalizedQuery(wordCard.originalText) == trimmedInput
+    }
+
+    private func normalizedQuery(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
+    private func playCurrentTranslation() {
+        guard case let .success(wordCard) = translationViewModel.state else { return }
+        ttsManager.toggle(
+            text: wordCard.mainTranslation,
+            language: appState.languagePair.target.rawValue,
+            utteranceID: currentTranslationUtteranceID
+        )
+    }
+
+    private var currentTranslationUtteranceID: String {
+        guard case let .success(wordCard) = translationViewModel.state else { return "" }
+        let languageCode = TextToSpeechService.appleSpeechLanguageCode(for: appState.languagePair.target.rawValue)
+        let normalizedText = wordCard.mainTranslation
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
+        return "\(languageCode)|\(normalizedText)"
+    }
+
+    private var isCurrentTranslationPlaying: Bool {
+        let id = currentTranslationUtteranceID
+        guard !id.isEmpty else { return false }
+        return ttsManager.isActive(id)
+    }
+
+    private var localizedRetryHint: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Перевірте мережу або спробуйте трохи пізніше."
+        case .polish: return "Sprawdz polaczenie lub sprobuj pozniej."
+        case .english: return "Check your connection or try again in a moment."
         }
     }
     
@@ -805,6 +916,132 @@ struct SearchView: View {
         errorMessage = message
         showErrorAlert = true
     }
+
+    private func saveWordCard(_ wordCard: WordCard) {
+        saveWithDictionarySelectionIfNeeded { dictionaryId in
+            dictionaryVM.saveWord(wordCard.asSavedWordModel(dictionaryId: dictionaryId))
+            print("[DictionarySave] saved whole WordCard id=\(wordCard.id) dictionaryId=\(dictionaryId)")
+            AnalyticsService.shared.trackSaveSuccess(entityType: "word", dictionaryId: dictionaryId)
+            ToastManager.shared.show(
+                message: localizationManager.currentLanguage == .ukrainian ? "Слово додано у словник" : "Word saved to dictionary",
+                style: .success
+            )
+        }
+    }
+
+    private func isWordCardSaved(_ wordCard: WordCard) -> Bool {
+        let normalizedOriginal = QueryNormalizer.normalize(wordCard.originalText, language: wordCard.sourceLanguage)
+        return dictionaryVM.savedWords.contains { saved in
+            let samePair = saved.sourceLanguage == wordCard.sourceLanguage && saved.targetLanguage == wordCard.targetLanguage
+            if !samePair { return false }
+            let savedNormalized = QueryNormalizer.normalize(saved.original, language: saved.sourceLanguage)
+            return savedNormalized == normalizedOriginal
+        }
+    }
+
+    private func saveTranslationOption(_ option: TranslationOption, from wordCard: WordCard) {
+        AnalyticsService.shared.trackSaveClicked(entityType: "translation")
+        saveWithDictionarySelectionIfNeeded { dictionaryId in
+            let word = wordCard.asSavedWordModel(
+                dictionaryId: dictionaryId,
+                selectedTranslationOptionIds: [option.id.uuidString]
+            )
+            dictionaryVM.saveWord(word)
+            print("[DictionarySave] saved translationOption id=\(option.id.uuidString) dictionaryId=\(dictionaryId)")
+            AnalyticsService.shared.trackSaveSuccess(entityType: "translation", dictionaryId: dictionaryId)
+            ToastManager.shared.show(
+                message: localizationManager.currentLanguage == .ukrainian ? "Варіант перекладу збережено" : "Translation saved",
+                style: .success
+            )
+        }
+    }
+
+    private func saveExample(_ example: WordExample, from wordCard: WordCard) {
+        AnalyticsService.shared.trackSaveClicked(entityType: "example")
+        let word = wordCard.asSavedWordModel(
+            dictionaryId: dictionaryVM.defaultDictionaryId(),
+            selectedExampleIds: [example.id.uuidString]
+        )
+        dictionaryVM.saveWord(word)
+        let resolvedDictionaryId = word.dictionaryId ?? dictionaryVM.defaultDictionaryId()
+        print("[DictionarySave] saved example id=\(example.id.uuidString) dictionaryId=\(resolvedDictionaryId)")
+        AnalyticsService.shared.trackSaveSuccess(entityType: "example", dictionaryId: resolvedDictionaryId)
+        ToastManager.shared.show(
+            message: localizationManager.currentLanguage == .ukrainian ? "Приклад збережено" : "Example saved",
+            style: .success
+        )
+    }
+
+    private func saveSynonym(_ synonym: WordSynonym, from wordCard: WordCard) {
+        let entityType = wordCard.antonyms.contains(where: { $0.id == synonym.id }) ? "antonym" : "synonym"
+        AnalyticsService.shared.trackSaveClicked(entityType: entityType)
+        saveWithDictionarySelectionIfNeeded { dictionaryId in
+            let sourceLanguage = synonym.language.isEmpty ? wordCard.sourceLanguage : synonym.language
+            let targetLanguage = (synonym.translationLanguage?.isEmpty == false ? synonym.translationLanguage : nil) ?? wordCard.targetLanguage
+            let resolvedTranslation = (synonym.translation?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                ? synonym.translation!.trimmingCharacters(in: .whitespacesAndNewlines)
+                : wordCard.mainTranslation
+
+            let word = SavedWordModel(
+                original: synonym.word,
+                translation: resolvedTranslation,
+                normalizedText: QueryNormalizer.normalize(synonym.word, language: sourceLanguage),
+                mainTranslation: resolvedTranslation,
+                translations: [
+                    TranslationOption(
+                        value: resolvedTranslation,
+                        partOfSpeech: synonym.partOfSpeech ?? "unknown",
+                        meaningId: synonym.meaningId,
+                        confidence: synonym.relevance ?? 0.64,
+                        sourceType: .contextual,
+                        examples: []
+                    )
+                ],
+                languagePair: "\(sourceLanguage)-\(targetLanguage)",
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage,
+                synonyms: wordCard.synonyms.contains(where: { $0.id == synonym.id }) ? [synonym] : [],
+                antonyms: wordCard.antonyms.contains(where: { $0.id == synonym.id }) ? [synonym] : [],
+                source: .dictionaryAPI,
+                dictionaryId: dictionaryId,
+                wordCard: nil,
+                selectedSynonymIds: [synonym.id.uuidString]
+            )
+            dictionaryVM.saveWord(word)
+            print("[DictionarySave] saved synonym word='\(synonym.word)' translation='\(resolvedTranslation)' id=\(synonym.id.uuidString) dictionaryId=\(dictionaryId)")
+            AnalyticsService.shared.trackSaveSuccess(entityType: entityType, dictionaryId: dictionaryId)
+            ToastManager.shared.show(
+                message: localizationManager.currentLanguage == .ukrainian ? "Синонім збережено" : "Synonym saved",
+                style: .success
+            )
+        }
+    }
+
+    private func saveWithDictionarySelectionIfNeeded(_ save: @escaping (String) -> Void) {
+        let dictionaries = dictionaryVM.dictionaries
+        let defaultDictionaryId = dictionaryVM.defaultDictionaryId()
+
+        guard dictionaries.count > 1 else {
+            save(defaultDictionaryId)
+            return
+        }
+
+        saveDictionarySelectionId = defaultDictionaryId
+        AnalyticsService.shared.trackSaveDictionaryPickerOpened(
+            entityType: "mixed",
+            dictionariesCount: dictionaries.count
+        )
+        pendingSaveAction = save
+        showSaveDictionaryPicker = true
+    }
+
+    private var localizedSaveToDictionaryTitle: String {
+        switch localizationManager.currentLanguage {
+        case .ukrainian: return "Оберіть словник"
+        case .polish: return "Wybierz slownik"
+        case .english: return "Choose Dictionary"
+        }
+    }
     
     private func performSearch() {
         guard !searchText.isEmpty else { return }
@@ -815,29 +1052,13 @@ struct SearchView: View {
             return
         }
         
-        let detectedLang = translationService.detectLanguageSync(searchText)
-        
-        let fromLang: TranslationLanguage
-        let toLang: TranslationLanguage
-        
-        if let detected = detectedLang,
-           let detectedLanguage = TranslationLanguage(rawValue: detected) {
-            if detectedLanguage == appState.languagePair.source {
-                fromLang = appState.languagePair.source
-                toLang = appState.languagePair.target
-            } else if detectedLanguage == appState.languagePair.target {
-                fromLang = appState.languagePair.target
-                toLang = appState.languagePair.source
-            } else {
-                fromLang = appState.languagePair.source
-                toLang = appState.languagePair.target
-            }
-        } else {
-            fromLang = appState.languagePair.source
-            toLang = appState.languagePair.target
-        }
-        
-        executeTranslation(word: searchText, fromLang: fromLang, toLang: toLang)
+        translationViewModel.searchNow(
+            query: searchText,
+            sourceLanguage: appState.languagePair.source.rawValue,
+            targetLanguage: appState.languagePair.target.rawValue,
+            inputMethod: nextSearchInputMethod
+        )
+        nextSearchInputMethod = "typed"
     }
     
     private func performVoiceSearch(text: String) {
@@ -848,65 +1069,39 @@ struct SearchView: View {
             return
         }
         
-        let detectedLang = translationService.detectLanguageSync(text)
-        
-        let fromLang: TranslationLanguage
-        let toLang: TranslationLanguage
-        
-        if let detected = detectedLang,
-           let detectedLanguage = TranslationLanguage(rawValue: detected) {
-            if detectedLanguage == appState.languagePair.source {
-                fromLang = appState.languagePair.source
-                toLang = appState.languagePair.target
-            } else if detectedLanguage == appState.languagePair.target {
-                fromLang = appState.languagePair.target
-                toLang = appState.languagePair.source
-            } else {
-                fromLang = appState.languagePair.source
-                toLang = appState.languagePair.target
-            }
-        } else {
-            fromLang = appState.languagePair.source
-            toLang = appState.languagePair.target
-        }
-        
         self.searchText = text
-        executeTranslation(word: text, fromLang: fromLang, toLang: toLang)
-    }
-    
-    private func executeTranslation(word: String, fromLang: TranslationLanguage, toLang: TranslationLanguage) {
+        nextSearchInputMethod = "voice"
         isSearchFocused = false
-        isLoading = true
+        translationViewModel.searchNow(
+            query: text,
+            sourceLanguage: appState.languagePair.source.rawValue,
+            targetLanguage: appState.languagePair.target.rawValue,
+            inputMethod: "voice"
+        )
+    }
 
-        let normalized = QueryNormalizer.normalize(
-            word,
-            language: fromLang.rawValue
+    private func addSearchHistoryItem(query: String, translation: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTranslation = translation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty, !trimmedTranslation.isEmpty else { return }
+
+        if let first = appState.searchHistory.first,
+           first.word.caseInsensitiveCompare(trimmedQuery) == .orderedSame,
+           first.translation.caseInsensitiveCompare(trimmedTranslation) == .orderedSame {
+            return
+        }
+
+        appState.searchHistory.removeAll {
+            $0.word.caseInsensitiveCompare(trimmedQuery) == .orderedSame
+        }
+        appState.searchHistory.insert(
+            SearchItem(word: trimmedQuery, translation: trimmedTranslation, date: Date()),
+            at: 0
         )
 
-        let queryToUse = normalized.isEmpty ? word : normalized
-        
-        translationService.translate(
-            word: queryToUse,
-            fromLanguage: fromLang.rawValue,
-            toLanguage: toLang.rawValue
-        ) { result in
-            isLoading = false
-            
-            switch result {
-            case .success(let translation):
-                translationResult = translation
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    showTranslationCard = true
-                }
-                let item = SearchItem(word: translation.original, translation: translation.translation, date: Date())
-                appState.searchHistory.insert(item, at: 0)
-                searchText = ""
-                
-            case .failure(let error):
-                errorTitle = localizationManager.string(.error)
-                errorMessage = error.localizedDescription
-                showErrorAlert = true
-            }
+        let maxItems = 100
+        if appState.searchHistory.count > maxItems {
+            appState.searchHistory = Array(appState.searchHistory.prefix(maxItems))
         }
     }
 }

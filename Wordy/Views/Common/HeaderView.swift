@@ -11,7 +11,12 @@ import SwiftUI
 struct HeaderView: View {
     @Binding var showMenu: Bool
     let title: String
+    var subtitleOverride: String? = nil
     var showAvatar: Bool = false
+    var centerContent: AnyView? = nil
+    var hideTrailingAccessory: Bool = false
+    var trailingIconName: String? = nil
+    var trailingAction: (() -> Void)? = nil
     @EnvironmentObject var localizationManager: LocalizationManager
     @StateObject private var notificationInbox = NotificationInboxManager.shared
     
@@ -44,19 +49,42 @@ struct HeaderView: View {
             
             Spacer()
             
-            VStack(spacing: 3) {
-                Text(title)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
+            if let centerContent {
+                centerContent
+            } else {
+                VStack(spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
 
-                Text(headerSubtitle)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
+                    Text(headerSubtitle)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(AppColors.secondaryText(isDarkMode: localizationManager.isDarkMode))
+                }
             }
             
             Spacer()
             
-            if showAvatar {
+            if let trailingIconName, let trailingAction {
+                Button(action: trailingAction) {
+                    Image(systemName: trailingIconName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.primaryText(isDarkMode: localizationManager.isDarkMode))
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(AppColors.controlFill(isDarkMode: localizationManager.isDarkMode))
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(AppColors.cardBorder(isDarkMode: localizationManager.isDarkMode), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            } else if hideTrailingAccessory {
+                Color.clear
+                    .frame(width: 36, height: 36)
+            } else if showAvatar {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 28))
                     .foregroundColor(Color(hex: "#4ECDC4"))
@@ -64,20 +92,23 @@ struct HeaderView: View {
                 ZStack {
                     Circle()
                         .fill(Color(hex: "#4ECDC4").opacity(0.15))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
 
                     Image(systemName: "sparkles")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Color(hex: "#4ECDC4"))
                 }
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 10)
+        .padding(.top, 4)
+        .padding(.bottom, 4)
     }
 
     private var headerSubtitle: String {
+        if let subtitleOverride {
+            return subtitleOverride
+        }
         switch localizationManager.currentLanguage {
         case .ukrainian:
             return title == localizationManager.string(.dictionary) ? "Ваші слова, словники й повторення" : "Готові добірки та швидкий старт"

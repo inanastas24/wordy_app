@@ -535,14 +535,13 @@ struct SearchResultWordRow: View {
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "#4ECDC4"))
 
-                    Button {
-                        ttsManager.toggle(text: word.translation, language: targetLanguage, utteranceID: "set-search-translation-\(word.id)")
-                    } label: {
-                        Image(systemName: ttsManager.isActive("set-search-translation-\(word.id)") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    SpeakButton(
+                        isActive: ttsManager.isActive("set-search-translation-\(word.id)"),
+                        action: { ttsManager.toggle(text: word.translation, language: targetLanguage, utteranceID: "set-search-translation-\(word.id)") },
+                        inactiveSystemName: "speaker.wave.1",
+                        font: .system(size: 12),
+                        foregroundColor: Color(hex: "#4ECDC4")
+                    )
                 }
 
                 if let transcription = word.transcription {
@@ -554,19 +553,14 @@ struct SearchResultWordRow: View {
 
             Spacer()
 
-            Button {
-                checkAndSpeak()
-            } label: {
-                Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(hex: "#4ECDC4"))
-                    .frame(width: 36, height: 36)
-                    .background(Color(hex: "#4ECDC4").opacity(0.15))
-                    .clipShape(Circle())
-                    .scaleEffect(ttsManager.isActive(utteranceID) ? 0.92 : 1.0)
-                    .animation(.spring(response: 0.18, dampingFraction: 0.75), value: ttsManager.isActive(utteranceID))
-            }
-            .buttonStyle(PlainButtonStyle())
+            SpeakButton(
+                isActive: ttsManager.isActive(utteranceID),
+                action: checkAndSpeak,
+                font: .system(size: 16),
+                foregroundColor: Color(hex: "#4ECDC4"),
+                frameSize: 36,
+                backgroundColor: Color(hex: "#4ECDC4").opacity(0.15)
+            )
             .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
                 Button(localizationManager.string(.openSettings)) {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -1000,14 +994,13 @@ struct CategoryWordRow: View {
                             .font(.system(size: 16))
                             .foregroundColor(Color(hex: "#4ECDC4"))
 
-                        Button {
-                            ttsManager.toggle(text: word.translation, language: targetLanguage, utteranceID: "set-translation-\(word.id)")
-                        } label: {
-                            Image(systemName: ttsManager.isActive("set-translation-\(word.id)") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                                .font(.system(size: 13))
-                                .foregroundColor(Color(hex: "#4ECDC4"))
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                        SpeakButton(
+                            isActive: ttsManager.isActive("set-translation-\(word.id)"),
+                            action: { ttsManager.toggle(text: word.translation, language: targetLanguage, utteranceID: "set-translation-\(word.id)") },
+                            inactiveSystemName: "speaker.wave.1",
+                            font: .system(size: 13),
+                            foregroundColor: Color(hex: "#4ECDC4")
+                        )
                     }
 
                     if let transcription = word.transcription {
@@ -1020,17 +1013,14 @@ struct CategoryWordRow: View {
                 Spacer()
 
                 HStack(spacing: 8) {
-                    Button {
-                        checkAndSpeak()
-                    } label: {
-                        Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
-                            .font(.system(size: 16))
-                            .foregroundColor(Color(hex: "#4ECDC4"))
-                            .frame(width: 36, height: 36)
-                            .background(Color(hex: "#4ECDC4").opacity(0.15))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    SpeakButton(
+                        isActive: ttsManager.isActive(utteranceID),
+                        action: checkAndSpeak,
+                        font: .system(size: 16),
+                        foregroundColor: Color(hex: "#4ECDC4"),
+                        frameSize: 36,
+                        backgroundColor: Color(hex: "#4ECDC4").opacity(0.15)
+                    )
                     .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
                         Button(localizationManager.string(.openSettings)) {
                             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -1122,21 +1112,19 @@ struct CategoryWordRow: View {
 
                                 Spacer()
 
-                                Button {
-                                    ttsManager.toggle(
-                                        text: example,
-                                        language: sourceLanguage,
-                                        utteranceID: "set-example-\(word.id)"
-                                    )
-                                } label: {
-                                    Image(systemName: ttsManager.isActive("set-example-\(word.id)") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(Color(hex: "#4ECDC4"))
-                                        .scaleEffect(ttsManager.isActive("set-example-\(word.id)") ? 0.92 : 1.0)
-                                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
-                                                   value: ttsManager.isActive("set-example-\(word.id)"))
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                                SpeakButton(
+                                    isActive: ttsManager.isActive("set-example-\(word.id)"),
+                                    action: {
+                                        ttsManager.toggle(
+                                            text: example,
+                                            language: sourceLanguage,
+                                            utteranceID: "set-example-\(word.id)"
+                                        )
+                                    },
+                                    inactiveSystemName: "speaker.wave.1",
+                                    font: .system(size: 12),
+                                    foregroundColor: Color(hex: "#4ECDC4")
+                                )
                             }
 
                             if let exampleTranslation = word.exampleTranslation {
@@ -1147,18 +1135,19 @@ struct CategoryWordRow: View {
 
                                     Spacer()
 
-                                    Button {
-                                        ttsManager.toggle(
-                                            text: exampleTranslation,
-                                            language: targetLanguage,
-                                            utteranceID: "set-example-translation-\(word.id)"
-                                        )
-                                    } label: {
-                                        Image(systemName: ttsManager.isActive("set-example-translation-\(word.id)") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(Color(hex: "#4ECDC4"))
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                                    SpeakButton(
+                                        isActive: ttsManager.isActive("set-example-translation-\(word.id)"),
+                                        action: {
+                                            ttsManager.toggle(
+                                                text: exampleTranslation,
+                                                language: targetLanguage,
+                                                utteranceID: "set-example-translation-\(word.id)"
+                                            )
+                                        },
+                                        inactiveSystemName: "speaker.wave.1",
+                                        font: .system(size: 12),
+                                        foregroundColor: Color(hex: "#4ECDC4")
+                                    )
                                 }
                             }
                         }

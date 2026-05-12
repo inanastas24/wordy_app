@@ -167,7 +167,7 @@ struct SmallWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let word = entry.word {
-                Text(word.original)
+                Text(word.originalText)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(theme.textPrimary)
                     .lineLimit(3)
@@ -178,15 +178,6 @@ struct SmallWidgetView: View {
                     .foregroundColor(theme.accentColor)
                     .lineLimit(2)
                     .minimumScaleFactor(0.76)
-
-                if let transcription = word.transcription, !transcription.isEmpty {
-                    Text(transcription)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.78)
-                }
-
                 Spacer(minLength: 0)
             } else {
                 EmptyStateView(theme: theme, isCompact: true)
@@ -230,7 +221,7 @@ struct MediumWidgetView: View {
 
                     Spacer(minLength: 0)
 
-                    Text(word.original)
+                    Text(word.originalText)
                         .font(.system(size: 23, weight: .bold, design: .rounded))
                         .foregroundColor(theme.textPrimary)
                         .lineLimit(2)
@@ -242,21 +233,6 @@ struct MediumWidgetView: View {
                             .foregroundColor(theme.accentColor)
                             .lineLimit(2)
                             .minimumScaleFactor(0.72)
-
-                        if let transcription = word.transcription, !transcription.isEmpty {
-                            Text(word.transcription ?? "")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundColor(theme.textSecondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(
-                                    Capsule()
-                                        .fill(theme.accentSoft)
-                                )
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-
                         if let example = word.example, !example.isEmpty {
                             Text(example)
                                 .font(.system(size: 11, weight: .medium))
@@ -512,7 +488,7 @@ private struct CompactWordCard: View {
 
     var body: some View {
         VStack(alignment: alignment, spacing: 6) {
-            Text(word.original)
+            Text(word.originalText)
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
                 .lineLimit(2)
@@ -522,13 +498,6 @@ private struct CompactWordCard: View {
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundColor(theme.accentColor)
                 .lineLimit(2)
-
-            if let transcription = word.transcription, !transcription.isEmpty {
-                Text(transcription)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(theme.textSecondary)
-                    .lineLimit(1)
-            }
         }
         .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
         .padding(.horizontal, 14)
@@ -560,25 +529,13 @@ private struct LargeWordCard: View {
                     .tracking(0.7)
             }
 
-            Text(word.original)
+            Text(word.originalText)
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(theme.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
 
             HStack(alignment: .center, spacing: 10) {
-                if let transcription = word.transcription, !transcription.isEmpty {
-                    Text(transcription)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(theme.textSecondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(theme.accentSoft)
-                        )
-                }
-
                 Spacer()
             }
 

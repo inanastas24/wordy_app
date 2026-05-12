@@ -6,7 +6,6 @@
 import SwiftUI
 import Vision
 import AVFoundation
-import Speech
 import UIKit
 
 struct TextScannerView: View {
@@ -35,12 +34,8 @@ struct TextScannerView: View {
     @State private var isRecognizingText = false
     
     @State private var isConfiguring = false
-    
-    // Permission states
     @State private var showPermissionAlert = false
     @State private var permissionType: ScannerPermissionType = .camera
-    @State private var showVoiceError = false
-    @State private var voiceErrorMessage = ""
     
     var onShowPaywall: (() -> Void)?
     var body: some View {
@@ -267,14 +262,13 @@ struct TextScannerView: View {
             }
         }
         .onAppear {
-               // 🆕 БЛОКУВАННЯ на вході
-               if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
-                   dismiss()
-                   onShowPaywall?()
-                   return
-               }
-               setupCamera()
-           }
+            if subscriptionManager.isSubscriptionExpired || !subscriptionManager.canUseApp {
+                dismiss()
+                onShowPaywall?()
+                return
+            }
+            setupCamera()
+        }
         .onDisappear { stopCameraSafely() }
         .alert(localizationManager.string(.permissionRequired), isPresented: $showPermissionAlert) {
             Button(localizationManager.string(.openSettings)) {
@@ -294,11 +288,6 @@ struct TextScannerView: View {
             default:
                 Text(localizationManager.string(.permissionMessage))
             }
-        }
-        .alert(localizationManager.string(.error), isPresented: $showVoiceError) {
-            Button(localizationManager.string(.ok), role: .cancel) {}
-        } message: {
-            Text(voiceErrorMessage)
         }
     }
 
@@ -335,70 +324,6 @@ struct TextScannerView: View {
             Capsule()
                 .stroke(Color.white.opacity(0.14), lineWidth: 1)
         )
-    }
-    
-    private func startVoiceSearchWithPermissionCheck() {
-        let micStatus = AVAudioApplication.shared.recordPermission
-        guard micStatus == .granted else {
-            if micStatus == .denied {
-                permissionType = .microphone
-                showPermissionAlert = true
-            } else {
-                AVAudioApplication.requestRecordPermission { granted in
-                    DispatchQueue.main.async {
-                        if granted {
-                            self.checkSpeechPermissionAndStart()
-                        } else {
-                            self.permissionType = .microphone
-                            self.showPermissionAlert = true
-                        }
-                    }
-                }
-            }
-            return
-        }
-        
-        checkSpeechPermissionAndStart()
-    }
-    
-    private func checkSpeechPermissionAndStart() {
-        let speechStatus = SFSpeechRecognizer.authorizationStatus()
-        
-        guard speechStatus == .authorized else {
-            if speechStatus == .denied || speechStatus == .restricted {
-                permissionType = .speech
-                showPermissionAlert = true
-            } else {
-                SFSpeechRecognizer.requestAuthorization { status in
-                    DispatchQueue.main.async {
-                        if status == .authorized {
-                            self.startVoiceSearch()
-                        } else {
-                            self.permissionType = .speech
-                            self.showPermissionAlert = true
-                        }
-                    }
-                }
-            }
-            return
-        }
-        
-        startVoiceSearch()
-    }
-    
-    private func startVoiceSearch() {
-        print("🎤 Starting voice search from scanner...")
-        
-        // Stop camera before starting voice search
-        stopCameraSafely()
-        
-        // Here you would typically present a voice search overlay or sheet
-        // For now, we'll just show a placeholder implementation
-        // You can integrate with your existing VoiceSearchView here
-        
-        // Example error handling:
-        // voiceErrorMessage = localizationManager.string(.recognitionError)
-        // showVoiceError = true
     }
     
     private func stopCameraSafely() {

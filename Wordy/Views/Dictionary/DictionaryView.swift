@@ -658,17 +658,14 @@ struct CompactWordRow: View {
             // Main content
             HStack(spacing: 12) {
                 let utteranceID = "dictionary-\(word.id ?? "")"
-                Button(action: onSpeak) {
-                    Image(systemName: ttsManager.isActive(utteranceID) ? "speaker.wave.2.fill" : "speaker.wave.2")
-                        .font(.system(size: 16))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                        .frame(width: 32, height: 32)
-                        .background(Color(hex: "#4ECDC4").opacity(0.15))
-                        .clipShape(Circle())
-                        .scaleEffect(ttsManager.isActive(utteranceID) ? 0.92 : 1.0)
-                        .animation(.spring(response: 0.18, dampingFraction: 0.75), value: ttsManager.isActive(utteranceID))
-                }
-                .buttonStyle(PlainButtonStyle())
+                SpeakButton(
+                    isActive: ttsManager.isActive(utteranceID),
+                    action: onSpeak,
+                    font: .system(size: 16),
+                    foregroundColor: Color(hex: "#4ECDC4"),
+                    frameSize: 32,
+                    backgroundColor: Color(hex: "#4ECDC4").opacity(0.15)
+                )
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
@@ -815,6 +812,45 @@ struct WordDetailOverlay: View {
         return components.count > 1 ? components[1] : "uk"
     }
 
+    private var exampleForSavedPair: WordExample? {
+        let normalizedSource = sourceLanguage.lowercased()
+        let normalizedTarget = targetLanguage.lowercased()
+
+        if let exact = word.examples.first(where: {
+            !$0.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !$0.targetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            $0.sourceLanguage.lowercased() == normalizedSource &&
+            $0.targetLanguage.lowercased() == normalizedTarget
+        }) {
+            return exact
+        }
+
+        if let reversed = word.examples.first(where: {
+            !$0.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !$0.targetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            $0.sourceLanguage.lowercased() == normalizedTarget &&
+            $0.targetLanguage.lowercased() == normalizedSource
+        }) {
+            return WordExample(
+                sourceText: reversed.targetText,
+                targetText: reversed.sourceText,
+                sourceLanguage: normalizedSource,
+                targetLanguage: normalizedTarget,
+                meaningId: reversed.meaningId,
+                translationOptionId: reversed.translationOptionId,
+                difficultyLevel: reversed.difficultyLevel,
+                sourceType: reversed.sourceType,
+                isSensitive: reversed.isSensitive,
+                sensitiveReason: reversed.sensitiveReason
+            )
+        }
+
+        return word.examples.first(where: {
+            !$0.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !$0.targetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        })
+    }
+
     private var examplesTitle: String {
         switch localizationManager.currentLanguage {
         case .ukrainian: return "Приклади використання"
@@ -956,8 +992,20 @@ struct WordDetailOverlay: View {
 
             targetWordSection
 
-            if let example = word.exampleSentence, !example.isEmpty {
-                examplesSection(original: example, originalLang: sourceLanguage)
+            if let pairExample = exampleForSavedPair {
+                examplesSection(
+                    sourceText: pairExample.sourceText,
+                    targetText: pairExample.targetText,
+                    sourceLang: sourceLanguage,
+                    targetLang: targetLanguage
+                )
+            } else if let example = word.exampleSentence, !example.isEmpty {
+                examplesSection(
+                    sourceText: example,
+                    targetText: nil,
+                    sourceLang: sourceLanguage,
+                    targetLang: targetLanguage
+                )
             }
 
             learningInfoSection
@@ -1076,21 +1124,17 @@ struct WordDetailOverlay: View {
 
                 Spacer(minLength: 8)
 
-                Button(action: {
-                    speak(text: text, language: language, prefix: prefix)
-                }) {
-                    Image(systemName: isSpeaking(text: text, language: language, prefix: prefix) ? "speaker.wave.2.fill" : "speaker.wave.2")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isPrimary ? Color(hex: "#4ECDC4") : .white)
-                        .frame(width: 46, height: 46)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(isPrimary ? Color(hex: "#4ECDC4").opacity(0.12) : Color(hex: "#4ECDC4"))
-                        )
-                        .scaleEffect(isSpeaking(text: text, language: language, prefix: prefix) ? 0.94 : 1.0)
-                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
-                                   value: isSpeaking(text: text, language: language, prefix: prefix))
-                }
+                SpeakButton(
+                    isActive: isSpeaking(text: text, language: language, prefix: prefix),
+                    action: { speak(text: text, language: language, prefix: prefix) },
+                    font: .system(size: 16, weight: .semibold),
+                    foregroundColor: isPrimary ? Color(hex: "#4ECDC4") : .white,
+                    frameSize: 46,
+                    backgroundColor: isPrimary ? Color(hex: "#4ECDC4").opacity(0.12) : Color(hex: "#4ECDC4"),
+                    isCircleBackground: false,
+                    cornerRadius: 16,
+                    activeScale: 0.94
+                )
             }
 
             HStack(spacing: 8) {
@@ -1108,36 +1152,63 @@ struct WordDetailOverlay: View {
         .background(detailCardBackground)
     }
 
-    private func examplesSection(original: String, originalLang: String) -> some View {
+    private func examplesSection(
+        sourceText: String,
+        targetText: String?,
+        sourceLang: String,
+        targetLang: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(examplesTitle)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundColor(Color(hex: "#7B8A97"))
 
-            HStack(spacing: 10) {
-                Text("„\(original)\"")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .italic()
-                    .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .lineLimit(4)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
+                    Text("„\(sourceText)\"")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .italic()
+                        .foregroundColor(localizationManager.isDarkMode ? .white : Color(hex: "#2C3E50"))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(4)
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-                Button(action: {
-                    speak(text: original, language: originalLang, prefix: "dictionary-example")
-                }) {
-                    Image(systemName: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? "speaker.wave.2.fill" : "speaker.wave.1")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: "#4ECDC4"))
-                        .frame(width: 36, height: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color(hex: "#4ECDC4").opacity(0.12))
+                    SpeakButton(
+                        isActive: isSpeaking(text: sourceText, language: sourceLang, prefix: "dictionary-example-source"),
+                        action: { speak(text: sourceText, language: sourceLang, prefix: "dictionary-example-source") },
+                        inactiveSystemName: "speaker.wave.1",
+                        font: .system(size: 14, weight: .semibold),
+                        foregroundColor: Color(hex: "#4ECDC4"),
+                        frameSize: 36,
+                        backgroundColor: Color(hex: "#4ECDC4").opacity(0.12),
+                        isCircleBackground: false,
+                        cornerRadius: 14
+                    )
+                }
+
+                if let targetText, !targetText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("→ \(targetText)")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundColor(localizationManager.isDarkMode ? .white.opacity(0.8) : Color(hex: "#6C7A89"))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(4)
+
+                        Spacer(minLength: 0)
+
+                        SpeakButton(
+                            isActive: isSpeaking(text: targetText, language: targetLang, prefix: "dictionary-example-target"),
+                            action: { speak(text: targetText, language: targetLang, prefix: "dictionary-example-target") },
+                            inactiveSystemName: "speaker.wave.1",
+                            font: .system(size: 14, weight: .semibold),
+                            foregroundColor: Color(hex: "#4ECDC4"),
+                            frameSize: 36,
+                            backgroundColor: Color(hex: "#4ECDC4").opacity(0.12),
+                            isCircleBackground: false,
+                            cornerRadius: 14
                         )
-                        .scaleEffect(isSpeaking(text: original, language: originalLang, prefix: "dictionary-example") ? 0.92 : 1.0)
-                        .animation(.spring(response: 0.18, dampingFraction: 0.75),
-                                   value: isSpeaking(text: original, language: originalLang, prefix: "dictionary-example"))
+                    }
                 }
             }
             .padding(16)

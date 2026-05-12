@@ -20,8 +20,34 @@ final class DictionaryViewModel: ObservableObject {
     private let storageKey = "saved_words_storage_v3"
     private let dictionariesStorageKey = "saved_dictionaries_storage_v1"
     private var listener: ListenerRegistration?
+    private var cancellables = Set<AnyCancellable>()
+    private let sideEffectsSubject = PassthroughSubject<SideEffectPayload, Never>()
+    private var lastAppliedSnapshot: StateSnapshot?
+    private var lastWrittenWordsSnapshot: String?
+    private var lastWrittenDictionariesSnapshot: String?
+    private var isFetchInFlight = false
+    private var normalizationCache: [NormalizationCacheKey: SavedWordModel] = [:]
+
+    private struct NormalizationCacheKey: Hashable {
+        let original: String
+        let sourceLanguage: String
+        let targetLanguage: String
+        let dictionaryId: String
+    }
+
+    private struct StateSnapshot: Equatable {
+        let wordsHash: String
+        let dictionariesHash: String
+    }
+
+    private struct SideEffectPayload: Equatable {
+        let widgetWords: [WidgetDataService.WidgetWord]
+        let notificationSignature: String
+        let wordsForNotifications: [SavedWordModel]
+    }
 
     private init() {
+        configureSideEffectsPipeline()
         fetchSavedWords()
     }
 
@@ -303,6 +329,12 @@ final class DictionaryViewModel: ObservableObject {
     // MARK: - Public API
 
     func fetchSavedWords() {
+        guard !isFetchInFlight else {
+            print("🧭 fetchSavedWords skipped: request already in flight")
+            return
+        }
+
+        isFetchInFlight = true
         isLoading = true
 
         Task {
@@ -322,6 +354,7 @@ final class DictionaryViewModel: ObservableObject {
                 await MainActor.run {
                     self.applyAndPersist(words: prepared.words, dictionaries: prepared.dictionaries)
                     self.isLoading = false
+                    self.isFetchInFlight = false
                 }
 
                 if prepared.needsRemoteMigration {
@@ -338,6 +371,7 @@ final class DictionaryViewModel: ObservableObject {
                 await MainActor.run {
                     self.applyAndPersist(words: prepared.words, dictionaries: prepared.dictionaries)
                     self.isLoading = false
+                    self.isFetchInFlight = false
                 }
             }
         }
@@ -459,6 +493,7 @@ final class DictionaryViewModel: ObservableObject {
         let totalQuality = (updated.averageQuality * Double(updated.reviewCount - 1)) + Double(quality)
         updated.averageQuality = totalQuality / Double(updated.reviewCount)
         updated.lastReviewDate = date
+        updated.updatedAt = date
 
         if quality >= 3 {
             updated.srsRepetition += 1
@@ -504,6 +539,7 @@ final class DictionaryViewModel: ObservableObject {
 
         var updatedWord = savedWords[index]
         updatedWord.isLearned = isLearned
+        updatedWord.updatedAt = Date()
         if isLearned {
             updatedWord.nextReviewDate = nil
         }
@@ -525,12 +561,26 @@ final class DictionaryViewModel: ObservableObject {
 
     func applyAndPersist(words: [SavedWordModel], dictionaries: [WordDictionaryModel]) {
         let prepared = prepareData(words: words, dictionaries: dictionaries)
-        savedWords = prepared.words
-        self.dictionaries = prepared.dictionaries
+        let snapshot = makeStateSnapshot(words: prepared.words, dictionaries: prepared.dictionaries)
+
+        if lastAppliedSnapshot == snapshot {
+            print("🧭 applyAndPersist skipped: state snapshot unchanged")
+            return
+        }
+
+        lastAppliedSnapshot = snapshot
+
+        if savedWords != prepared.words {
+            savedWords = prepared.words
+        }
+
+        if self.dictionaries != prepared.dictionaries {
+            self.dictionaries = prepared.dictionaries
+        }
+
         writeWordsToStorage(prepared.words)
         writeDictionariesToStorage(prepared.dictionaries)
-        syncWidgetWords()
-        NotificationManager.shared.refreshWordOfDayNotifications(words: prepared.words)
+        sideEffectsSubject.send(makeSideEffectPayload(from: prepared.words))
     }
 
     // MARK: - Data Preparation
@@ -677,27 +727,21 @@ final class DictionaryViewModel: ObservableObject {
 
     private func stableKey(for word: SavedWordModel) -> String {
         if let id = word.id, !id.isEmpty {
-            return "id:\(id)|dict:\(resolvedDictionaryId(for: word.dictionaryId))"
+            return "id:\(id)"
         }
 
         return [
-            resolvedDictionaryId(for: word.dictionaryId),
-            word.original.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-            word.translation.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-            word.languagePair.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            word.normalizedText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            word.sourceLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+            word.targetLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         ].joined(separator: "|")
     }
 
     private func normalizedWord(_ word: SavedWordModel, fallbackDictionaryId: String? = nil) -> SavedWordModel {
         var normalized = word
-
-        if normalized.id == nil || normalized.id?.isEmpty == true {
-            normalized.id = UUID().uuidString
-        }
-
-        normalized.original = normalized.original.trimmingCharacters(in: .whitespacesAndNewlines)
-        normalized.translation = normalized.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-        normalized.languagePair = normalized.languagePair.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOriginal = normalized.original.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTranslation = normalized.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLanguagePair = normalized.languagePair.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let normalizedDictionaryId = normalized.dictionaryId?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -707,7 +751,43 @@ final class DictionaryViewModel: ObservableObject {
             ?? dictionaries.first?.id
             ?? ensureDefaultDictionaryExists().id
 
+        let cacheKey = NormalizationCacheKey(
+            original: trimmedOriginal.lowercased(),
+            sourceLanguage: normalized.sourceLanguage.lowercased(),
+            targetLanguage: normalized.targetLanguage.lowercased(),
+            dictionaryId: resolvedId ?? ""
+        )
+
+        if let cached = normalizationCache[cacheKey],
+           cached.translation == trimmedTranslation,
+           cached.languagePair == trimmedLanguagePair,
+           cached.mainTranslation == normalized.mainTranslation.trimmingCharacters(in: .whitespacesAndNewlines) {
+            if cached != word {
+                print("🧭 normalizedWord cache hit original='\(trimmedOriginal)' dictionaryId='\(resolvedId ?? "nil")'")
+            }
+            return cached
+        }
+
+        if normalized.id == nil || normalized.id?.isEmpty == true {
+            normalized.id = UUID().uuidString
+        }
+
+        normalized.original = trimmedOriginal
+        normalized.translation = trimmedTranslation
+        normalized.languagePair = trimmedLanguagePair
+        normalized.normalizedText = QueryNormalizer.normalize(
+            normalized.original,
+            language: normalized.sourceLanguage,
+            trigger: "DictionaryViewModel.normalizedWord"
+        )
+        normalized.mainTranslation = normalized.mainTranslation.trimmingCharacters(in: .whitespacesAndNewlines)
+
         normalized.dictionaryId = resolvedId
+        if normalized.updatedAt.timeIntervalSince1970 <= 0 {
+            normalized.updatedAt = normalized.createdAt
+        }
+
+        normalizationCache[cacheKey] = normalized
         print("🧭 normalizedWord original='\(normalized.original)' incomingDictionaryId='\(word.dictionaryId ?? "nil")' fallback='\(fallbackDictionaryId ?? "nil")' resolved='\(resolvedId ?? "nil")'")
         return normalized
     }
@@ -719,6 +799,10 @@ final class DictionaryViewModel: ObservableObject {
 
         if result.transcription?.isEmpty ?? true {
             result.transcription = existing.transcription
+        }
+
+        if result.pronunciation?.isEmpty ?? true {
+            result.pronunciation = existing.pronunciation
         }
 
         if result.exampleSentence?.isEmpty ?? true {
@@ -735,11 +819,77 @@ final class DictionaryViewModel: ObservableObject {
             result.isLearned = new.isLearned
         }
 
+        if result.translations.isEmpty {
+            result.translations = existing.translations
+        }
+
+        if result.examples.isEmpty {
+            result.examples = existing.examples
+        }
+
+        if result.synonyms.isEmpty {
+            result.synonyms = existing.synonyms
+        }
+
+        if result.antonyms.isEmpty {
+            result.antonyms = existing.antonyms
+        }
+
+        if result.meanings.isEmpty {
+            result.meanings = existing.meanings
+        }
+
+        if result.wordForms.isEmpty {
+            result.wordForms = existing.wordForms
+        }
+
+        if result.wordFormGroups.isEmpty {
+            result.wordFormGroups = existing.wordFormGroups
+        }
+
+        if result.relatedTopics.isEmpty {
+            result.relatedTopics = existing.relatedTopics
+        }
+
+        if result.relatedPhrases.isEmpty {
+            result.relatedPhrases = existing.relatedPhrases
+        }
+
+        if result.tags.isEmpty {
+            result.tags = existing.tags
+        }
+
+        if result.setIds.isEmpty {
+            result.setIds = existing.setIds
+        }
+
+        if result.note?.isEmpty ?? true {
+            result.note = existing.note
+        }
+
+        if result.wordCard == nil {
+            result.wordCard = existing.wordCard
+        }
+
+        if result.selectedTranslationOptionIds.isEmpty {
+            result.selectedTranslationOptionIds = existing.selectedTranslationOptionIds
+        }
+
+        if result.selectedExampleIds.isEmpty {
+            result.selectedExampleIds = existing.selectedExampleIds
+        }
+
+        if result.selectedSynonymIds.isEmpty {
+            result.selectedSynonymIds = existing.selectedSynonymIds
+        }
+
         result.reviewCount = max(existing.reviewCount, new.reviewCount)
 
         if result.nextReviewDate == nil {
             result.nextReviewDate = existing.nextReviewDate
         }
+
+        result.updatedAt = Date()
 
         return result
     }
@@ -790,6 +940,12 @@ final class DictionaryViewModel: ObservableObject {
     private func writeWordsToStorage(_ words: [SavedWordModel]) {
         do {
             let data = try JSONEncoder().encode(words)
+            let snapshot = Data(data).base64EncodedString()
+            guard lastWrittenWordsSnapshot != snapshot else {
+                print("🧭 writeWordsToStorage skipped: identical payload")
+                return
+            }
+            lastWrittenWordsSnapshot = snapshot
             UserDefaults.standard.set(data, forKey: storageKey)
         } catch {
             print("❌ Failed to encode saved words: \(error)")
@@ -812,25 +968,45 @@ final class DictionaryViewModel: ObservableObject {
     private func writeDictionariesToStorage(_ dictionaries: [WordDictionaryModel]) {
         do {
             let data = try JSONEncoder().encode(dictionaries)
+            let snapshot = Data(data).base64EncodedString()
+            guard lastWrittenDictionariesSnapshot != snapshot else {
+                print("🧭 writeDictionariesToStorage skipped: identical payload")
+                return
+            }
+            lastWrittenDictionariesSnapshot = snapshot
             UserDefaults.standard.set(data, forKey: dictionariesStorageKey)
         } catch {
             print("❌ Failed to encode dictionaries: \(error)")
         }
     }
 
-    private func syncWidgetWords() {
-        let widgetWords = savedWords.map {
-            WidgetDataService.WidgetWord(
+    private func makeWidgetWords(from words: [SavedWordModel]) -> [WidgetDataService.WidgetWord] {
+        let filteredWords = words
+            .sorted {
+                if $0.isDueForReview != $1.isDueForReview {
+                    return $0.isDueForReview && !$1.isDueForReview
+                }
+                return $0.updatedAt > $1.updatedAt
+            }
+
+        let widgetWords = filteredWords.map {
+            let safeExample = $0.examples.first(where: {
+                !$0.isSensitive && $0.sourceText.count <= 90
+            })?.sourceText
+
+            return WidgetDataService.WidgetWord(
                 id: $0.id ?? UUID().uuidString,
-                original: $0.original,
-                translation: $0.translation,
-                transcription: $0.transcription,
-                example: $0.exampleSentence,
-                languagePair: $0.languagePair
+                originalText: $0.original,
+                translation: $0.mainTranslation,
+                example: safeExample,
+                sourceLanguage: $0.sourceLanguage,
+                targetLanguage: $0.targetLanguage,
+                difficultyLevel: $0.examples.first?.difficultyLevel,
+                nextReviewDate: $0.nextReviewDate,
+                updatedAt: $0.updatedAt
             )
         }
-
-        WidgetDataService.shared.updateWidgetWords(words: widgetWords)
+        return widgetWords
     }
 
     // MARK: - Firestore Listener
@@ -847,5 +1023,71 @@ final class DictionaryViewModel: ObservableObject {
                 self.applyAndPersist(words: prepared.words, dictionaries: prepared.dictionaries)
             }
         }
+    }
+
+    private func configureSideEffectsPipeline() {
+        let shared = sideEffectsSubject
+            .removeDuplicates()
+            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
+            .share()
+
+        shared
+            .sink { payload in
+                WidgetDataService.shared.updateWidgetWords(words: payload.widgetWords)
+            }
+            .store(in: &cancellables)
+
+        shared
+            .sink { payload in
+                NotificationManager.shared.refreshWordOfDayNotifications(
+                    words: payload.wordsForNotifications,
+                    signature: payload.notificationSignature
+                )
+            }
+            .store(in: &cancellables)
+    }
+
+    private func makeSideEffectPayload(from words: [SavedWordModel]) -> SideEffectPayload {
+        SideEffectPayload(
+            widgetWords: makeWidgetWords(from: words),
+            notificationSignature: snapshotHash(for: words.map {
+                [
+                    $0.id ?? "",
+                    $0.original,
+                    $0.translation,
+                    $0.nextReviewDate?.ISO8601Format() ?? "",
+                    $0.updatedAt.ISO8601Format()
+                ].joined(separator: "|")
+            }),
+            wordsForNotifications: words
+        )
+    }
+
+    private func makeStateSnapshot(words: [SavedWordModel], dictionaries: [WordDictionaryModel]) -> StateSnapshot {
+        StateSnapshot(
+            wordsHash: snapshotHash(for: words.map {
+                [
+                    $0.id ?? "",
+                    $0.normalizedText,
+                    $0.translation,
+                    $0.mainTranslation,
+                    $0.dictionaryId ?? "",
+                    $0.updatedAt.ISO8601Format(),
+                    String($0.isLearned),
+                    $0.nextReviewDate?.ISO8601Format() ?? ""
+                ].joined(separator: "|")
+            }),
+            dictionariesHash: snapshotHash(for: dictionaries.map {
+                [
+                    $0.id ?? "",
+                    $0.name,
+                    $0.createdAt.ISO8601Format()
+                ].joined(separator: "|")
+            })
+        )
+    }
+
+    private func snapshotHash(for components: [String]) -> String {
+        components.joined(separator: "||")
     }
 }

@@ -82,10 +82,32 @@ struct WordDictionaryModel: Identifiable, Codable, Equatable, Hashable {
 struct SavedWordModel: Identifiable, Codable, Equatable {
     var id: String?
     var original: String
+    var normalizedText: String
     var translation: String
+    var mainTranslation: String
+    var translations: [TranslationOption]
     var transcription: String?
+    var pronunciation: String?
     var exampleSentence: String?
     var languagePair: String
+    var sourceLanguage: String
+    var targetLanguage: String
+    var explanation: String?
+    var explanationLanguage: String?
+    var examples: [WordExample]
+    var synonyms: [WordSynonym]
+    var antonyms: [WordSynonym]
+    var meanings: [MeaningContent]
+    var wordForms: [WordForm]
+    var wordFormGroups: [WordFormGroup]
+    var relatedTopics: [RelatedTopic]
+    var relatedPhrases: [RelatedPhrase]
+    var partOfSpeech: String?
+    var gender: String?
+    var tags: [String]
+    var setIds: [String]
+    var note: String?
+    var source: WordDataSource
     var dictionaryId: String?
     var isLearned: Bool
     var reviewCount: Int
@@ -96,14 +118,41 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
     var lastReviewDate: Date?
     var averageQuality: Double
     var createdAt: Date
+    var updatedAt: Date
+    var wordCard: WordCard?
+    var selectedTranslationOptionIds: [String]
+    var selectedExampleIds: [String]
+    var selectedSynonymIds: [String]
     var userId: String?
     
     init(id: String? = nil,
          original: String,
          translation: String,
+         normalizedText: String? = nil,
+         mainTranslation: String? = nil,
+         translations: [TranslationOption] = [],
          transcription: String? = nil,
+         pronunciation: String? = nil,
          exampleSentence: String? = nil,
          languagePair: String,
+         sourceLanguage: String? = nil,
+         targetLanguage: String? = nil,
+         explanation: String? = nil,
+         explanationLanguage: String? = nil,
+         examples: [WordExample] = [],
+         synonyms: [WordSynonym] = [],
+         antonyms: [WordSynonym] = [],
+         meanings: [MeaningContent] = [],
+         wordForms: [WordForm] = [],
+         wordFormGroups: [WordFormGroup] = [],
+         relatedTopics: [RelatedTopic] = [],
+         relatedPhrases: [RelatedPhrase] = [],
+         partOfSpeech: String? = nil,
+         gender: String? = nil,
+         tags: [String] = [],
+         setIds: [String] = [],
+         note: String? = nil,
+         source: WordDataSource = .mixed,
          dictionaryId: String? = nil,
          isLearned: Bool = false,
          reviewCount: Int = 0,
@@ -114,13 +163,41 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
          lastReviewDate: Date? = nil,
          averageQuality: Double = 0,
          createdAt: Date = Date(),
+         updatedAt: Date = Date(),
+         wordCard: WordCard? = nil,
+         selectedTranslationOptionIds: [String] = [],
+         selectedExampleIds: [String] = [],
+         selectedSynonymIds: [String] = [],
          userId: String? = nil) {
         self.id = id
         self.original = original
         self.translation = translation
+        self.normalizedText = normalizedText ?? QueryNormalizer.normalize(original, language: sourceLanguage ?? languagePair.components(separatedBy: "-").first ?? "en")
+        self.mainTranslation = mainTranslation ?? translation
+        self.translations = translations
         self.transcription = transcription
+        self.pronunciation = pronunciation
         self.exampleSentence = exampleSentence
         self.languagePair = languagePair
+        let components = languagePair.components(separatedBy: "-")
+        self.sourceLanguage = sourceLanguage ?? components.first ?? "en"
+        self.targetLanguage = targetLanguage ?? (components.count > 1 ? components[1] : "uk")
+        self.explanation = explanation
+        self.explanationLanguage = explanationLanguage
+        self.examples = examples
+        self.synonyms = synonyms
+        self.antonyms = antonyms
+        self.meanings = meanings
+        self.wordForms = wordForms
+        self.wordFormGroups = wordFormGroups
+        self.relatedTopics = relatedTopics
+        self.relatedPhrases = relatedPhrases
+        self.partOfSpeech = partOfSpeech
+        self.gender = gender
+        self.tags = tags
+        self.setIds = setIds
+        self.note = note
+        self.source = source
         self.dictionaryId = dictionaryId
         self.isLearned = isLearned
         self.reviewCount = reviewCount
@@ -131,6 +208,11 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
         self.lastReviewDate = lastReviewDate
         self.averageQuality = averageQuality
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.wordCard = wordCard
+        self.selectedTranslationOptionIds = selectedTranslationOptionIds
+        self.selectedExampleIds = selectedExampleIds
+        self.selectedSynonymIds = selectedSynonymIds
         self.userId = userId
     }
     
@@ -138,6 +220,110 @@ struct SavedWordModel: Identifiable, Codable, Equatable {
     var isDueForReview: Bool {
         guard let nextDate = nextReviewDate else { return true }
         return Date() >= nextDate && !isLearned
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case original
+        case normalizedText
+        case translation
+        case mainTranslation
+        case translations
+        case transcription
+        case pronunciation
+        case exampleSentence
+        case languagePair
+        case sourceLanguage
+        case targetLanguage
+        case explanation
+        case explanationLanguage
+        case examples
+        case synonyms
+        case antonyms
+        case meanings
+        case wordForms
+        case wordFormGroups
+        case relatedTopics
+        case relatedPhrases
+        case partOfSpeech
+        case gender
+        case tags
+        case setIds
+        case note
+        case source
+        case dictionaryId
+        case isLearned
+        case reviewCount
+        case srsInterval
+        case srsRepetition
+        case srsEasinessFactor
+        case nextReviewDate
+        case lastReviewDate
+        case averageQuality
+        case createdAt
+        case updatedAt
+        case wordCard
+        case selectedTranslationOptionIds
+        case selectedExampleIds
+        case selectedSynonymIds
+        case userId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        original = try container.decodeIfPresent(String.self, forKey: .original) ?? ""
+        translation = try container.decodeIfPresent(String.self, forKey: .translation) ?? ""
+        mainTranslation = try container.decodeIfPresent(String.self, forKey: .mainTranslation) ?? translation
+        transcription = try container.decodeIfPresent(String.self, forKey: .transcription)
+        pronunciation = try container.decodeIfPresent(String.self, forKey: .pronunciation)
+        exampleSentence = try container.decodeIfPresent(String.self, forKey: .exampleSentence)
+        languagePair = try container.decodeIfPresent(String.self, forKey: .languagePair) ?? "en-uk"
+
+        let components = languagePair.components(separatedBy: "-")
+        sourceLanguage = try container.decodeIfPresent(String.self, forKey: .sourceLanguage) ?? components.first ?? "en"
+        targetLanguage = try container.decodeIfPresent(String.self, forKey: .targetLanguage) ?? (components.count > 1 ? components[1] : "uk")
+        normalizedText = try container.decodeIfPresent(String.self, forKey: .normalizedText)
+            ?? QueryNormalizer.normalize(original, language: sourceLanguage)
+        translations = try container.decodeIfPresent([TranslationOption].self, forKey: .translations) ?? []
+        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
+        explanationLanguage = try container.decodeIfPresent(String.self, forKey: .explanationLanguage)
+        examples = try container.decodeIfPresent([WordExample].self, forKey: .examples) ?? []
+        synonyms = try container.decodeIfPresent([WordSynonym].self, forKey: .synonyms) ?? []
+        antonyms = try container.decodeIfPresent([WordSynonym].self, forKey: .antonyms) ?? []
+        do {
+            meanings = try container.decodeIfPresent([MeaningContent].self, forKey: .meanings) ?? []
+        } catch {
+            print("⚠️ Failed to decode meanings, fallback to empty: \(error)")
+            meanings = []
+        }
+        wordForms = try container.decodeIfPresent([WordForm].self, forKey: .wordForms) ?? []
+        wordFormGroups = try container.decodeIfPresent([WordFormGroup].self, forKey: .wordFormGroups) ?? []
+        relatedTopics = try container.decodeIfPresent([RelatedTopic].self, forKey: .relatedTopics) ?? []
+        relatedPhrases = try container.decodeIfPresent([RelatedPhrase].self, forKey: .relatedPhrases) ?? []
+        partOfSpeech = try container.decodeIfPresent(String.self, forKey: .partOfSpeech)
+        gender = try container.decodeIfPresent(String.self, forKey: .gender)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        setIds = try container.decodeIfPresent([String].self, forKey: .setIds) ?? []
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        source = try container.decodeIfPresent(WordDataSource.self, forKey: .source) ?? .mixed
+        dictionaryId = try container.decodeIfPresent(String.self, forKey: .dictionaryId)
+        isLearned = try container.decodeIfPresent(Bool.self, forKey: .isLearned) ?? false
+        reviewCount = try container.decodeIfPresent(Int.self, forKey: .reviewCount) ?? 0
+        srsInterval = try container.decodeIfPresent(Double.self, forKey: .srsInterval) ?? 0
+        srsRepetition = try container.decodeIfPresent(Int.self, forKey: .srsRepetition) ?? 0
+        srsEasinessFactor = try container.decodeIfPresent(Double.self, forKey: .srsEasinessFactor) ?? 2.5
+        nextReviewDate = try container.decodeIfPresent(Date.self, forKey: .nextReviewDate)
+        lastReviewDate = try container.decodeIfPresent(Date.self, forKey: .lastReviewDate)
+        averageQuality = try container.decodeIfPresent(Double.self, forKey: .averageQuality) ?? 0
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+        wordCard = try container.decodeIfPresent(WordCard.self, forKey: .wordCard)
+        selectedTranslationOptionIds = try container.decodeIfPresent([String].self, forKey: .selectedTranslationOptionIds) ?? []
+        selectedExampleIds = try container.decodeIfPresent([String].self, forKey: .selectedExampleIds) ?? []
+        selectedSynonymIds = try container.decodeIfPresent([String].self, forKey: .selectedSynonymIds) ?? []
+        userId = try container.decodeIfPresent(String.self, forKey: .userId)
     }
 }
 

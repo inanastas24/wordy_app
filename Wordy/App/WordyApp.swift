@@ -7,6 +7,7 @@ import SwiftUI
 import FirebaseCore
 import SwiftData
 import WidgetKit
+import StoreKit
 
 // MARK: - AppDelegate для блокування орієнтації
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -106,6 +107,16 @@ struct WordyApp: App {
             .onAppear {
                 localizationManager.syncSystemAppearance()
                 refreshWordOfDayScheduleIfNeeded()
+                AnalyticsService.shared.trackAppOpen(
+                    isPremium: subscriptionManager.isPremium,
+                    hasActiveTrial: subscriptionManager.isTrialActive
+                )
+                AnalyticsService.shared.setUserProperties(
+                    isPremium: subscriptionManager.isPremium,
+                    hasActiveTrial: subscriptionManager.isTrialActive,
+                    sourceLang: appState.languagePair.source.rawValue,
+                    targetLang: appState.languagePair.target.rawValue
+                )
                 
                 // Запитуємо пермішени при першому вході
                 if !hasRequestedPermissions {
@@ -121,6 +132,22 @@ struct WordyApp: App {
                     localizationManager.syncSystemAppearance()
                     refreshWordOfDayScheduleIfNeeded()
                     ReviewManager.shared.handleAppBecameActive()
+                    AnalyticsService.shared.startSession(
+                        isPremium: subscriptionManager.isPremium,
+                        daysToRenewal: subscriptionManager.daysToRenewal
+                    )
+                    if let daysToRenewal = subscriptionManager.daysToRenewal,
+                       let planId = subscriptionManager.currentProduct?.id {
+                        AnalyticsService.shared.trackRenewalWindowIfNeeded(
+                            planId: planId,
+                            daysToRenewal: daysToRenewal,
+                            currentStreakDays: StreakService.shared.currentStreak,
+                            last7dSessions: 0,
+                            last7dTranslations: 0
+                        )
+                    }
+                } else if newPhase == .background {
+                    AnalyticsService.shared.endSession()
                 }
             }
         }

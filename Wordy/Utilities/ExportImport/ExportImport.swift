@@ -108,10 +108,66 @@ struct DictionaryImportSummary {
 }
 
 private struct DictionaryExportBundle: Codable {
-    let schemaVersion: Int
+    let version: Int
     let exportedAt: String
     let app: String
-    let dictionaries: [DictionaryExportPayload]
+    let dictionaries: [DictionaryExportPayload]?
+    let words: [DictionaryExportWordPayload]?
+    let sets: [String]
+    let tags: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case schemaVersion
+        case exportedAt
+        case app
+        case dictionaries
+        case words
+        case sets
+        case tags
+    }
+
+    init(
+        version: Int,
+        exportedAt: String,
+        app: String,
+        dictionaries: [DictionaryExportPayload]?,
+        words: [DictionaryExportWordPayload]?,
+        sets: [String],
+        tags: [String]
+    ) {
+        self.version = version
+        self.exportedAt = exportedAt
+        self.app = app
+        self.dictionaries = dictionaries
+        self.words = words
+        self.sets = sets
+        self.tags = tags
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version)
+            ?? container.decodeIfPresent(Int.self, forKey: .schemaVersion)
+            ?? 1
+        exportedAt = try container.decodeIfPresent(String.self, forKey: .exportedAt) ?? ""
+        app = try container.decodeIfPresent(String.self, forKey: .app) ?? "Wordy"
+        dictionaries = try container.decodeIfPresent([DictionaryExportPayload].self, forKey: .dictionaries)
+        words = try container.decodeIfPresent([DictionaryExportWordPayload].self, forKey: .words)
+        sets = try container.decodeIfPresent([String].self, forKey: .sets) ?? []
+        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(exportedAt, forKey: .exportedAt)
+        try container.encode(app, forKey: .app)
+        try container.encodeIfPresent(dictionaries, forKey: .dictionaries)
+        try container.encodeIfPresent(words, forKey: .words)
+        try container.encode(sets, forKey: .sets)
+        try container.encode(tags, forKey: .tags)
+    }
 }
 
 private struct DictionaryExportPayload: Codable {
@@ -124,10 +180,33 @@ private struct DictionaryExportPayload: Codable {
 private struct DictionaryExportWordPayload: Codable {
     let id: String?
     let original: String
+    let normalizedText: String?
     let translation: String
+    let mainTranslation: String?
+    let translations: [TranslationOption]?
     let transcription: String?
+    let pronunciation: String?
     let exampleSentence: String?
     let languagePair: String
+    let sourceLanguage: String
+    let targetLanguage: String
+    let examples: [WordExample]?
+    let synonyms: [WordSynonym]?
+    let antonyms: [WordSynonym]?
+    let meanings: [MeaningContent]?
+    let wordForms: [WordForm]?
+    let wordFormGroups: [WordFormGroup]?
+    let relatedTopics: [RelatedTopic]?
+    let relatedPhrases: [RelatedPhrase]?
+    let partOfSpeech: String?
+    let gender: String?
+    let tags: [String]?
+    let setIds: [String]?
+    let note: String?
+    let wordCard: WordCard?
+    let selectedTranslationOptionIds: [String]?
+    let selectedExampleIds: [String]?
+    let selectedSynonymIds: [String]?
     let isLearned: Bool
     let reviewCount: Int
     let srsInterval: Double
@@ -137,6 +216,7 @@ private struct DictionaryExportWordPayload: Codable {
     let lastReviewDate: String?
     let averageQuality: Double
     let createdAt: String
+    let updatedAt: String?
 }
 
 // MARK: - Export Format
@@ -226,7 +306,7 @@ struct ImportWord {
 }
 
 // MARK: - Export Import Service
-actor DictionaryExportService {
+enum DictionaryExportService {
     
     // MARK: - Export Methods
 
@@ -330,36 +410,14 @@ actor DictionaryExportService {
     // MARK: - JSON Export
     
     private static func exportJSON(_ words: [SavedWordModel], language: AppLanguage) throws -> Data {
-        var exportData: [[String: Any]] = []
-        
-        for word in words {
-            var wordDict: [String: Any] = [
-                "original": word.original,
-                "translation": word.translation,
-                "transcription": word.transcription ?? "",
-                "exampleSentence": word.exampleSentence ?? "",
-                "languagePair": word.languagePair,
-                "dateAdded": ISO8601DateFormatter().string(from: word.createdAt),
-                "isLearned": word.isLearned,
-                "reviewCount": word.reviewCount,
-                "srsInterval": word.srsInterval,
-                "srsRepetition": word.srsRepetition,
-                "srsEasinessFactor": word.srsEasinessFactor,
-                "averageQuality": word.averageQuality
-            ]
-            
-            if let lastReview = word.lastReviewDate {
-                wordDict["lastReviewDate"] = ISO8601DateFormatter().string(from: lastReview)
-            }
-            
-            if let nextReview = word.nextReviewDate {
-                wordDict["nextReviewDate"] = ISO8601DateFormatter().string(from: nextReview)
-            }
-            
-            exportData.append(wordDict)
-        }
-        
-        return try JSONSerialization.data(withJSONObject: exportData, options: [.prettyPrinted, .sortedKeys])
+        _ = language
+        let package = DictionaryTransferPackage(
+            dictionaryName: "Wordy",
+            createdAt: Date(),
+            sourceDictionaryId: nil,
+            words: words
+        )
+        return try exportStructuredJSON([package])
     }
     
     // MARK: - CSV Export
@@ -370,31 +428,29 @@ actor DictionaryExportService {
         let header: String
         switch language {
         case .ukrainian:
-            header = "Слово;Транскрипція;Переклад;Приклад;Переклад прикладу;Мова"
+            header = "Слово;Основний переклад;Мова джерела;Мова перекладу;Частина мови;Приклад;Теги;Набори;Наступне повторення"
         case .polish:
-            header = "Słowo;Transkrypcja;Tłumaczenie;Przykład;Tłumaczenie przykładu;Język"
+            header = "Slowo;Glowne tlumaczenie;Jezyk zrodla;Jezyk docelowy;Czesc mowy;Przyklad;Tagi;Zestawy;Nastepna powtorka"
         case .english:
-            header = "Word;Transcription;Translation;Example;Example Translation;Language"
+            header = "originalText;mainTranslation;sourceLanguage;targetLanguage;partOfSpeech;example;tags;setNames;nextReviewDate"
         }
         lines.append(header)
         
         for word in words {
-            let original = escapeCSV(word.original)
-            let transcription = escapeCSV(word.transcription ?? "")
-            let translation = escapeCSV(word.translation)
-            
-            let examples = parseExamples(word.exampleSentence ?? "")
-            
-            if examples.isEmpty {
-                lines.append("\(original);\(transcription);\(translation);;;\(word.languagePair)")
-            } else {
-                let first = examples[0]
-                lines.append("\(original);\(transcription);\(translation);\(escapeCSV(first.original));\(escapeCSV(first.translation));\(word.languagePair)")
-                
-                for i in 1..<examples.count {
-                    lines.append(";;; \(escapeCSV(examples[i].original));\(escapeCSV(examples[i].translation));")
-                }
-            }
+            let example = word.examples.first?.sourceText ?? word.exampleSentence ?? ""
+            let pos = word.partOfSpeech ?? word.wordCard?.translations.first?.partOfSpeech ?? ""
+            let nextReview = word.nextReviewDate?.ISO8601Format() ?? ""
+            lines.append([
+                escapeCSV(word.original),
+                escapeCSV(word.mainTranslation),
+                escapeCSV(word.sourceLanguage),
+                escapeCSV(word.targetLanguage),
+                escapeCSV(pos),
+                escapeCSV(example),
+                escapeCSV(word.tags.joined(separator: ", ")),
+                escapeCSV(word.setIds.joined(separator: ", ")),
+                escapeCSV(nextReview)
+            ].joined(separator: ";"))
         }
         
         let csvString = lines.joined(separator: "\n")
@@ -469,7 +525,7 @@ actor DictionaryExportService {
     private static func exportStructuredJSON(_ packages: [DictionaryTransferPackage]) throws -> Data {
         let isoFormatter = ISO8601DateFormatter()
         let bundle = DictionaryExportBundle(
-            schemaVersion: 2,
+            version: 2,
             exportedAt: isoFormatter.string(from: Date()),
             app: "Wordy",
             dictionaries: packages.map { package in
@@ -481,10 +537,33 @@ actor DictionaryExportService {
                         DictionaryExportWordPayload(
                             id: word.id,
                             original: word.original,
+                            normalizedText: word.normalizedText,
                             translation: word.translation,
+                            mainTranslation: word.mainTranslation,
+                            translations: word.translations,
                             transcription: word.transcription,
+                            pronunciation: word.pronunciation,
                             exampleSentence: word.exampleSentence,
                             languagePair: word.languagePair,
+                            sourceLanguage: word.sourceLanguage,
+                            targetLanguage: word.targetLanguage,
+                            examples: word.examples,
+                            synonyms: word.synonyms,
+                            antonyms: word.antonyms,
+                            meanings: word.meanings,
+                            wordForms: word.wordForms,
+                            wordFormGroups: word.wordFormGroups,
+                            relatedTopics: word.relatedTopics,
+                            relatedPhrases: word.relatedPhrases,
+                            partOfSpeech: word.partOfSpeech,
+                            gender: word.gender,
+                            tags: word.tags,
+                            setIds: word.setIds,
+                            note: word.note,
+                            wordCard: word.wordCard,
+                            selectedTranslationOptionIds: word.selectedTranslationOptionIds,
+                            selectedExampleIds: word.selectedExampleIds,
+                            selectedSynonymIds: word.selectedSynonymIds,
                             isLearned: word.isLearned,
                             reviewCount: word.reviewCount,
                             srsInterval: word.srsInterval,
@@ -493,11 +572,15 @@ actor DictionaryExportService {
                             nextReviewDate: word.nextReviewDate.map { isoFormatter.string(from: $0) },
                             lastReviewDate: word.lastReviewDate.map { isoFormatter.string(from: $0) },
                             averageQuality: word.averageQuality,
-                            createdAt: isoFormatter.string(from: word.createdAt)
+                            createdAt: isoFormatter.string(from: word.createdAt),
+                            updatedAt: isoFormatter.string(from: word.updatedAt)
                         )
                     }
                 )
-            }
+            },
+            words: nil,
+            sets: Array(Set(packages.flatMap { $0.words.flatMap(\.setIds) })).sorted(),
+            tags: Array(Set(packages.flatMap { $0.words.flatMap(\.tags) })).sorted()
         )
 
         let encoder = JSONEncoder()
@@ -747,12 +830,24 @@ actor DictionaryExportService {
         }
         
         // НОВЕ: Фільтрація дублікатів
-        let existingOriginals = Set(existingWords.map { $0.original.lowercased() })
+        let existingKeys = Set(existingWords.map {
+            [
+                $0.normalizedText.lowercased(),
+                $0.sourceLanguage.lowercased(),
+                $0.targetLanguage.lowercased()
+            ].joined(separator: "|")
+        })
         var uniqueWords: [SavedWordModel] = []
         var duplicateCount = 0
         
         for word in words {
-            if existingOriginals.contains(word.original.lowercased()) {
+            let key = [
+                word.normalizedText.lowercased(),
+                word.sourceLanguage.lowercased(),
+                word.targetLanguage.lowercased()
+            ].joined(separator: "|")
+
+            if existingKeys.contains(key) {
                 duplicateCount += 1
             } else {
                 uniqueWords.append(word)
@@ -773,7 +868,63 @@ actor DictionaryExportService {
         let bundle = try decoder.decode(DictionaryExportBundle.self, from: data)
         let isoFormatter = ISO8601DateFormatter()
 
-        let packages = bundle.dictionaries.map { dictionary in
+        if let standaloneWords = bundle.words, !standaloneWords.isEmpty {
+            let words = standaloneWords.map { word in
+                SavedWordModel(
+                    id: word.id ?? UUID().uuidString,
+                    original: word.original,
+                    translation: word.translation,
+                    normalizedText: word.normalizedText,
+                    mainTranslation: word.mainTranslation,
+                    translations: word.translations ?? [],
+                    transcription: word.transcription,
+                    pronunciation: word.pronunciation,
+                    exampleSentence: word.exampleSentence,
+                    languagePair: word.languagePair,
+                    sourceLanguage: word.sourceLanguage,
+                    targetLanguage: word.targetLanguage,
+                    examples: word.examples ?? [],
+                    synonyms: word.synonyms ?? [],
+                    antonyms: word.antonyms ?? [],
+                    meanings: word.meanings ?? [],
+                    wordForms: word.wordForms ?? [],
+                    wordFormGroups: word.wordFormGroups ?? [],
+                    relatedTopics: word.relatedTopics ?? [],
+                    relatedPhrases: word.relatedPhrases ?? [],
+                    partOfSpeech: word.partOfSpeech,
+                    gender: word.gender,
+                    tags: word.tags ?? [],
+                    setIds: word.setIds ?? [],
+                    note: word.note,
+                    dictionaryId: nil,
+                    isLearned: word.isLearned,
+                    reviewCount: word.reviewCount,
+                    srsInterval: word.srsInterval,
+                    srsRepetition: word.srsRepetition,
+                    srsEasinessFactor: word.srsEasinessFactor,
+                    nextReviewDate: word.nextReviewDate.flatMap { isoFormatter.date(from: $0) },
+                    lastReviewDate: word.lastReviewDate.flatMap { isoFormatter.date(from: $0) },
+                    averageQuality: word.averageQuality,
+                    createdAt: isoFormatter.date(from: word.createdAt) ?? Date(),
+                    updatedAt: word.updatedAt.flatMap { isoFormatter.date(from: $0) } ?? Date(),
+                    wordCard: word.wordCard,
+                    selectedTranslationOptionIds: word.selectedTranslationOptionIds ?? [],
+                    selectedExampleIds: word.selectedExampleIds ?? [],
+                    selectedSynonymIds: word.selectedSynonymIds ?? []
+                )
+            }
+
+            return [
+                DictionaryTransferPackage(
+                    dictionaryName: "Imported",
+                    createdAt: Date(),
+                    sourceDictionaryId: nil,
+                    words: words
+                )
+            ]
+        }
+
+        let packages = (bundle.dictionaries ?? []).map { dictionary in
             DictionaryTransferPackage(
                 dictionaryName: dictionary.name,
                 createdAt: isoFormatter.date(from: dictionary.createdAt) ?? Date(),
@@ -783,9 +934,28 @@ actor DictionaryExportService {
                         id: word.id ?? UUID().uuidString,
                         original: word.original,
                         translation: word.translation,
+                        normalizedText: word.normalizedText,
+                        mainTranslation: word.mainTranslation,
+                        translations: word.translations ?? [],
                         transcription: word.transcription,
+                        pronunciation: word.pronunciation,
                         exampleSentence: word.exampleSentence,
                         languagePair: word.languagePair,
+                        sourceLanguage: word.sourceLanguage,
+                        targetLanguage: word.targetLanguage,
+                        examples: word.examples ?? [],
+                        synonyms: word.synonyms ?? [],
+                        antonyms: word.antonyms ?? [],
+                        meanings: word.meanings ?? [],
+                        wordForms: word.wordForms ?? [],
+                        wordFormGroups: word.wordFormGroups ?? [],
+                        relatedTopics: word.relatedTopics ?? [],
+                        relatedPhrases: word.relatedPhrases ?? [],
+                        partOfSpeech: word.partOfSpeech,
+                        gender: word.gender,
+                        tags: word.tags ?? [],
+                        setIds: word.setIds ?? [],
+                        note: word.note,
                         dictionaryId: nil,
                         isLearned: word.isLearned,
                         reviewCount: word.reviewCount,
@@ -795,7 +965,12 @@ actor DictionaryExportService {
                         nextReviewDate: word.nextReviewDate.flatMap { isoFormatter.date(from: $0) },
                         lastReviewDate: word.lastReviewDate.flatMap { isoFormatter.date(from: $0) },
                         averageQuality: word.averageQuality,
-                        createdAt: isoFormatter.date(from: word.createdAt) ?? Date()
+                        createdAt: isoFormatter.date(from: word.createdAt) ?? Date(),
+                        updatedAt: word.updatedAt.flatMap { isoFormatter.date(from: $0) } ?? Date(),
+                        wordCard: word.wordCard,
+                        selectedTranslationOptionIds: word.selectedTranslationOptionIds ?? [],
+                        selectedExampleIds: word.selectedExampleIds ?? [],
+                        selectedSynonymIds: word.selectedSynonymIds ?? []
                     )
                 }
             )
@@ -850,6 +1025,8 @@ actor DictionaryExportService {
                 transcription: columns.indices.contains(transcriptionIndex) && !columns[transcriptionIndex].isEmpty ? columns[transcriptionIndex] : nil,
                 exampleSentence: columns.indices.contains(exampleIndex) && !columns[exampleIndex].isEmpty ? columns[exampleIndex] : nil,
                 languagePair: columns.indices.contains(languageIndex) && !columns[languageIndex].isEmpty ? columns[languageIndex] : "en-uk",
+                sourceLanguage: languagePairSource(columns.indices.contains(languageIndex) && !columns[languageIndex].isEmpty ? columns[languageIndex] : "en-uk"),
+                targetLanguage: languagePairTarget(columns.indices.contains(languageIndex) && !columns[languageIndex].isEmpty ? columns[languageIndex] : "en-uk"),
                 dictionaryId: nil,
                 createdAt: Date()
             )
@@ -916,6 +1093,11 @@ actor DictionaryExportService {
     // MARK: - JSON Import
     
     private static func importJSON(_ data: Data, language: AppLanguage) async throws -> [SavedWordModel] {
+        if let packages = try? importStructuredJSONPackages(data) {
+            return packages.flatMap(\.words)
+        }
+
+        _ = language
         guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             throw ExportImportError.invalidFileFormat
         }
@@ -936,6 +1118,8 @@ actor DictionaryExportService {
                 transcription: item["transcription"] as? String,
                 exampleSentence: item["exampleSentence"] as? String,
                 languagePair: item["languagePair"] as? String ?? "en-uk",
+                sourceLanguage: item["sourceLanguage"] as? String,
+                targetLanguage: item["targetLanguage"] as? String,
                 isLearned: item["isLearned"] as? Bool ?? false,
                 reviewCount: item["reviewCount"] as? Int ?? 0,
                 srsInterval: item["srsInterval"] as? Double ?? 0,
@@ -991,6 +1175,8 @@ actor DictionaryExportService {
                 transcription: currentTranscription,
                 exampleSentence: exampleSentence,
                 languagePair: currentLanguagePair,
+                sourceLanguage: languagePairSource(currentLanguagePair),
+                targetLanguage: languagePairTarget(currentLanguagePair),
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -1129,6 +1315,8 @@ actor DictionaryExportService {
                 transcription: transcription,
                 exampleSentence: examples.isEmpty ? nil : examples.joined(separator: "; "),
                 languagePair: languagePair,
+                sourceLanguage: languagePairSource(languagePair),
+                targetLanguage: languagePairTarget(languagePair),
                 isLearned: false,
                 reviewCount: 0,
                 srsInterval: 0,
@@ -1171,6 +1359,15 @@ actor DictionaryExportService {
         
         result.append(current)
         return result
+    }
+
+    private static func languagePairSource(_ pair: String) -> String {
+        pair.components(separatedBy: "-").first ?? "en"
+    }
+
+    private static func languagePairTarget(_ pair: String) -> String {
+        let components = pair.components(separatedBy: "-")
+        return components.count > 1 ? components[1] : "uk"
     }
     
     // MARK: - Pluralization Helpers

@@ -90,6 +90,12 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
+    var daysToRenewal: Int? {
+        guard let expiryDate else { return nil }
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: expiryDate).day ?? 0
+        return max(days, 0)
+    }
+
     init() {}
 
     deinit {
@@ -248,6 +254,13 @@ final class SubscriptionManager: ObservableObject {
                 await scheduleNotificationsIfNeeded(transaction)
                 await transaction.finish()
 
+                if isTrialTransaction(purchaseDate: transaction.purchaseDate, expiryDate: transaction.expirationDate ?? Date()) {
+                    AnalyticsService.shared.trackTrialStarted(planId: product.id, trialDays: 3)
+                } else {
+                    let period = product.id.contains("year") ? "yearly" : "monthly"
+                    AnalyticsService.shared.trackSubscriptionStarted(planId: product.id, period: period)
+                }
+
                 print("✅ Purchase fully completed")
                 return true
 
@@ -277,6 +290,7 @@ final class SubscriptionManager: ObservableObject {
 
     func restorePurchases() async -> Bool {
         print("🔄 Restoring purchases...")
+        AnalyticsService.shared.trackRestoreClicked()
 
         do {
             try await AppStore.sync()
@@ -286,16 +300,23 @@ final class SubscriptionManager: ObservableObject {
             if isPremium || isTrialActive {
                 await syncCurrentSubscriptionToFirebase()
                 syncCurrentProductFromStatus()
+                AnalyticsService.shared.trackRestoreSuccess()
                 return true
             }
 
             await checkFirebaseSubscription()
             syncCurrentProductFromStatus()
 
+            if isPremium {
+                AnalyticsService.shared.trackRestoreSuccess()
+            } else {
+                AnalyticsService.shared.trackRestoreFailed()
+            }
             return isPremium
 
         } catch {
             self.errorMessage = "Restore failed: \(error.localizedDescription)"
+            AnalyticsService.shared.trackRestoreFailed()
             return false
         }
     }
@@ -358,6 +379,10 @@ final class SubscriptionManager: ObservableObject {
             print("⚠️ Subscription revoked on: \(revocationDate)")
             status = .expired(expiryDate: transaction.expirationDate)
             syncCurrentProduct(for: transaction.productID)
+            AnalyticsService.shared.trackSubscriptionCancelled(
+                planId: transaction.productID,
+                daysBeforeRenewal: daysToRenewal
+            )
             return
         }
 
@@ -396,6 +421,11 @@ final class SubscriptionManager: ObservableObject {
                     status = .expired(expiryDate: expirationDate)
                     currentProduct = products.first { $0.id == transaction.productID }
                     print("❌ Subscription expired")
+                    AnalyticsService.shared.trackSubscriptionPaymentFailed(
+                        planId: transaction.productID,
+                        errorCode: "expired"
+                    )
+                    AnalyticsService.shared.trackRenewalChurn(planId: transaction.productID)
                 }
             }
         } else {
@@ -403,6 +433,16 @@ final class SubscriptionManager: ObservableObject {
             syncCurrentProduct(for: transaction.productID)
             print("✅ Lifetime subscription")
         }
+
+        if case .premium = status {
+            AnalyticsService.shared.trackSubscriptionRenewal(planId: transaction.productID)
+            AnalyticsService.shared.trackRenewalRetained(planId: transaction.productID)
+        }
+
+        AnalyticsService.shared.setUserProperties(
+            isPremium: isPremium,
+            hasActiveTrial: isTrialActive
+        )
     }
 
     private func scheduleNotificationsIfNeeded(_ transaction: StoreKit.Transaction) async {

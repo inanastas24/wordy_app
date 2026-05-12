@@ -13,6 +13,11 @@ class FirebaseFunctionsService {
     static let shared = FirebaseFunctionsService()
     
     private let functions = Functions.functions()
+
+    struct GeneratedWordExplanation {
+        let text: String
+        let language: String
+    }
     
     // MARK: - Generate Word Set via Cloud Function
     
@@ -150,6 +155,58 @@ class FirebaseFunctionsService {
         }
         
         return setsData.compactMap { parseCommunitySet($0) }
+    }
+
+    // MARK: - Generate Word Explanation
+
+    func generateWordExplanation(
+        word: String,
+        translation: String,
+        sourceLanguage: String,
+        targetLanguage: String,
+        preferredExplanationLanguage: String,
+        meanings: [MeaningContent],
+        examples: [WordExample],
+        userId: String?
+    ) async throws -> GeneratedWordExplanation {
+
+        let data: [String: Any] = [
+            "word": word,
+            "translation": translation,
+            "sourceLanguage": sourceLanguage,
+            "targetLanguage": targetLanguage,
+            "preferredExplanationLanguage": preferredExplanationLanguage,
+            "meanings": meanings.map {
+                [
+                    "meaning": $0.meaning,
+                    "meaningLanguage": $0.meaningLanguage,
+                    "translation": $0.translation ?? "",
+                    "translationLanguage": $0.translationLanguage ?? "",
+                    "partOfSpeech": $0.partOfSpeech.rawValue
+                ]
+            },
+            "examples": examples.map {
+                [
+                    "sourceText": $0.sourceText,
+                    "targetText": $0.targetText,
+                    "sourceLanguage": $0.sourceLanguage,
+                    "targetLanguage": $0.targetLanguage
+                ]
+            },
+            "userId": userId ?? "",
+            "timestamp": Date().iso8601String
+        ]
+
+        let result = try await functions.httpsCallable("generateWordExplanation").call(data)
+
+        guard let response = result.data as? [String: Any],
+              let explanation = response["explanation"] as? String,
+              !explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw GenerationError.invalidResponse
+        }
+
+        let language = (response["language"] as? String) ?? preferredExplanationLanguage
+        return GeneratedWordExplanation(text: explanation, language: language)
     }
     
     // MARK: - Helpers

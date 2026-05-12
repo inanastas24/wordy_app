@@ -55,6 +55,10 @@ struct PaywallView: View {
         }
         .onAppear {
             selectDefaultProduct()
+            AnalyticsService.shared.trackPaywallViewed(sourceScreen: "search", placement: "full_screen")
+            if let days = subscriptionManager.daysToRenewal, days <= 3 {
+                AnalyticsService.shared.trackRenewalReminderShown(channel: "in_app", daysToRenewal: days)
+            }
         }
         .onChange(of: subscriptionManager.products) {
             selectDefaultProduct()
@@ -288,6 +292,8 @@ struct PaywallView: View {
     }
 
     private func openManageSubscriptions() {
+        AnalyticsService.shared.trackManageSubscriptionOpened()
+        AnalyticsService.shared.trackRenewalReminderClicked(channel: "in_app")
         UIApplication.shared.open(PaywallLegalLinks.manageSubscriptionsURL)
     }
 
